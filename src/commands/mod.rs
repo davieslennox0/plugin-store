@@ -7,6 +7,8 @@ pub mod update;
 pub mod installed;
 pub mod registry_update;
 pub mod self_update;
+pub mod init;
+pub mod lint;
 
 use clap::Subcommand;
 
@@ -65,6 +67,16 @@ pub enum Commands {
     Registry {
         #[command(subcommand)]
         command: RegistryCommands,
+    },
+    /// Scaffold a new plugin submission
+    Init {
+        /// Plugin name (lowercase, hyphens, 2-40 chars)
+        name: String,
+    },
+    /// Validate a plugin submission before submitting
+    Lint {
+        /// Path to the plugin submission directory
+        path: String,
     },
 }
 

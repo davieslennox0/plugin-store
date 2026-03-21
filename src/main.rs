@@ -33,5 +33,7 @@ async fn main() -> anyhow::Result<()> {
         Commands::Registry { command } => match command {
             RegistryCommands::Update => commands::registry_update::execute().await,
         },
+        Commands::Init { name } => commands::init::execute(&name),
+        Commands::Lint { path } => commands::lint::execute(&path),
     }
 }
