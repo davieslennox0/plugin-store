@@ -138,7 +138,10 @@ pub fn lint_submission(submission_dir: &Path) -> Result<LintReport> {
         });
     }
 
-    // ── 10. Components validation ─────────────────────────────────
+    // ── 10. Community plugins: MCP and Binary are forbidden ────────
+    check_community_component_restrictions(&plugin, &mut diags);
+
+    // ── 11. Components validation ─────────────────────────────────
     check_components(&plugin, submission_dir, &mut diags);
 
     // ── 11. Permissions validation ────────────────────────────────
@@ -308,6 +311,38 @@ fn check_license(license: &str, dir: &Path, diags: &mut Vec<LintDiag>) {
             level: DiagLevel::Error,
             code: "E041",
             message: "LICENSE file not found in submission directory".to_string(),
+        });
+    }
+}
+
+/// Community submissions may only contain Skill components.
+/// MCP and Binary require code execution on the user's machine and are
+/// restricted to official / dapp-official plugins until the platform
+/// supports source-code auditing and CI-based compilation.
+fn check_community_component_restrictions(plugin: &PluginYaml, diags: &mut Vec<LintDiag>) {
+    if plugin.components.mcp.is_some() {
+        diags.push(LintDiag {
+            level: DiagLevel::Error,
+            code: "E110",
+            message:
+                "community plugins cannot include MCP components — \
+                 MCP servers execute code on the user's machine. \
+                 This capability will be available once platform-managed \
+                 source auditing and compilation is supported."
+                    .to_string(),
+        });
+    }
+
+    if plugin.components.binary.is_some() {
+        diags.push(LintDiag {
+            level: DiagLevel::Error,
+            code: "E111",
+            message:
+                "community plugins cannot include Binary components — \
+                 binaries execute arbitrary code on the user's machine. \
+                 This capability will be available once platform-managed \
+                 source auditing and compilation is supported."
+                    .to_string(),
         });
     }
 }
