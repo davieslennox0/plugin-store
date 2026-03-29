@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use std::path::Path;
 
+use crate::config;
 use crate::registry::models::{DiscoveredMcp, DiscoveredSkill};
 
 pub struct SkillInstaller;
@@ -39,7 +40,8 @@ impl SkillInstaller {
         Ok(())
     }
 
-    /// Fetch the full file tree of a GitHub repo at the given ref
+    /// Fetch the full file tree of a GitHub repo at the given ref.
+    /// Falls back to ZIP download if the API returns 403 (rate limit).
     async fn fetch_repo_tree(repo: &str, git_ref: &str) -> Result<Vec<String>> {
         let url = format!(
             "https://api.github.com/repos/{}/git/trees/{}?recursive=1",
@@ -51,7 +53,13 @@ impl SkillInstaller {
             .header("User-Agent", "plugin-store")
             .header("Accept", "application/vnd.github+json")
             .send()
-            .await?
+            .await?;
+
+        if resp.status() == reqwest::StatusCode::FORBIDDEN {
+            return Self::fetch_repo_tree_via_zip(repo, git_ref).await;
+        }
+
+        let resp = resp
             .error_for_status()
             .context(format!("Failed to fetch repo tree for {}", repo))?;
 
@@ -69,16 +77,63 @@ impl SkillInstaller {
         Ok(paths)
     }
 
+    /// Fallback: download repo ZIP and extract file paths from it.
+    async fn fetch_repo_tree_via_zip(repo: &str, git_ref: &str) -> Result<Vec<String>> {
+        let url = format!("https://github.com/{}/archive/{}.zip", repo, git_ref);
+        let client = reqwest::Client::new();
+        let bytes = client
+            .get(&url)
+            .header("User-Agent", "plugin-store")
+            .send()
+            .await?
+            .error_for_status()
+            .context(format!("Failed to download ZIP for {}", repo))?
+            .bytes()
+            .await?;
+
+        let cursor = std::io::Cursor::new(bytes);
+        let mut archive = zip::ZipArchive::new(cursor)
+            .context("Failed to open ZIP archive")?;
+
+        // GitHub ZIP has a top-level prefix like "repo-name-ref/"
+        // Strip that prefix to get paths relative to repo root.
+        let mut paths = Vec::new();
+        for i in 0..archive.len() {
+            let file = archive.by_index(i)?;
+            let name = file.name().to_string();
+            // skip directories
+            if name.ends_with('/') {
+                continue;
+            }
+            // strip the first path component (e.g. "repo-main/")
+            if let Some(stripped) = name.splitn(2, '/').nth(1) {
+                if !stripped.is_empty() {
+                    paths.push(stripped.to_string());
+                }
+            }
+        }
+
+        Ok(paths)
+    }
+
     /// Install all files under a specific directory prefix in a repo.
     /// Downloads every file whose path starts with `dir/`, preserving structure.
+    /// For community repos, automatically prepends `submissions/{plugin}/` to `dir`.
     pub async fn install_from_dir(
         repo: &str,
         dir: &str,
         agent_skill_dir: &Path,
         git_ref: &str,
     ) -> Result<usize> {
+        let resolved_dir = if repo == config::COMMUNITY_REPO {
+            let plugin_name = dir.split('/').last().unwrap_or(dir);
+            format!("submissions/{}/{}", plugin_name, dir)
+        } else {
+            dir.to_string()
+        };
+
         let all_paths = Self::fetch_repo_tree(repo, git_ref).await?;
-        let prefix = format!("{}/", dir.trim_end_matches('/'));
+        let prefix = format!("{}/", resolved_dir.trim_end_matches('/'));
 
         let files: Vec<&String> = all_paths
             .iter()
