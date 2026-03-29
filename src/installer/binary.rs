@@ -11,6 +11,7 @@ impl BinaryInstaller {
         asset_pattern: &str,
         checksums_asset: Option<&str>,
         install_dir: &str,
+        release_tag: Option<&str>,
     ) -> Result<PathBuf> {
         let target = current_target();
         let asset_name = asset_pattern.replace("{target}", &target);
@@ -20,10 +21,17 @@ impl BinaryInstaller {
         let binary_path = install_path.join(&asset_name);
 
         let client = reqwest::Client::new();
-        let release_url = format!(
-            "https://api.github.com/repos/{}/releases/latest",
-            repo
-        );
+        let release_url = if let Some(tag) = release_tag {
+            format!(
+                "https://api.github.com/repos/{}/releases/tags/{}",
+                repo, tag
+            )
+        } else {
+            format!(
+                "https://api.github.com/repos/{}/releases/latest",
+                repo
+            )
+        };
         let release: serde_json::Value = client
             .get(&release_url)
             .header("User-Agent", "plugin-store")

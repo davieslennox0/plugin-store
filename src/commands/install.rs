@@ -80,6 +80,7 @@ pub async fn execute(
                 &bin.asset_pattern,
                 bin.checksums_asset.as_deref(),
                 install_dir,
+                bin.release_tag.as_deref(),
             )
             .await?;
             binary_path_shared = Some(path.display().to_string());

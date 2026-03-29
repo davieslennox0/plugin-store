@@ -100,6 +100,9 @@ pub struct BinaryComponent {
     pub asset_pattern: String,
     pub checksums_asset: Option<String>,
     pub install_dir: Option<String>,
+    /// GitHub Release tag to download from. When absent, falls back to `releases/latest`.
+    #[serde(default)]
+    pub release_tag: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
