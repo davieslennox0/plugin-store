@@ -110,7 +110,7 @@
         "skill": {
           "repo": "okx/plugin-store-community",
           "dir": "skills/eth-gas-tracker",
-          "commit": "6929e95f8239aac8740b62aea5e744b5153fc8a0"
+          "commit": "c52eed639c17d96a417090e1fd14427394e80fb3"
         }
       },
       "link": "https://github.com/okx/plugin-store-community",
@@ -134,7 +134,7 @@
         "skill": {
           "repo": "okx/plugin-store-community",
           "dir": "skills/go-echo-cli",
-          "commit": "6929e95f8239aac8740b62aea5e744b5153fc8a0"
+          "commit": "c52eed639c17d96a417090e1fd14427394e80fb3"
         },
         "binary": {
           "repo": "okx/plugin-store",
@@ -169,7 +169,7 @@
         "skill": {
           "repo": "okx/plugin-store-community",
           "dir": "skills/node-echo-cli",
-          "commit": "6929e95f8239aac8740b62aea5e744b5153fc8a0"
+          "commit": "c52eed639c17d96a417090e1fd14427394e80fb3"
         },
         "binary": {
           "repo": "okx/plugin-store",
@@ -204,20 +204,20 @@
         "skill": {
           "repo": "okx/plugin-store-community",
           "dir": "skills/python-echo-cli",
-          "commit": "6929e95f8239aac8740b62aea5e744b5153fc8a0"
+          "commit": "c52eed639c17d96a417090e1fd14427394e80fb3"
         },
         "python": {
           "source_repo": "yz06276/python-echo-cli",
-          "source_commit": "73995b8fb627486c5eab24aa788a32b8ee014d28",
+          "source_commit": "6b31765b0ccb3f77eeb78f84c1755eebdda9c1e1",
           "requires_python": ">=3.10",
-          "install_command": "pip install git+https://github.com/yz06276/python-echo-cli@73995b8fb627486c5eab24aa788a32b8ee014d28"
+          "install_command": "pip install git+https://github.com/yz06276/python-echo-cli@6b31765b0ccb3f77eeb78f84c1755eebdda9c1e1"
         }
       },
       "link": "https://github.com/okx/plugin-store-community",
       "build": {
         "lang": "python",
         "source_repo": "yz06276/python-echo-cli",
-        "source_commit": "73995b8fb627486c5eab24aa788a32b8ee014d28",
+        "source_commit": "6b31765b0ccb3f77eeb78f84c1755eebdda9c1e1",
         "binary_name": "python-echo-cli"
       }
     },
@@ -239,7 +239,7 @@
         "skill": {
           "repo": "okx/plugin-store-community",
           "dir": "skills/rust-echo-cli",
-          "commit": "6929e95f8239aac8740b62aea5e744b5153fc8a0"
+          "commit": "c52eed639c17d96a417090e1fd14427394e80fb3"
         },
         "binary": {
           "repo": "okx/plugin-store",
@@ -275,7 +275,7 @@
         "skill": {
           "repo": "okx/plugin-store-community",
           "dir": "skills/signal-tracker",
-          "commit": "6929e95f8239aac8740b62aea5e744b5153fc8a0"
+          "commit": "c52eed639c17d96a417090e1fd14427394e80fb3"
         },
         "binary": {
           "repo": "okx/plugin-store",
@@ -313,7 +313,7 @@
         "skill": {
           "repo": "okx/plugin-store-community",
           "dir": "skills/sol-token-guard",
-          "commit": "6929e95f8239aac8740b62aea5e744b5153fc8a0"
+          "commit": "c52eed639c17d96a417090e1fd14427394e80fb3"
         }
       },
       "link": "https://github.com/okx/plugin-store-community",
@@ -337,7 +337,7 @@
         "skill": {
           "repo": "okx/plugin-store-community",
           "dir": "skills/ts-echo-cli",
-          "commit": "6929e95f8239aac8740b62aea5e744b5153fc8a0"
+          "commit": "c52eed639c17d96a417090e1fd14427394e80fb3"
         },
         "binary": {
           "repo": "okx/plugin-store",
