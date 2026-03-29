@@ -252,43 +252,6 @@
         "risk_level": "medium"
       },
       "link": "https://github.com/Polymarket/agent-skills"
-    },
-    {
-      "name": "morpho-earn",
-      "alias": "Morpho 稳定币理财",
-      "version": "1.2.0",
-      "description": "Earn yield on USDC via the Moonwell Flagship USDC vault on Morpho (Base). Supports deposit, withdraw, auto-compound, and position monitoring.",
-      "author": {
-        "name": "Moonwell"
-      },
-      "category": "defi-protocol",
-      "tags": [
-        "morpho",
-        "yield",
-        "usdc",
-        "base",
-        "lending",
-        "compound"
-      ],
-      "type": "community",
-      "components": {
-        "skill": {
-          "repo": "moonwell-fi/openclaw-morpho-earn",
-          "path": "SKILL.md",
-          "commit": "f8a8afc1ddf23b7a1731ca34f1d5ddeed0d8c2aa"
-        }
-      },
-      "extra": {
-        "chains": [
-          "base"
-        ],
-        "protocols": [
-          "morpho",
-          "moonwell"
-        ],
-        "risk_level": "low"
-      },
-      "link": "https://github.com/moonwell-fi/openclaw-morpho-earn"
     }
   ]
 }
