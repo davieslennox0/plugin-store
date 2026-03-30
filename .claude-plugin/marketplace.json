@@ -1,0 +1,21 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "okx-plugin-store",
+  "description": "OKX Plugin Store — a marketplace of DeFi skills, trading strategies, and on-chain tools for AI agents. All blockchain interactions use onchainos CLI.",
+  "owner": {
+    "name": "OKX",
+    "email": "plugin-store@okx.com"
+  },
+  "plugins": [
+    {
+      "name": "plugin-store",
+      "description": "The main on-chain DeFi skill. Discover, install, update, and manage plugins — including trading strategies, DeFi integrations, and developer tools — across Claude Code, Cursor, and OpenClaw.",
+      "source": "./skills/plugin-store",
+      "category": "productivity",
+      "author": {
+        "name": "OKX"
+      },
+      "homepage": "https://github.com/okx/plugin-store"
+    }
+  ]
+}
