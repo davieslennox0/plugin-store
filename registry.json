@@ -146,32 +146,6 @@
       "alias": "Meme Trench Scanner - Meme 扫链"
     },
     {
-      "name": "okx-buildx-hackathon-agent-track",
-      "version": "1.0.0",
-      "description": "AI Hackathon participation guide — registration, wallet setup, project building, submission to Moltbook, voting, and scoring. Apr 1-15, 2026. $14,000 USDT in prizes.",
-      "author": {
-        "name": "OKX"
-      },
-      "category": "utility",
-      "tags": [
-        "hackathon",
-        "xlayer",
-        "onchainos",
-        "uniswap",
-        "moltbook"
-      ],
-      "type": "official",
-      "components": {
-        "skill": {
-          "repo": "okx/plugin-store-community",
-          "dir": "skills/okx-buildx-hackathon-agent-track",
-          "commit": "613cf59ab92ba30abbfd562ecedaf15def1ec9bb"
-        }
-      },
-      "link": "https://github.com/okx/plugin-store-community",
-      "alias": "OKX Build X Hackathon"
-    },
-    {
       "name": "smart-money-signal-copy-trade",
       "version": "1.0.0",
       "description": "Smart Money Signal Copy Trade v1.0 — Smart money signal tracker with cost-aware TP, 15-check safety, 7-layer exit system",
