@@ -141,11 +141,57 @@
         "skill": {
           "repo": "okx/plugin-store-community",
           "dir": "skills/okx-buildx-hackathon-agent-track",
-          "commit": "f1184d5b82cb91df07dfacaebe02d1917e49a135"
+          "commit": "dd967504a3934ee3eea6d66ddf0b4a7b017ed7fa"
         }
       },
       "link": "https://github.com/okx/plugin-store-community",
       "alias": "OKX Build X Hackathon"
+    },
+    {
+      "name": "smart-money-signal-copy-trade",
+      "version": "1.0.0",
+      "description": "Smart Money Signal Copy Trade v1.0 — Smart money signal tracker with cost-aware TP, 15-check safety, 7-layer exit system",
+      "author": {
+        "name": "yz06276"
+      },
+      "category": "trading-strategy",
+      "tags": [
+        "solana",
+        "onchainos",
+        "trading-bot"
+      ],
+      "type": "community-developer",
+      "components": {
+        "skill": {
+          "repo": "okx/plugin-store-community",
+          "dir": "skills/smart-money-signal-copy-trade",
+          "commit": "dd967504a3934ee3eea6d66ddf0b4a7b017ed7fa"
+        }
+      },
+      "link": "https://github.com/okx/plugin-store-community"
+    },
+    {
+      "name": "top-rank-tokens-sniper",
+      "version": "1.0.0",
+      "description": "Top Rank Tokens Sniper v1.0 — OKX ranking leaderboard sniper with momentum scoring, 3-level safety, 6-layer exit system",
+      "author": {
+        "name": "yz06276"
+      },
+      "category": "trading-strategy",
+      "tags": [
+        "solana",
+        "onchainos",
+        "trading-bot"
+      ],
+      "type": "community-developer",
+      "components": {
+        "skill": {
+          "repo": "okx/plugin-store-community",
+          "dir": "skills/top-rank-tokens-sniper",
+          "commit": "dd967504a3934ee3eea6d66ddf0b4a7b017ed7fa"
+        }
+      },
+      "link": "https://github.com/okx/plugin-store-community"
     }
   ]
 }
