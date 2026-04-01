@@ -148,7 +148,9 @@ api_calls: []
         Ok(())
     };
 
-    git(&["remote", "add", "upstream", &format!("https://github.com/{}.git", community_repo)])?;
+    // gh clone of a fork may auto-add 'upstream'; ignore error if already exists
+    let _ = git(&["remote", "add", "upstream", &format!("https://github.com/{}.git", community_repo)]);
+    let _ = git(&["remote", "set-url", "upstream", &format!("https://github.com/{}.git", community_repo)]);
     git(&["fetch", "upstream", "main"])?;
     git(&["reset", "--hard", "upstream/main"])?;
     git(&["push", "origin", "main", "--force"])?;
