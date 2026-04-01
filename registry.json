@@ -139,10 +139,11 @@
         "skill": {
           "repo": "okx/plugin-store-community",
           "dir": "skills/meme-trench-scanner",
-          "commit": "21d54e8c685ac3be7f147771de8ea8c387475131"
+          "commit": "5fb1f5c14b4af4cecf6658c0de0638bc3a679e49"
         }
       },
-      "link": "https://github.com/okx/plugin-store-community"
+      "link": "https://github.com/okx/plugin-store-community",
+      "alias": "Meme Trench Scanner - Meme 扫链"
     },
     {
       "name": "okx-buildx-hackathon-agent-track",
@@ -188,10 +189,11 @@
         "skill": {
           "repo": "okx/plugin-store-community",
           "dir": "skills/smart-money-signal-copy-trade",
-          "commit": "21d54e8c685ac3be7f147771de8ea8c387475131"
+          "commit": "5fb1f5c14b4af4cecf6658c0de0638bc3a679e49"
         }
       },
-      "link": "https://github.com/okx/plugin-store-community"
+      "link": "https://github.com/okx/plugin-store-community",
+      "alias": "Smart Money Signal Copy Trade - 聪明钱信号跟单"
     },
     {
       "name": "top-rank-tokens-sniper",
@@ -211,10 +213,11 @@
         "skill": {
           "repo": "okx/plugin-store-community",
           "dir": "skills/top-rank-tokens-sniper",
-          "commit": "21d54e8c685ac3be7f147771de8ea8c387475131"
+          "commit": "5fb1f5c14b4af4cecf6658c0de0638bc3a679e49"
         }
       },
-      "link": "https://github.com/okx/plugin-store-community"
+      "link": "https://github.com/okx/plugin-store-community",
+      "alias": "Top Rank Tokens Sniper - 榜单狙击手"
     }
   ]
 }
