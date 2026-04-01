@@ -165,7 +165,7 @@
         "skill": {
           "repo": "okx/plugin-store-community",
           "dir": "skills/ranking-sniper",
-          "commit": "d4d0098e225002beb90930e8fe9b513fad710e90"
+          "commit": "53a7c25266f89c9bd68d0f0163be683d8331c704"
         }
       },
       "link": "https://github.com/okx/plugin-store-community"
@@ -189,7 +189,7 @@
         "skill": {
           "repo": "okx/plugin-store-community",
           "dir": "skills/scan-live",
-          "commit": "d4d0098e225002beb90930e8fe9b513fad710e90"
+          "commit": "53a7c25266f89c9bd68d0f0163be683d8331c704"
         }
       },
       "link": "https://github.com/okx/plugin-store-community",
@@ -246,7 +246,7 @@
         "skill": {
           "repo": "okx/plugin-store-community",
           "dir": "skills/smart-signal",
-          "commit": "d4d0098e225002beb90930e8fe9b513fad710e90"
+          "commit": "53a7c25266f89c9bd68d0f0163be683d8331c704"
         }
       },
       "link": "https://github.com/okx/plugin-store-community"
