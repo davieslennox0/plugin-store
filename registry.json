@@ -139,7 +139,7 @@
         "skill": {
           "repo": "okx/plugin-store-community",
           "dir": "skills/meme-trench-scanner",
-          "commit": "71525d3150632fb208ce0955379c05d36801c46e"
+          "commit": "853dff3d7846f73eb2887d2793082545be7d8335"
         }
       },
       "link": "https://github.com/okx/plugin-store-community"
@@ -164,7 +164,7 @@
         "skill": {
           "repo": "okx/plugin-store-community",
           "dir": "skills/okx-buildx-hackathon-agent-track",
-          "commit": "71525d3150632fb208ce0955379c05d36801c46e"
+          "commit": "853dff3d7846f73eb2887d2793082545be7d8335"
         }
       },
       "link": "https://github.com/okx/plugin-store-community",
@@ -188,7 +188,7 @@
         "skill": {
           "repo": "okx/plugin-store-community",
           "dir": "skills/smart-money-signal-copy-trade",
-          "commit": "71525d3150632fb208ce0955379c05d36801c46e"
+          "commit": "853dff3d7846f73eb2887d2793082545be7d8335"
         }
       },
       "link": "https://github.com/okx/plugin-store-community"
@@ -207,7 +207,7 @@
         "skill": {
           "repo": "okx/plugin-store-community",
           "dir": "skills/test-claude-py",
-          "commit": "71525d3150632fb208ce0955379c05d36801c46e"
+          "commit": "853dff3d7846f73eb2887d2793082545be7d8335"
         }
       },
       "link": "https://github.com/okx/plugin-store-community"
@@ -229,7 +229,7 @@
         "skill": {
           "repo": "okx/plugin-store-community",
           "dir": "skills/test-echo-go",
-          "commit": "71525d3150632fb208ce0955379c05d36801c46e"
+          "commit": "853dff3d7846f73eb2887d2793082545be7d8335"
         },
         "binary": {
           "repo": "okx/plugin-store-community",
@@ -244,6 +244,72 @@
         "source_repo": "yz06276/test-echo-go",
         "source_commit": "ab92b64cee25ae8d37fe066c95a53ea16e004e97",
         "binary_name": "test-echo-go"
+      }
+    },
+    {
+      "name": "test-echo-node",
+      "version": "1.0.0",
+      "description": "Test echo CLI built in Node.js",
+      "author": {
+        "name": "yz06276"
+      },
+      "category": "utility",
+      "tags": [
+        "test",
+        "node"
+      ],
+      "type": "community-developer",
+      "components": {
+        "skill": {
+          "repo": "okx/plugin-store-community",
+          "dir": "skills/test-echo-node",
+          "commit": "853dff3d7846f73eb2887d2793082545be7d8335"
+        },
+        "npm": {
+          "source_repo": "yz06276/test-echo-node",
+          "source_commit": "727c732e5b9185a3d2a7e4bfb1e84e1393a7b38c",
+          "install_command": "npm install -g git+https://github.com/yz06276/test-echo-node#727c732e5b9185a3d2a7e4bfb1e84e1393a7b38c"
+        }
+      },
+      "link": "https://github.com/okx/plugin-store-community",
+      "build": {
+        "lang": "node",
+        "source_repo": "yz06276/test-echo-node",
+        "source_commit": "727c732e5b9185a3d2a7e4bfb1e84e1393a7b38c",
+        "binary_name": "test-echo-node"
+      }
+    },
+    {
+      "name": "test-echo-python",
+      "version": "1.0.0",
+      "description": "Test echo CLI built in Python",
+      "author": {
+        "name": "yz06276"
+      },
+      "category": "utility",
+      "tags": [
+        "test",
+        "python"
+      ],
+      "type": "community-developer",
+      "components": {
+        "skill": {
+          "repo": "okx/plugin-store-community",
+          "dir": "skills/test-echo-python",
+          "commit": "853dff3d7846f73eb2887d2793082545be7d8335"
+        },
+        "python": {
+          "source_repo": "yz06276/test-echo-python",
+          "source_commit": "0d2b0a69163dba688f1946ad00cdd6e4545e5726",
+          "install_command": "pip install git+https://github.com/yz06276/test-echo-python@0d2b0a69163dba688f1946ad00cdd6e4545e5726"
+        }
+      },
+      "link": "https://github.com/okx/plugin-store-community",
+      "build": {
+        "lang": "python",
+        "source_repo": "yz06276/test-echo-python",
+        "source_commit": "0d2b0a69163dba688f1946ad00cdd6e4545e5726",
+        "binary_name": "test-echo-python"
       }
     },
     {
@@ -263,7 +329,7 @@
         "skill": {
           "repo": "okx/plugin-store-community",
           "dir": "skills/test-echo-rust",
-          "commit": "71525d3150632fb208ce0955379c05d36801c46e"
+          "commit": "853dff3d7846f73eb2887d2793082545be7d8335"
         },
         "binary": {
           "repo": "okx/plugin-store-community",
@@ -279,6 +345,61 @@
         "source_commit": "960e677100cdc00a5d26c5761b2a6483f5760780",
         "binary_name": "test-echo-rust"
       }
+    },
+    {
+      "name": "test-echo-ts",
+      "version": "1.0.0",
+      "description": "Test echo CLI built in TypeScript",
+      "author": {
+        "name": "yz06276"
+      },
+      "category": "utility",
+      "tags": [
+        "test",
+        "typescript"
+      ],
+      "type": "community-developer",
+      "components": {
+        "skill": {
+          "repo": "okx/plugin-store-community",
+          "dir": "skills/test-echo-ts",
+          "commit": "853dff3d7846f73eb2887d2793082545be7d8335"
+        },
+        "npm": {
+          "source_repo": "yz06276/test-echo-ts",
+          "source_commit": "db760aff5d5f029927dc00a15a131a0445c95d23",
+          "install_command": "npm install -g git+https://github.com/yz06276/test-echo-ts#db760aff5d5f029927dc00a15a131a0445c95d23"
+        }
+      },
+      "link": "https://github.com/okx/plugin-store-community",
+      "build": {
+        "lang": "typescript",
+        "source_repo": "yz06276/test-echo-ts",
+        "source_commit": "db760aff5d5f029927dc00a15a131a0445c95d23",
+        "binary_name": "test-echo-ts"
+      }
+    },
+    {
+      "name": "test-skill-only",
+      "version": "1.0.0",
+      "description": "Test pure skill plugin — no binary, no build",
+      "author": {
+        "name": "yz06276"
+      },
+      "category": "utility",
+      "tags": [
+        "test",
+        "skill-only"
+      ],
+      "type": "community-developer",
+      "components": {
+        "skill": {
+          "repo": "okx/plugin-store-community",
+          "dir": "skills/test-skill-only",
+          "commit": "853dff3d7846f73eb2887d2793082545be7d8335"
+        }
+      },
+      "link": "https://github.com/okx/plugin-store-community"
     },
     {
       "name": "top-rank-tokens-sniper",
@@ -298,7 +419,7 @@
         "skill": {
           "repo": "okx/plugin-store-community",
           "dir": "skills/top-rank-tokens-sniper",
-          "commit": "71525d3150632fb208ce0955379c05d36801c46e"
+          "commit": "853dff3d7846f73eb2887d2793082545be7d8335"
         }
       },
       "link": "https://github.com/okx/plugin-store-community"
