@@ -15,6 +15,14 @@ pub struct PluginYaml {
     #[serde(default)]
     pub tags: Vec<String>,
     pub components: ComponentsDecl,
+    /// Plugin source type (free-form string, displayed in `plugin-store list`).
+    /// Examples: "official", "dapp-official", "community-developer".
+    /// Defaults to "community-developer" in registry if absent.
+    #[serde(default, rename = "type")]
+    pub plugin_type: Option<String>,
+    /// Link URL for the plugin (project homepage, repo, etc.).
+    #[serde(default)]
+    pub link: Option<String>,
     /// Build configuration for Binary source code compilation.
     /// Any developer can submit source code — our CI compiles it.
     /// Absent = pure Skill plugin (no compilation needed).
