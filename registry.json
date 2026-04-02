@@ -139,7 +139,7 @@
         "skill": {
           "repo": "okx/plugin-store-community",
           "dir": "skills/meme-trench-scanner",
-          "commit": "e5f6df4fc814e027dca36e440fd9c9e7ee97fdf5"
+          "commit": "50b527eeb56375221755f52907271e7c695e9c44"
         }
       },
       "link": "https://github.com/okx/plugin-store-community"
@@ -164,7 +164,7 @@
         "skill": {
           "repo": "okx/plugin-store-community",
           "dir": "skills/okx-buildx-hackathon-agent-track",
-          "commit": "e5f6df4fc814e027dca36e440fd9c9e7ee97fdf5"
+          "commit": "50b527eeb56375221755f52907271e7c695e9c44"
         }
       },
       "link": "https://github.com/okx/plugin-store-community",
@@ -188,7 +188,7 @@
         "skill": {
           "repo": "okx/plugin-store-community",
           "dir": "skills/smart-money-signal-copy-trade",
-          "commit": "e5f6df4fc814e027dca36e440fd9c9e7ee97fdf5"
+          "commit": "50b527eeb56375221755f52907271e7c695e9c44"
         }
       },
       "link": "https://github.com/okx/plugin-store-community"
@@ -211,7 +211,60 @@
         "skill": {
           "repo": "okx/plugin-store-community",
           "dir": "skills/top-rank-tokens-sniper",
-          "commit": "e5f6df4fc814e027dca36e440fd9c9e7ee97fdf5"
+          "commit": "50b527eeb56375221755f52907271e7c695e9c44"
+        }
+      },
+      "link": "https://github.com/okx/plugin-store-community"
+    },
+    {
+      "name": "uniswap-cca-configurator",
+      "version": "1.0.0",
+      "description": "Configure Continuous Clearing Auction (CCA) smart contract parameters for fair and transparent token distribution",
+      "author": {
+        "name": "Uniswap Labs"
+      },
+      "category": "defi-protocol",
+      "tags": [
+        "uniswap",
+        "cca",
+        "auction",
+        "token-distribution",
+        "smart-contracts",
+        "ethereum"
+      ],
+      "type": "community-developer",
+      "components": {
+        "skill": {
+          "repo": "okx/plugin-store-community",
+          "dir": "skills/uniswap-cca-configurator",
+          "commit": "50b527eeb56375221755f52907271e7c695e9c44"
+        }
+      },
+      "link": "https://github.com/okx/plugin-store-community"
+    },
+    {
+      "name": "uniswap-cca-deployer",
+      "version": "1.0.0",
+      "description": "Deploy Continuous Clearing Auction (CCA) smart contracts using the Factory pattern with CREATE2 for consistent addresses",
+      "author": {
+        "name": "Uniswap Labs"
+      },
+      "category": "defi-protocol",
+      "tags": [
+        "uniswap",
+        "cca",
+        "auction",
+        "deployment",
+        "create2",
+        "smart-contracts",
+        "ethereum"
+      ],
+      "type": "community-developer",
+      "components": {
+        "skill": {
+          "repo": "okx/plugin-store-community",
+          "dir": "skills/uniswap-cca-deployer",
+          "commit": "50b527eeb56375221755f52907271e7c695e9c44"
         }
       },
       "link": "https://github.com/okx/plugin-store-community"
@@ -238,7 +291,7 @@
         "skill": {
           "repo": "okx/plugin-store-community",
           "dir": "skills/uniswap-liquidity-planner",
-          "commit": "e5f6df4fc814e027dca36e440fd9c9e7ee97fdf5"
+          "commit": "50b527eeb56375221755f52907271e7c695e9c44"
         }
       },
       "link": "https://github.com/okx/plugin-store-community"
@@ -265,7 +318,7 @@
         "skill": {
           "repo": "okx/plugin-store-community",
           "dir": "skills/uniswap-pay-with-any-token",
-          "commit": "e5f6df4fc814e027dca36e440fd9c9e7ee97fdf5"
+          "commit": "50b527eeb56375221755f52907271e7c695e9c44"
         }
       },
       "link": "https://github.com/okx/plugin-store-community"
@@ -292,7 +345,7 @@
         "skill": {
           "repo": "okx/plugin-store-community",
           "dir": "skills/uniswap-swap-integration",
-          "commit": "e5f6df4fc814e027dca36e440fd9c9e7ee97fdf5"
+          "commit": "50b527eeb56375221755f52907271e7c695e9c44"
         }
       },
       "link": "https://github.com/okx/plugin-store-community"
@@ -319,7 +372,7 @@
         "skill": {
           "repo": "okx/plugin-store-community",
           "dir": "skills/uniswap-swap-planner",
-          "commit": "e5f6df4fc814e027dca36e440fd9c9e7ee97fdf5"
+          "commit": "50b527eeb56375221755f52907271e7c695e9c44"
         }
       },
       "link": "https://github.com/okx/plugin-store-community"
@@ -346,7 +399,7 @@
         "skill": {
           "repo": "okx/plugin-store-community",
           "dir": "skills/uniswap-v4-security-foundations",
-          "commit": "e5f6df4fc814e027dca36e440fd9c9e7ee97fdf5"
+          "commit": "50b527eeb56375221755f52907271e7c695e9c44"
         }
       },
       "link": "https://github.com/okx/plugin-store-community"
@@ -373,7 +426,7 @@
         "skill": {
           "repo": "okx/plugin-store-community",
           "dir": "skills/uniswap-viem-integration",
-          "commit": "e5f6df4fc814e027dca36e440fd9c9e7ee97fdf5"
+          "commit": "50b527eeb56375221755f52907271e7c695e9c44"
         }
       },
       "link": "https://github.com/okx/plugin-store-community"
