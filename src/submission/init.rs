@@ -38,7 +38,6 @@ pub fn scaffold(name: &str, target_dir: &Path) -> Result<()> {
             r#"# Plugin manifest — see CONTRIBUTING.md for full guide
 schema_version: 1
 name: {name}
-# alias: "Display Name"
 version: "1.0.0"
 description: "TODO: One-line description of what this plugin does"
 author:

@@ -208,15 +208,14 @@ pub async fn execute() -> Result<()> {
 }
 
 fn execute_plain(plugins: &[Plugin], counts: &StatsMap) -> Result<()> {
-    println!("{:<40} {:<32} {:<10} {:<10} {}", "Name", "ID (install)", "Version", "Downloads", "Description");
-    println!("{}", "-".repeat(130));
+    println!("{:<40} {:<10} {:<10} {}", "Name", "Version", "Downloads", "Description");
+    println!("{}", "-".repeat(100));
     for p in plugins {
         let downloads = counts.get(&p.name).copied().unwrap_or(0);
         let dl = if downloads == 0 { "-".to_string() } else { format_downloads(downloads) };
-        let display = p.alias.as_deref().unwrap_or(&p.name);
-        println!("{:<40} {:<32} {:<10} {:<10} {}", display, p.name, p.version, dl, p.description);
+        println!("{:<40} {:<10} {:<10} {}", p.name, p.version, dl, p.description);
     }
-    println!("\n{} plugins available. Use `plugin-store install <ID>` to install.", plugins.len());
+    println!("\n{} plugins available. Use `plugin-store install <name>` to install.", plugins.len());
     Ok(())
 }
 
@@ -283,7 +282,7 @@ fn render_table(f: &mut Frame, app: &mut App, counts: &StatsMap, area: Rect) {
     let active_tab = app.active_tab;
     let plugins = app.plugins_by_tab[active_tab].clone();
 
-    let header_cells = ["#", "Name / Alias", "Version", "Downloads", "Source", "Description"]
+    let header_cells = ["#", "Name", "Version", "Downloads", "Source", "Description"]
         .iter()
         .map(|h| {
             Cell::from(*h)
@@ -315,15 +314,7 @@ fn render_table(f: &mut Frame, app: &mut App, counts: &StatsMap, area: Rect) {
                 _ => Span::styled(p.source.clone(), Style::default().fg(Color::Cyan)),
             };
 
-            // Name cell: alias (bold) on top, name dimmed below if alias present
-            let name_cell = if let Some(ref alias) = p.alias {
-                Cell::from(Line::from(vec![
-                    Span::styled(alias.clone(), Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
-                    Span::styled(format!(" · {}", p.name), Style::default().fg(Color::DarkGray)),
-                ]))
-            } else {
-                Cell::from(Span::styled(p.name.clone(), Style::default().fg(Color::White).add_modifier(Modifier::BOLD)))
-            };
+            let name_cell = Cell::from(Span::styled(p.name.clone(), Style::default().fg(Color::White).add_modifier(Modifier::BOLD)));
 
             Row::new(vec![
                 Cell::from(Span::styled(
@@ -429,12 +420,6 @@ fn render_detail_popup(f: &mut Frame, plugin: &Plugin, downloads: u64, area: Rec
     // Build content lines
     let mut lines: Vec<Line> = Vec::new();
 
-    if let Some(ref alias) = plugin.alias {
-        lines.push(Line::from(Span::styled(
-            alias.clone(),
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
-        )));
-    }
     lines.push(Line::from(vec![
         Span::styled("Description: ", Style::default().fg(Color::Yellow)),
         Span::raw(plugin.description.clone()),

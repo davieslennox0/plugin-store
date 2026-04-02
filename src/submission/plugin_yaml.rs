@@ -5,8 +5,6 @@ use serde::{Deserialize, Serialize};
 pub struct PluginYaml {
     pub schema_version: u32,
     pub name: String,
-    #[serde(default)]
-    pub alias: Option<String>,
     pub version: String,
     pub description: String,
     pub author: AuthorInfo,

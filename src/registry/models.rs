@@ -11,9 +11,6 @@ pub struct Registry {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Plugin {
     pub name: String,
-    /// Optional display name shown in `list`. Falls back to `name` when absent.
-    #[serde(default)]
-    pub alias: Option<String>,
     pub version: String,
     pub description: String,
     pub author: Author,
@@ -27,12 +24,6 @@ pub struct Plugin {
     pub extra: Option<DefiInfo>,
 }
 
-impl Plugin {
-    /// Display name: alias if set, otherwise name.
-    pub fn display_name(&self) -> &str {
-        self.alias.as_deref().unwrap_or(&self.name)
-    }
-}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Author {

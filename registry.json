@@ -33,7 +33,6 @@
     },
     {
       "name": "uniswap-ai",
-      "alias": "Uniswap AI",
       "version": "1.7.0",
       "description": "AI-powered Uniswap developer tools: trading, hooks, drivers, and on-chain analysis across V2/V3/V4",
       "author": {
@@ -82,7 +81,6 @@
     },
     {
       "name": "polymarket-agent-skills",
-      "alias": "Polymarket 预测市场",
       "version": "1.0.0",
       "description": "Polymarket prediction market integration: trading, market data, WebSocket streaming, cross-chain bridge, and gasless transactions",
       "author": {
@@ -143,7 +141,6 @@
         }
       },
       "link": "https://github.com/okx/plugin-store-community",
-      "alias": "Meme Trench Scanner - Meme 扫链"
     },
     {
       "name": "okx-buildx-hackathon-agent-track",
@@ -169,7 +166,6 @@
         }
       },
       "link": "https://github.com/okx/plugin-store-community",
-      "alias": "OKX Build X Hackathon"
     },
     {
       "name": "smart-money-signal-copy-trade",
@@ -193,7 +189,6 @@
         }
       },
       "link": "https://github.com/okx/plugin-store-community",
-      "alias": "Smart Money Signal Copy Trade - 聪明钱信号跟单"
     },
     {
       "name": "top-rank-tokens-sniper",
@@ -217,7 +212,6 @@
         }
       },
       "link": "https://github.com/okx/plugin-store-community",
-      "alias": "Top Rank Tokens Sniper - 榜单狙击手"
     },
     {
       "name": "uniswap-cca-configurator",

@@ -350,7 +350,7 @@ fn check_tags(plugin: &PluginYaml, diags: &mut Vec<LintDiag>) {
         });
     }
 
-    // Forbidden content in tags, name, alias, and description.
+    // Forbidden content in tags, name, and description.
     // Covers: financial fraud, political sensitivity, illegal content.
     let fields_to_check: Vec<(&str, &str)> = {
         let mut v = Vec::new();
@@ -359,9 +359,6 @@ fn check_tags(plugin: &PluginYaml, diags: &mut Vec<LintDiag>) {
         }
         v.push(("name", plugin.name.as_str()));
         v.push(("description", plugin.description.as_str()));
-        if let Some(ref alias) = plugin.alias {
-            v.push(("alias", alias.as_str()));
-        }
         v
     };
 
