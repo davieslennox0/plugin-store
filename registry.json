@@ -437,7 +437,7 @@
         "skill": {
           "repo": "okx/plugin-store-community",
           "dir": "skills/meme-trench-scanner",
-          "commit": "3e8a2827832e856302e9e6e7e4edcfe8674e53b6"
+          "commit": "b2bb476f43986310caf7f45633989401e10a3a00"
         }
       },
       "link": "https://github.com/okx/plugin-store-community",
@@ -465,7 +465,7 @@
         "skill": {
           "repo": "okx/plugin-store-community",
           "dir": "skills/smart-money-signal-copy-trade",
-          "commit": "3e8a2827832e856302e9e6e7e4edcfe8674e53b6"
+          "commit": "b2bb476f43986310caf7f45633989401e10a3a00"
         }
       },
       "link": "https://github.com/okx/plugin-store-community",
@@ -493,7 +493,7 @@
         "skill": {
           "repo": "okx/plugin-store-community",
           "dir": "skills/top-rank-tokens-sniper",
-          "commit": "3e8a2827832e856302e9e6e7e4edcfe8674e53b6"
+          "commit": "b2bb476f43986310caf7f45633989401e10a3a00"
         }
       },
       "link": "https://github.com/okx/plugin-store-community",
