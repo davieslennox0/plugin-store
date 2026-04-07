@@ -63,8 +63,8 @@ jobs:
       # ─── Test 2: Scaffold + Lint (Pure Skill) ─────────────
       - name: "Test: init + lint — pure skill plugin"
         run: |
-          mkdir -p /tmp/test-community/skills
-          cd /tmp/test-community
+          mkdir -p /tmp/test-plugins/skills
+          cd /tmp/test-plugins
           plugin-store init test-skill-plugin
           cat > skills/test-skill-plugin/plugin.yaml << 'YAML'
           schema_version: 1
@@ -115,7 +115,7 @@ jobs:
       # ─── Test 3: Scaffold + Lint (Rust Binary) ────────────
       - name: "Test: init + lint — rust binary plugin"
         run: |
-          cd /tmp/test-community
+          cd /tmp/test-plugins
           plugin-store init test-rust-plugin
           cat > skills/test-rust-plugin/plugin.yaml << 'YAML'
           schema_version: 1
@@ -171,7 +171,7 @@ jobs:
       # ─── Test 4: Scaffold + Lint (Go Binary) ──────────────
       - name: "Test: init + lint — go binary plugin"
         run: |
-          cd /tmp/test-community
+          cd /tmp/test-plugins
           plugin-store init test-go-plugin
           cat > skills/test-go-plugin/plugin.yaml << 'YAML'
           schema_version: 1
@@ -227,7 +227,7 @@ jobs:
       # ─── Test 5: Scaffold + Lint (TypeScript npm) ─────────
       - name: "Test: init + lint — typescript npm plugin"
         run: |
-          cd /tmp/test-community
+          cd /tmp/test-plugins
           plugin-store init test-ts-plugin
           cat > skills/test-ts-plugin/plugin.yaml << 'YAML'
           schema_version: 1
@@ -284,7 +284,7 @@ jobs:
       # ─── Test 6: Scaffold + Lint (Node.js npm) ────────────
       - name: "Test: init + lint — node npm plugin"
         run: |
-          cd /tmp/test-community
+          cd /tmp/test-plugins
           plugin-store init test-node-plugin
           cat > skills/test-node-plugin/plugin.yaml << 'YAML'
           schema_version: 1
@@ -341,7 +341,7 @@ jobs:
       # ─── Test 7: Scaffold + Lint (Python pip) ─────────────
       - name: "Test: init + lint — python pip plugin"
         run: |
-          cd /tmp/test-community
+          cd /tmp/test-plugins
           plugin-store init test-python-plugin
           cat > skills/test-python-plugin/plugin.yaml << 'YAML'
           schema_version: 1
