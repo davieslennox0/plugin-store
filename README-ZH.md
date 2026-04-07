@@ -21,9 +21,6 @@ npx skills add okx/plugin-store --skill plugin-store
 ## 安装Plugin
 
 ```bash
-# 浏览所有可用Plugin
-npx skills add okx/plugin-store
-
 # 安装指定Plugin
 npx skills add okx/plugin-store --skill <plugin-name>
 ```

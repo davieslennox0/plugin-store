@@ -21,9 +21,6 @@ This installs the Plugin Store skill into your AI agent, enabling plugin discove
 ## Install a Plugin
 
 ```bash
-# Browse all available plugins
-npx skills add okx/plugin-store
-
 # Install a specific plugin
 npx skills add okx/plugin-store --skill <plugin-name>
 ```
