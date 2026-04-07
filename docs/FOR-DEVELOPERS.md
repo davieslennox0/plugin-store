@@ -15,7 +15,7 @@
 5. [Writing SKILL.md](#5-writing-skillmd)
 6. [Submitting Plugins with Source Code (Binary)](#6-submitting-plugins-with-source-code-binary)
 7. [Three Submission Modes](#7-three-submission-modes)
-8. [OnchainOS Integration](#8-onchainos-integration)
+8. [OnChain OS Integration](#8-onchainos-integration)
 9. [Review Process](#9-review-process)
 10. [Risk Levels](#10-risk-levels)
 11. [Rules & Restrictions](#11-rules--restrictions)
@@ -58,7 +58,7 @@ or anything else that benefits from AI-agent orchestration.
 
 | I want to... | Type |
 |--------------|------|
-| Create a strategy using onchainos commands | Skill-Only |
+| Use AI agents to accomplish specific tasks via natural language, e.g. invoke onchainos commands to create strategies | Skill-Only |
 | Build a CLI tool alongside a Skill | Skill + Binary (submit source code, we compile) |
 
 ### Supported Languages for Binary Plugins
@@ -86,7 +86,7 @@ or anything else that benefits from AI-agent orchestration.
 - **Git** and a **GitHub account**
 - **onchainos CLI** installed (recommended for testing your commands):
   ```bash
-  curl -fsSL https://raw.githubusercontent.com/okx/onchainos-skills/main/install.sh | bash
+  npx skills add okx/onchainos-skills
   ```
   After installation, if `onchainos` is not found, add it to your PATH:
   ```bash
@@ -104,9 +104,8 @@ or anything else that benefits from AI-agent orchestration.
    wallet signing, transaction broadcasting, swap execution, contract calls, and
    token approvals. You are free to query external data sources (third-party APIs,
    market data providers, analytics services, etc.).
-2. OnchainOS is **recommended but NOT required**. Non-blockchain Plugins do not
-   need it at all. Blockchain Plugins that do not use OnchainOS will go through
-   additional security review.
+2. OnChain OS is **optional**. Plugins can freely use any on-chain technology.
+   Non-blockchain Plugins do not need it at all.
 
 ---
 
@@ -116,7 +115,23 @@ This walkthrough creates a minimal Skill-only Plugin and submits it.
 
 ### Step 1: Fork and Clone
 
+First, install the GitHub CLI if you don't have it:
+
 ```bash
+# macOS
+brew install gh
+
+# Linux
+(type -p wget >/dev/null || (sudo apt update && sudo apt-get install wget -y)) && sudo mkdir -p -m 755 /etc/apt/keyrings && out=$(mktemp) && wget -nv -O$out https://cli.github.com/packages/githubcli-archive-keyring.gpg && cat $out | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null && sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null && sudo apt update && sudo apt install gh -y
+
+# Windows
+winget install --id GitHub.cli
+```
+
+Then authenticate and fork:
+
+```bash
+gh auth login
 gh repo fork okx/plugin-store --clone
 cd plugin-store
 ```
@@ -273,6 +288,9 @@ skills/my-plugin/
 │   └── plugin.json      # Required -- Claude Skill registration metadata
 ├── plugin.yaml          # Required -- plugin metadata and manifest
 ├── SKILL.md             # Required -- skill definition for the AI agent
+├── src/                 # Optional -- source code for binary plugins
+│   └── main.rs          #   Rust example (or main.go, main.ts, main.py)
+├── Cargo.toml           # Optional -- build config (or go.mod, package.json, pyproject.toml)
 ├── scripts/             # Optional -- Python scripts, shell scripts
 │   ├── bot.py
 │   └── config.py
@@ -399,6 +417,50 @@ build:
 
 api_calls:
   - "api.defillama.com"
+```
+
+#### Binary Plugin with Local Source (no external repo)
+
+If your source code is directly in the plugin directory (not in a separate repo), omit `source_repo` and `source_commit`:
+
+```yaml
+schema_version: 1
+name: my-rust-tool
+version: "1.0.0"
+description: "A Rust CLI tool with source code included in the submission"
+author:
+  name: "Your Name"
+  github: "your-username"
+license: MIT
+category: utility
+tags:
+  - rust
+  - onchainos
+
+components:
+  skill:
+    dir: "."
+
+build:
+  lang: rust
+  binary_name: my-rust-tool
+
+api_calls: []
+```
+
+In this case, CI compiles directly from `skills/my-rust-tool/` — your `Cargo.toml`, `src/main.rs`, etc. must be in the plugin directory alongside `SKILL.md` and `plugin.yaml`.
+
+Directory structure:
+```
+skills/my-rust-tool/
+├── .claude-plugin/plugin.json
+├── plugin.yaml
+├── SKILL.md
+├── Cargo.toml
+├── Cargo.lock
+├── src/
+│   └── main.rs
+└── LICENSE
 ```
 
 #### Field-by-Field Reference
@@ -1068,19 +1130,19 @@ cross-list it in the Plugin Store with minimal effort.
 
 ---
 
-## 8. OnchainOS Integration
+## 8. OnChain OS Integration
 
-### What Is OnchainOS?
+### What Is OnChain OS?
 
-[OnchainOS](https://github.com/okx/onchainos-skills) is the Agentic Wallet CLI
+[OnChain OS](https://github.com/okx/onchainos-skills) is the Agentic Wallet CLI
 that provides secure, sandboxed blockchain operations -- wallet signing,
 transaction broadcasting, swap execution, contract calls, and more. It uses TEE
 (Trusted Execution Environment) signing so private keys never leave the secure
 enclave.
 
-### When to Use OnchainOS
+### When to Use OnChain OS
 
-Use OnchainOS when your Plugin performs any on-chain write operation:
+Use OnChain OS when your Plugin performs any on-chain write operation:
 
 - Wallet signing
 - Transaction broadcasting
@@ -1088,24 +1150,13 @@ Use OnchainOS when your Plugin performs any on-chain write operation:
 - Contract calls
 - Token approvals
 
-### Is OnchainOS Required?
+### Is OnChain OS Required?
 
-**OnchainOS is recommended but NOT required.** Plugins are not limited to Web3.
+**No. OnChain OS is optional.** Plugins can freely use any on-chain technology — OnChain OS, third-party wallets, direct RPC calls, or any other approach.
 
-However:
+For non-blockchain Plugins (analytics, utilities, developer tools, etc.), OnChain OS is simply not applicable.
 
-- Plugins that use OnchainOS for chain operations get a **higher trust score**
-  and **better visibility** in the marketplace
-- Non-OnchainOS chain Plugins need **extra security review** because they handle
-  blockchain operations outside the sandboxed environment
-- Plugins that use third-party wallets (MetaMask, Phantom) or direct RPC calls
-  (ethers.js, web3.js) for on-chain write operations will face stricter review
-  and may be rejected if they cannot demonstrate equivalent safety
-
-For non-blockchain Plugins (analytics, utilities, developer tools, etc.),
-OnchainOS is simply not applicable.
-
-### OnchainOS Command Reference
+### OnChain OS Command Reference
 
 | Command | Description | Example |
 |---------|-------------|---------|
@@ -1124,10 +1175,10 @@ OnchainOS is simply not applicable.
 For the full subcommand list, run `onchainos <command> --help` or see the
 [onchainos documentation](https://github.com/okx/onchainos-skills).
 
-### Installing OnchainOS
+### Installing OnChain OS
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/okx/onchainos-skills/main/install.sh | bash
+npx skills add okx/onchainos-skills
 ```
 
 If `onchainos` is not found after installation, add it to your PATH:
@@ -1189,7 +1240,7 @@ security concerns.
 | 2 | Version mismatch between `plugin.yaml` and `SKILL.md` | Keep `version` identical in both files |
 | 3 | Hardcoded API keys or credentials | Use environment variables, never commit secrets |
 | 4 | No risk disclaimer for trading Plugins | Add a disclaimer section in SKILL.md for any Plugin that moves assets |
-| 5 | Direct wallet operations without OnchainOS | Use `onchainos wallet` / `onchainos swap` for on-chain writes |
+| 5 | Direct wallet operations without OnChain OS | Use `onchainos wallet` / `onchainos swap` for on-chain writes |
 | 6 | Missing LICENSE file | Add a LICENSE file with an SPDX-compatible license |
 | 7 | Unpinned dependencies | Pin all dependency versions; use lockfiles |
 | 8 | Category mismatch | Choose the category that most accurately describes your Plugin |
@@ -1328,11 +1379,9 @@ Node.js (Bun), and Python. For Skill-only Plugins, you can include scripts in
 any language (Python and shell scripts are common) -- they run as part of the
 AI agent workflow, not compiled by CI.
 
-**Do I have to use OnchainOS?**
+**Do I have to use OnChain OS?**
 
-No. OnchainOS is recommended for blockchain operations but not required.
-Non-blockchain Plugins do not need it at all. Blockchain Plugins that do not use
-OnchainOS will go through additional security review.
+No. OnChain OS is optional. Plugins can freely use any on-chain technology.
 
 **How do users install my Plugin?**
 
