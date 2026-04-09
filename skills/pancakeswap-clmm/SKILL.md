@@ -98,8 +98,8 @@ Do NOT use for: PancakeSwap V3 simple swaps without farming (use pancakeswap ski
 ## Architecture
 
 - Read ops (`positions`, `pending-rewards`, `farm-pools`) → direct `eth_call` via public RPC; no user confirmation needed
-- Write ops (`farm`, `unfarm`, `harvest`, `collect-fees`) → after user confirmation, submits via `onchainos wallet contract-call` with `--force` flag
-- Wallet address resolved via `onchainos wallet balance --output json` when not explicitly provided
+- Write ops (`farm`, `unfarm`, `harvest`, `collect-fees`) → after user confirmation, submits via `onchainos wallet contract-call`
+- Wallet address resolved via `onchainos wallet addresses --chain <chainId>` when not explicitly provided
 - Supported chains: BSC (56, default), Ethereum (1), Base (8453), Arbitrum (42161)
 
 ## Relationship with `pancakeswap` Plugin
