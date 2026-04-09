@@ -295,6 +295,35 @@
       }
     },
     {
+      "name": "pendle",
+      "version": "0.1.0",
+      "description": "Pendle Finance yield tokenization — buy/sell PT & YT tokens, add/remove liquidity, mint/redeem PT+YT pairs",
+      "author": {
+        "name": "skylavis-sky"
+      },
+      "category": "trading-strategy",
+      "tags": [
+        "ethereum",
+        "trading"
+      ],
+      "type": "official",
+      "components": {
+        "skill": {
+          "repo": "okx/plugin-store",
+          "dir": "skills/pendle"
+        }
+      },
+      "link": "https://github.com/okx/plugin-store",
+      "extra": {
+        "chains": [
+          "ethereum",
+          "base"
+        ],
+        "protocols": [],
+        "risk_level": "high"
+      }
+    },
+    {
       "name": "plugin-store",
       "version": "1.0.0",
       "description": "The main on-chain DeFi skill. Discover, install, update, and manage plugins — including trading strategies, DeFi integrations, and developer tools — across Claude Code, Cursor, and OpenClaw.",

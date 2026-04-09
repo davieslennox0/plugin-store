@@ -97,6 +97,15 @@
       }
     },
     {
+      "name": "pendle",
+      "description": "Pendle Finance yield tokenization — buy/sell PT & YT tokens, add/remove liquidity, mint/redeem PT+YT pairs",
+      "source": "./skills/pendle",
+      "category": "trading-strategy",
+      "author": {
+        "name": "skylavis-sky"
+      }
+    },
+    {
       "name": "plugin-store",
       "description": "The main on-chain DeFi skill. Discover, install, update, and manage plugins — including trading strategies, DeFi integrations, and developer tools — across Claude Code, Cursor, and OpenClaw.",
       "source": "./skills/plugin-store",
