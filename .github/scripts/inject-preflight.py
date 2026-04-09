@@ -60,11 +60,21 @@ if os.path.exists(yaml_path):
     except Exception:
         pass
 
-# Check what the DEVELOPER's pre-flight already installs
-# Strip out any previous auto-injected block so we don't count our own injections
+# Strip ALL auto-injected content before detecting developer's own installs.
+# This handles three cases:
+# 1. Full section: "## Pre-flight Dependencies (auto-injected by Plugin Store CI)...---"
+# 2. Standalone subsections: "### Install xxx (auto-injected)...```" copied without parent header
+# 3. Any heading containing "(auto-injected)" followed by a code block
+
+# First: remove the full CI-injected section if present
 dev_skill_text = re.sub(
     r"## Pre-flight Dependencies \(auto-injected by Plugin Store CI\).*?---\n",
     "", skill_text, flags=re.DOTALL
+)
+# Second: remove any standalone (auto-injected) subsections that may exist outside the parent section
+dev_skill_text = re.sub(
+    r"###[^\n]*\(auto-injected[^\n]*\)\n(?:.*?\n)*?```\n(?:.*?\n)*?```\n*",
+    "", dev_skill_text, flags=re.DOTALL
 )
 
 # Only skip onchainos injection if developer already has BOTH CLI install AND skills install
@@ -163,18 +173,26 @@ if len(parts) == 1 and not any([needs_onchainos, needs_binary, needs_pip, needs_
 inject_block = "\n## Pre-flight Dependencies (auto-injected by Plugin Store CI)\n\n> Run once per session before first use. These checks ensure required tools are installed.\n\n" + "\n".join(parts) + "\n---\n\n"
 
 # Inject into SKILL.md
+# First, strip any existing auto-injected content (full section or standalone blocks)
+if "auto-injected" in skill_text:
+    print("  Removing existing auto-injected pre-flight blocks...")
+    # Remove full CI section
+    skill_text = re.sub(
+        r"\n?## Pre-flight Dependencies \(auto-injected by Plugin Store CI\).*?---\n\n?",
+        "\n", skill_text, flags=re.DOTALL,
+    )
+    # Remove standalone (auto-injected) subsections outside the parent section
+    skill_text = re.sub(
+        r"\n?###[^\n]*\(auto-injected[^\n]*\)\n(?:.*?\n)*?```\n(?:.*?\n)*?```\n*",
+        "\n", skill_text, flags=re.DOTALL,
+    )
+    # Clean up extra blank lines
+    skill_text = re.sub(r"\n{3,}", "\n\n", skill_text)
+
+# Now inject fresh pre-flight block after YAML frontmatter
 fm_pattern = re.compile(r"^---\n.*?\n---\n", re.DOTALL)
 fm_match = fm_pattern.match(skill_text)
-
-if "auto-injected by Plugin Store CI" in skill_text:
-    print("  Replacing existing auto-injected pre-flight...")
-    skill_text = re.sub(
-        r"## Pre-flight Dependencies \(auto-injected by Plugin Store CI\).*?---\n\n",
-        inject_block,
-        skill_text,
-        flags=re.DOTALL,
-    )
-elif fm_match:
+if fm_match:
     insert_pos = fm_match.end()
     skill_text = skill_text[:insert_pos] + "\n" + inject_block + skill_text[insert_pos:]
 else:
