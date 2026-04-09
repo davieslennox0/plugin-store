@@ -17,16 +17,13 @@ license: MIT
 
 components:
   skill:
-    dir: "."
+    dir: .
 
 build:
   lang: rust
   binary_name: polymarket
-  source_repo: skylavis-sky/onchainos-plugins
-  source_commit: "f539fe7b8e3e0b56a1a1e9abd1ae43d4b4aea949"
-  source_dir: polymarket
 
 api_calls:
-  - "clob.polymarket.com"
-  - "gamma-api.polymarket.com"
-  - "data-api.polymarket.com"
+  - "https://clob.polymarket.com"
+  - "https://gamma-api.polymarket.com"
+  - "https://data-api.polymarket.com"
