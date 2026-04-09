@@ -18,14 +18,46 @@ skill_content = ""
 if os.path.exists("/tmp/skill_content.txt"):
     skill_content = open("/tmp/skill_content.txt").read()
 
-# Collect source code
+# Collect source code — supports both Mode A (local) and Mode B (external repo)
 source_files = []
+source_dir = plugin_dir
+
+# Mode B: if plugin.yaml specifies source_repo, clone and use external source
+if os.path.exists(yaml_path):
+    try:
+        src_repo = subprocess.run(["yq", ".build.source_repo // \"\"", yaml_path],
+                                  capture_output=True, text=True).stdout.strip()
+        src_commit = subprocess.run(["yq", ".build.source_commit // \"\"", yaml_path],
+                                    capture_output=True, text=True).stdout.strip()
+        src_subdir = subprocess.run(["yq", ".build.source_dir // \".\"", yaml_path],
+                                    capture_output=True, text=True).stdout.strip()
+        if src_repo and src_commit:
+            ext_dir = f"/tmp/ai-review-source-{name}"
+            clone_result = subprocess.run(
+                ["git", "clone", "--depth", "1", f"https://github.com/{src_repo}.git", ext_dir],
+                capture_output=True, text=True, timeout=60
+            )
+            if clone_result.returncode == 0:
+                subprocess.run(["git", "-C", ext_dir, "fetch", "--depth", "1", "origin", src_commit],
+                              capture_output=True, text=True, timeout=60)
+                subprocess.run(["git", "-C", ext_dir, "checkout", src_commit],
+                              capture_output=True, text=True, timeout=10)
+                if src_subdir and src_subdir != ".":
+                    source_dir = os.path.join(ext_dir, src_subdir)
+                else:
+                    source_dir = ext_dir
+                print(f"  Mode B: cloned {src_repo}@{src_commit[:12]} → {source_dir}")
+            else:
+                print(f"  Mode B: clone failed, falling back to local source")
+    except Exception as e:
+        print(f"  Mode B detection error: {e}")
+
 for ext in ["py", "rs", "go", "ts", "js", "json", "yaml", "yml", "md", "html"]:
-    for path in glob.glob(f"{plugin_dir}/**/*.{ext}", recursive=True):
+    for path in glob.glob(f"{source_dir}/**/*.{ext}", recursive=True):
         if ".git" not in path:
             try:
                 content = open(path).read()
-                rel = os.path.relpath(path, plugin_dir)
+                rel = os.path.relpath(path, source_dir)
                 source_files.append(f"## {rel}\n```{ext}\n{content}\n```\n")
             except:
                 pass
