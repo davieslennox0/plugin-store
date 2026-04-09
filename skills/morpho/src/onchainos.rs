@@ -1,6 +1,7 @@
 use serde_json::Value;
 
 /// Call `onchainos wallet contract-call` and return parsed JSON output.
+/// Set `confirm=true` to append `--force` and broadcast the transaction.
 pub async fn wallet_contract_call(
     chain_id: u64,
     to: &str,
@@ -8,6 +9,7 @@ pub async fn wallet_contract_call(
     from: Option<&str>,
     amt: Option<u64>,
     dry_run: bool,
+    confirm: bool,
 ) -> anyhow::Result<Value> {
     let chain_str = chain_id.to_string();
     let mut args = vec![
@@ -41,8 +43,9 @@ pub async fn wallet_contract_call(
         }));
     }
 
-    // --force is required for all on-chain write operations to broadcast the tx
-    args.push("--force");
+    if confirm {
+        args.push("--force");
+    }
 
     let output = tokio::process::Command::new("onchainos")
         .args(&args)
@@ -77,13 +80,14 @@ pub async fn erc20_approve(
     amount: u128,
     from: Option<&str>,
     dry_run: bool,
+    confirm: bool,
 ) -> anyhow::Result<Value> {
     // approve(address,uint256) selector = 0x095ea7b3
     let spender_clean = spender.trim_start_matches("0x");
     let spender_padded = format!("{:0>64}", spender_clean);
     let amount_hex = format!("{:064x}", amount);
     let calldata = format!("0x095ea7b3{}{}", spender_padded, amount_hex);
-    wallet_contract_call(chain_id, token_addr, &calldata, from, None, dry_run).await
+    wallet_contract_call(chain_id, token_addr, &calldata, from, None, dry_run, confirm).await
 }
 
 /// Query wallet balance (supports --output json).
@@ -108,21 +112,20 @@ pub async fn wallet_status() -> anyhow::Result<Value> {
 }
 
 /// Resolve the caller's wallet address: use `from` if provided, otherwise
-/// query the active onchainos wallet via `wallet balance --chain <id>`.
-pub async fn resolve_wallet(from: Option<&str>, chain_id: u64) -> anyhow::Result<String> {
+/// query the active onchainos wallet via `wallet addresses`.
+pub async fn resolve_wallet(from: Option<&str>, _chain_id: u64) -> anyhow::Result<String> {
     if let Some(addr) = from {
         return Ok(addr.to_string());
     }
-    let chain_str = chain_id.to_string();
     let output = tokio::process::Command::new("onchainos")
-        .args(["wallet", "balance", "--chain", &chain_str])
+        .args(["wallet", "addresses"])
         .output()
         .await?;
     let stdout = String::from_utf8_lossy(&output.stdout);
     let v: Value = serde_json::from_str(&stdout)?;
-    let addr = v["data"]["details"][0]["tokenAssets"][0]["address"]
+    let addr = v["data"]["evmAddress"]
         .as_str()
-        .ok_or_else(|| anyhow::anyhow!("Could not determine active wallet address"))?
+        .ok_or_else(|| anyhow::anyhow!("Could not determine active EVM wallet address. Ensure onchainos is logged in."))?
         .to_string();
     Ok(addr)
 }

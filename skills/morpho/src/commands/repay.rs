@@ -32,6 +32,7 @@ pub async fn run(
     let repay_assets: u128;
     let repay_shares: u128;
     let display_amount: String;
+    let borrow_assets: u128;
 
     if all {
         // Fetch borrow shares for full repayment via GraphQL positions
@@ -44,7 +45,7 @@ pub async fn run(
         repay_assets = 0; // Use shares mode for full repay
 
         let borrow_assets_str = pos.state.borrow_assets.as_deref().unwrap_or("0");
-        let borrow_assets: u128 = borrow_assets_str.parse().unwrap_or(0);
+        borrow_assets = borrow_assets_str.parse().unwrap_or(0);
         display_amount = calldata::format_amount(borrow_assets, decimals);
 
         eprintln!("[morpho] Repaying all debt ({} {}) using {} shares...", display_amount, symbol, repay_shares);
@@ -52,6 +53,7 @@ pub async fn run(
         let amt_str = amount.context("Must provide --amount or --all")?;
         repay_assets = calldata::parse_amount(amt_str, decimals)?;
         repay_shares = 0;
+        borrow_assets = 0;
         display_amount = amt_str.to_string();
         eprintln!("[morpho] Repaying {} {} to Morpho Blue market {}...", amt_str, symbol, market_id);
     }
@@ -59,8 +61,8 @@ pub async fn run(
     // Step 1: Approve Morpho Blue to spend loan token (ask user to confirm before executing)
     // Add a small buffer (0.5%) to the approval amount to cover accrued interest
     let approve_amount = if all && repay_assets == 0 {
-        // Approve max for full repay using shares mode
-        u128::MAX
+        // For full repay via shares, approve actual borrow amount + 1% buffer for accrued interest
+        borrow_assets + borrow_assets / 100
     } else {
         repay_assets + repay_assets / 200 // +0.5% buffer
     };
@@ -70,7 +72,7 @@ pub async fn run(
     if dry_run {
         eprintln!("[morpho] [dry-run] Would approve: onchainos wallet contract-call --chain {} --to {} --input-data {}", chain_id, loan_token, approve_calldata);
     }
-    let approve_result = onchainos::wallet_contract_call(chain_id, &loan_token, &approve_calldata, from, None, dry_run).await?;
+    let approve_result = onchainos::wallet_contract_call(chain_id, &loan_token, &approve_calldata, from, None, dry_run, true).await?;
     let approve_tx = onchainos::extract_tx_hash_or_err(&approve_result)?;
 
     // Step 2: repay(marketParams, assets, shares, onBehalf, data)
@@ -89,6 +91,7 @@ pub async fn run(
         from,
         None,
         dry_run,
+        true,
     ).await?;
     let tx_hash = onchainos::extract_tx_hash_or_err(&result)?;
 

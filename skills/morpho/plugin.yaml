@@ -26,5 +26,5 @@ build:
 api_calls:
   - "https://blue-api.morpho.org/graphql"
   - "https://eth.llamarpc.com"
-  - "https://mainnet.base.org"
+  - "https://base-rpc.publicnode.com"
   - "https://api.merkl.xyz"

@@ -33,7 +33,7 @@ pub async fn run(
     if dry_run {
         eprintln!("[morpho] [dry-run] Would approve: onchainos wallet contract-call --chain {} --to {} --input-data {}", chain_id, asset_addr, approve_calldata);
     }
-    let approve_result = onchainos::wallet_contract_call(chain_id, &asset_addr, &approve_calldata, from, None, dry_run).await?;
+    let approve_result = onchainos::wallet_contract_call(chain_id, &asset_addr, &approve_calldata, from, None, dry_run, true).await?;
     let approve_tx = onchainos::extract_tx_hash_or_err(&approve_result)?;
 
     // Wait for approve tx to be picked up before sending deposit, to avoid nonce conflicts.
@@ -47,7 +47,7 @@ pub async fn run(
     if dry_run {
         eprintln!("[morpho] [dry-run] Would deposit: onchainos wallet contract-call --chain {} --to {} --input-data {}", chain_id, vault, deposit_calldata);
     }
-    let deposit_result = onchainos::wallet_contract_call(chain_id, vault, &deposit_calldata, from, None, dry_run).await?;
+    let deposit_result = onchainos::wallet_contract_call(chain_id, vault, &deposit_calldata, from, None, dry_run, true).await?;
     let deposit_tx = onchainos::extract_tx_hash_or_err(&deposit_result)?;
 
     let output = serde_json::json!({
