@@ -7,6 +7,15 @@
   },
   "plugins": [
     {
+      "name": "kamino-lend",
+      "description": "Supply, borrow, and manage positions on Kamino Lend — the leading Solana lending protocol",
+      "source": "./skills/kamino-lend",
+      "category": "utility",
+      "author": {
+        "name": "GeoGu360"
+      }
+    },
+    {
       "name": "meme-trench-scanner",
       "description": "Meme Trench Scanner v1.0 — Solana Meme automated trading bot with 11 Launchpad coverage, 7-layer exit system, TraderSoul AI observation",
       "source": "./skills/meme-trench-scanner",
@@ -40,6 +49,15 @@
       "category": "trading-strategy",
       "author": {
         "name": "Polymarket"
+      }
+    },
+    {
+      "name": "rust-cli-inspector",
+      "description": "Rust CLI querying ETH price via Onchain OS",
+      "source": "./skills/rust-cli-inspector",
+      "category": "utility",
+      "author": {
+        "name": "yz06276"
       }
     },
     {
