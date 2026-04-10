@@ -1,10 +1,10 @@
 [package]
-name = "aave-v3"
+name = "aave-v3-plugin"
 version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "aave-v3"
+name = "aave-v3-plugin"
 path = "src/main.rs"
 
 [dependencies]
