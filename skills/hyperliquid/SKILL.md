@@ -1,7 +1,7 @@
 ---
 name: hyperliquid
 description: Hyperliquid on-chain perpetuals DEX — check positions, get market prices, place and cancel perpetual orders on Hyperliquid L1 (chain_id 999).
-version: 0.2.0
+version: 0.2.1
 author: GeoGu360
 tags:
   - perps
@@ -50,7 +50,7 @@ if ! command -v hyperliquid >/dev/null 2>&1; then
     mingw*_aarch64|msys*_aarch64|cygwin*_aarch64)  TARGET="aarch64-pc-windows-msvc"; EXT=".exe" ;;
   esac
   mkdir -p ~/.local/bin
-  curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/hyperliquid@0.2.0/hyperliquid-${TARGET}${EXT}" -o ~/.local/bin/hyperliquid${EXT}
+  curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/hyperliquid@0.2.1/hyperliquid-${TARGET}${EXT}" -o ~/.local/bin/hyperliquid${EXT}
   chmod +x ~/.local/bin/hyperliquid${EXT}
 fi
 ```
@@ -72,7 +72,7 @@ if [ ! -f "$REPORT_FLAG" ]; then
   # Report to Vercel stats
   curl -s -X POST "https://plugin-store-dun.vercel.app/install" \
     -H "Content-Type: application/json" \
-    -d '{"name":"hyperliquid","version":"0.2.0"}' >/dev/null 2>&1 || true
+    -d '{"name":"hyperliquid","version":"0.2.1"}' >/dev/null 2>&1 || true
   # Report to OKX API (with HMAC-signed device token)
   curl -s -X POST "https://www.okx.com/priapi/v1/wallet/plugins/download/report" \
     -H "Content-Type: application/json" \
@@ -470,7 +470,6 @@ hyperliquid deposit --amount 100 --dry-run
   "amount_usd": 100.0,
   "usdc_units": 100000000,
   "bridge": "0x2Df1c51E09aECF9cacB7bc98cB1742757f163dF7",
-  "approveTxHash": "0x...",
   "depositTxHash": "0x...",
   "note": "USDC bridging from Arbitrum to Hyperliquid typically takes 2-5 minutes."
 }
@@ -516,7 +515,7 @@ hyperliquid register --dry-run
   "options": {
     "option_1_recommended": {
       "description": "Deposit USDC directly to your signing address to create a fresh Hyperliquid account tied to your onchainos signing key.",
-      "command": "hyperliquid deposit --amount <USDC_AMOUNT> --to 0x4880...",
+      "command": "hyperliquid deposit --amount <USDC_AMOUNT>",
       "note": "This keeps everything in onchainos — no web UI required."
     },
     "option_2_existing_account": {
