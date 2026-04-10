@@ -2,8 +2,10 @@
 # Uses pull_request_target to have write permissions for PR comments/labels
 # even when the PR comes from an external contributor (fork).
 #
-# SECURITY: pull_request_target runs the workflow from main (not from the PR),
-# so the workflow code itself is trusted. We only checkout PR code for linting.
+# SECURITY: Split into isolated jobs to prevent Pwn Request attacks.
+# - gate: blocks fork PRs that modify .github/
+# - collect: zero permissions, checkouts fork code, collects data as artifact
+# - lint: has write perms, only checkouts main, runs lint against artifact data
 
 name: "Phase 1: Structure Validation"
 
@@ -13,14 +15,39 @@ on:
       - 'skills/**'
     types: [opened, synchronize, reopened]
 
-permissions:
-  contents: read
-  pull-requests: write
-
 jobs:
-  detect-plugin:
-    name: Detect changed plugin
+  # ═══════════════════════════════════════════════════════════════
+  #  Security Gate — block fork PRs that modify .github/
+  # ═══════════════════════════════════════════════════════════════
+  gate:
+    name: Security gate
     runs-on: ubuntu-latest
+    permissions: {}
+    outputs:
+      safe: ${{ steps.check.outputs.safe }}
+    steps:
+      - name: Block .github modifications from forks
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_NUM=${{ github.event.pull_request.number }}
+          CHANGES=$(gh api repos/${{ github.repository }}/pulls/$PR_NUM/files --jq '.[].filename' | grep '^\\.github/' || true)
+          if [ -n "$CHANGES" ]; then
+            echo "::error::Fork PRs cannot modify .github/ files: $CHANGES"
+            echo "safe=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          echo "safe=true" >> "$GITHUB_OUTPUT"
+
+  # ═══════════════════════════════════════════════════════════════
+  #  Collect — zero permissions sandbox, checkout fork code
+  # ═══════════════════════════════════════════════════════════════
+  collect:
+    name: Collect plugin data
+    needs: gate
+    runs-on: ubuntu-latest
+    permissions: {}
     outputs:
       plugin_dir: ${{ steps.find.outputs.plugin_dir }}
       plugin_name: ${{ steps.find.outputs.plugin_name }}
@@ -31,6 +58,7 @@ jobs:
         with:
           repository: ${{ github.event.pull_request.head.repo.full_name }}
           ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Find changed plugin directory
@@ -83,15 +111,48 @@ jobs:
             exit 1
           fi
 
+      # ── Collect plugin files as artifact ──────────
+      - name: Collect plugin files
+        run: |
+          mkdir -p /tmp/plugin-data
+          PLUGIN_DIR="skills/${{ steps.find.outputs.plugin_name }}"
+          if [ -d "$PLUGIN_DIR" ]; then
+            cp -r "$PLUGIN_DIR" /tmp/plugin-data/
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plugin-data
+          path: /tmp/plugin-data/
+
+  # ═══════════════════════════════════════════════════════════════
+  #  Lint — privileged job, only checkouts main (trusted code)
+  # ═══════════════════════════════════════════════════════════════
   lint:
     name: Structure validation
-    needs: detect-plugin
+    needs: collect
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
+        # No repository/ref override = checkouts main (trusted code)
+
+      - uses: actions/download-artifact@v4
         with:
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
-          ref: ${{ github.event.pull_request.head.sha }}
+          name: plugin-data
+          path: /tmp/plugin-data/
+
+      # ── Reconstruct plugin dir from artifact ──────────
+      - name: Setup plugin data
+        run: |
+          PLUGIN_NAME="${{ needs.collect.outputs.plugin_name }}"
+          PLUGIN_DIR="${{ needs.collect.outputs.plugin_dir }}"
+          mkdir -p "${PLUGIN_DIR}"
+          if [ -d "/tmp/plugin-data/${PLUGIN_NAME}" ]; then
+            cp -r "/tmp/plugin-data/${PLUGIN_NAME}/." "${PLUGIN_DIR}/"
+          fi
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -138,8 +199,8 @@ jobs:
       - name: Check name uniqueness
         id: name_check
         run: |
-          PLUGIN_NAME="${{ needs.detect-plugin.outputs.plugin_name }}"
-          IS_NEW="${{ needs.detect-plugin.outputs.is_new }}"
+          PLUGIN_NAME="${{ needs.collect.outputs.plugin_name }}"
+          IS_NEW="${{ needs.collect.outputs.is_new }}"
 
           if [ "$IS_NEW" != "true" ]; then
             echo "Plugin update (not new) — skip uniqueness check"
@@ -167,13 +228,13 @@ jobs:
           PLUGIN_STORE_OFFICIAL: ${{ steps.org_check.outputs.is_okx_member == 'true' && '1' || '0' }}
         run: |
           set +e
-          OUTPUT=$(plugin-store lint "${{ needs.detect-plugin.outputs.plugin_dir }}" 2>&1)
+          OUTPUT=$(plugin-store lint "${{ needs.collect.outputs.plugin_dir }}" 2>&1)
           EXIT_CODE=$?
           set -e
 
           # Append name uniqueness result
           if [ "${{ steps.name_check.outputs.duplicate }}" = "true" ]; then
-            DUPE_MSG="  E034: name '${{ needs.detect-plugin.outputs.plugin_name }}' already exists in registry"
+            DUPE_MSG="  E034: name '${{ needs.collect.outputs.plugin_name }}' already exists in registry"
             OUTPUT=$(printf '%s\n%s' "$OUTPUT" "$DUPE_MSG")
             EXIT_CODE=1
           fi
@@ -192,7 +253,7 @@ jobs:
         if: always()
         uses: actions/github-script@v7
         env:
-          IS_NEW: ${{ needs.detect-plugin.outputs.is_new }}
+          IS_NEW: ${{ needs.collect.outputs.is_new }}
           LINT_EXIT_CODE: ${{ steps.lint.outputs.exit_code }}
         with:
           script: |

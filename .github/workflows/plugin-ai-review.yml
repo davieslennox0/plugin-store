@@ -12,6 +12,11 @@
 #   provides access to multiple providers via a single API key.
 #
 # This workflow NEVER fails the PR check — it only provides information.
+#
+# SECURITY: Split into isolated jobs to prevent Pwn Request attacks.
+# - gate: blocks fork PRs that modify .github/
+# - collect: zero permissions, checkouts fork code, collects data as artifact
+# - ai-review: has secrets/write perms, only checkouts main, processes artifact
 
 name: "Phase 3: AI Code Review"
 
@@ -21,28 +26,56 @@ on:
       - 'skills/**'
     types: [opened, synchronize, reopened]
 
-permissions:
-  contents: read
-  pull-requests: write
-
 # onchainos source repo — change this if the repo moves
 env:
   ONCHAINOS_REPO: "okx/onchainos-skills"
   ONCHAINOS_BRANCH: "main"
 
 jobs:
-  ai-review:
-    name: AI code review
-    environment: ai-review
+  # ═══════════════════════════════════════════════════════════════
+  #  Security Gate — block fork PRs that modify .github/
+  # ═══════════════════════════════════════════════════════════════
+  gate:
+    name: Security gate
     runs-on: ubuntu-latest
+    permissions: {}
+    outputs:
+      safe: ${{ steps.check.outputs.safe }}
+    steps:
+      - name: Block .github modifications from forks
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_NUM=${{ github.event.pull_request.number }}
+          CHANGES=$(gh api repos/${{ github.repository }}/pulls/$PR_NUM/files --jq '.[].filename' | grep '^\\.github/' || true)
+          if [ -n "$CHANGES" ]; then
+            echo "::error::Fork PRs cannot modify .github/ files: $CHANGES"
+            echo "safe=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          echo "safe=true" >> "$GITHUB_OUTPUT"
+
+  # ═══════════════════════════════════════════════════════════════
+  #  Collect — zero permissions sandbox, checkout fork code
+  # ═══════════════════════════════════════════════════════════════
+  collect:
+    name: Collect plugin data
+    needs: gate
+    runs-on: ubuntu-latest
+    permissions: {}
+    outputs:
+      plugin_name: ${{ steps.detect.outputs.plugin_name }}
+      plugin_dir: ${{ steps.detect.outputs.plugin_dir }}
     steps:
       - uses: actions/checkout@v4
         with:
           repository: ${{ github.event.pull_request.head.repo.full_name }}
           ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
           fetch-depth: 0
 
-      # ── Step 1: Detect which plugin is being submitted ──────────
+      # ── Detect which plugin is being submitted ──────────
       - name: Detect plugin
         id: detect
         run: |
@@ -59,7 +92,56 @@ jobs:
           echo "plugin_dir=${PLUGIN_DIR}" >> "$GITHUB_OUTPUT"
           echo "plugin_name=${PLUGIN_NAME}" >> "$GITHUB_OUTPUT"
 
-      # ── Step 2: Fetch onchainos source code as review context ───
+      # ── Collect plugin files as artifact ──────────
+      - name: Collect plugin files
+        run: |
+          mkdir -p /tmp/plugin-data
+          PLUGIN_DIR="skills/${{ steps.detect.outputs.plugin_name }}"
+          if [ -d "$PLUGIN_DIR" ]; then
+            cp -r "$PLUGIN_DIR" /tmp/plugin-data/
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plugin-data
+          path: /tmp/plugin-data/
+
+  # ═══════════════════════════════════════════════════════════════
+  #  AI Review — privileged job, only checkouts main (trusted code)
+  # ═══════════════════════════════════════════════════════════════
+  ai-review:
+    name: AI code review
+    needs: collect
+    environment: ai-review
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        # No repository/ref override = checkouts main (trusted code)
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: plugin-data
+          path: /tmp/plugin-data/
+
+      # ── Reconstruct plugin dir from artifact ──────────
+      - name: Setup plugin data
+        id: setup
+        run: |
+          PLUGIN_NAME="${{ needs.collect.outputs.plugin_name }}"
+          PLUGIN_DIR="${{ needs.collect.outputs.plugin_dir }}"
+          echo "plugin_name=${PLUGIN_NAME}" >> "$GITHUB_OUTPUT"
+          echo "plugin_dir=${PLUGIN_DIR}" >> "$GITHUB_OUTPUT"
+
+          # Make artifact data available at expected path
+          mkdir -p "${PLUGIN_DIR}"
+          if [ -d "/tmp/plugin-data/${PLUGIN_NAME}" ]; then
+            cp -r "/tmp/plugin-data/${PLUGIN_NAME}/." "${PLUGIN_DIR}/"
+          fi
+
+      # ── Fetch onchainos source code as review context ───
       - name: Fetch onchainos source
         id: onchainos
         run: |
@@ -157,7 +239,7 @@ jobs:
           TOKENS_EST=$((SIZE / 4))
           echo "onchainos context: ${SIZE} bytes (~${TOKENS_EST} tokens)"
 
-      # ── Step 3: Detect API provider and select model ────────────
+      # ── Detect API provider and select model ────────────
       - name: Select API provider and model
         id: provider
         env:
@@ -231,11 +313,11 @@ jobs:
             echo "Provider: Anthropic | Model: ${BEST_MODEL:-claude-sonnet-4-20250514}"
           fi
 
-      # ── Step 4: Build the API request ───────────────────────────
+      # ── Build the API request ───────────────────────────
       - name: Build API request
         id: build
         run: |
-          PLUGIN_DIR="${{ steps.detect.outputs.plugin_dir }}"
+          PLUGIN_DIR="${{ steps.setup.outputs.plugin_dir }}"
           YAML_FILE="${PLUGIN_DIR}/plugin.yaml"
           SKILL_FILE=$(find "${PLUGIN_DIR}" -name "SKILL.md" -type f | head -1)
 
@@ -445,7 +527,7 @@ jobs:
           SIZE=$(wc -c < /tmp/api_request.json)
           echo "Total API request: ${SIZE} bytes"
 
-      # ── Step 5: Call Claude API (with jitter + retry) ─────────────
+      # ── Call Claude API (with jitter + retry) ─────────────
       - name: Call Claude API
         id: ai_review
         if: steps.build.outputs.skip != 'true'
@@ -558,12 +640,12 @@ jobs:
             echo "merge_rec=caveats" >> "$GITHUB_OUTPUT"
           fi
 
-      # ── Step 6: Post report to PR ──────────────────────────────
+      # ── Post report to PR ──────────────────────────────
       - name: Post review report
         if: always() && steps.build.outputs.skip != 'true'
         uses: actions/github-script@v7
         env:
-          PLUGIN_NAME: ${{ steps.detect.outputs.plugin_name }}
+          PLUGIN_NAME: ${{ needs.collect.outputs.plugin_name }}
           SCORE: ${{ steps.ai_review.outputs.score }}
           MERGE_REC: ${{ steps.ai_review.outputs.merge_rec }}
           ONCHAINOS_AVAILABLE: ${{ steps.onchainos.outputs.available }}
@@ -661,7 +743,7 @@ jobs:
               labels: ['ai-reviewed']
             });
 
-      # ── Step 7: Watchdog — verify report was posted ─────────────
+      # ── Watchdog — verify report was posted ─────────────
       - name: Watchdog — verify AI review report exists
         if: always() && steps.build.outputs.skip != 'true'
         uses: actions/github-script@v7

@@ -11,6 +11,11 @@
 # - plugin.yaml has: build.source_repo + build.source_commit
 # - We clone at exact SHA → compile → publish our artifact
 # - Community repo stays small (no source code stored)
+#
+# SECURITY: Split into isolated jobs to prevent Pwn Request attacks.
+# - gate: blocks fork PRs that modify .github/
+# - collect: zero permissions, checkouts fork code, collects data as artifact
+# - build jobs: have write perms, only checkout main, process artifact data
 
 name: "Phase 2: Build Verification"
 
@@ -20,14 +25,39 @@ on:
       - 'skills/**'
     types: [opened, synchronize, reopened]
 
-permissions:
-  contents: read
-  pull-requests: write
-
 jobs:
-  detect:
-    name: Detect build config
+  # ═══════════════════════════════════════════════════════════════
+  #  Security Gate — block fork PRs that modify .github/
+  # ═══════════════════════════════════════════════════════════════
+  gate:
+    name: Security gate
     runs-on: ubuntu-latest
+    permissions: {}
+    outputs:
+      safe: ${{ steps.check.outputs.safe }}
+    steps:
+      - name: Block .github modifications from forks
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_NUM=${{ github.event.pull_request.number }}
+          CHANGES=$(gh api repos/${{ github.repository }}/pulls/$PR_NUM/files --jq '.[].filename' | grep '^\\.github/' || true)
+          if [ -n "$CHANGES" ]; then
+            echo "::error::Fork PRs cannot modify .github/ files: $CHANGES"
+            echo "safe=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          echo "safe=true" >> "$GITHUB_OUTPUT"
+
+  # ═══════════════════════════════════════════════════════════════
+  #  Collect — zero permissions sandbox, checkout fork code
+  # ═══════════════════════════════════════════════════════════════
+  collect:
+    name: Collect plugin data
+    needs: gate
+    runs-on: ubuntu-latest
+    permissions: {}
     outputs:
       plugin_dir: ${{ steps.find.outputs.plugin_dir }}
       plugin_name: ${{ steps.find.outputs.plugin_name }}
@@ -45,6 +75,7 @@ jobs:
         with:
           repository: ${{ github.event.pull_request.head.repo.full_name }}
           ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Find plugin and parse build config
@@ -100,6 +131,20 @@ jobs:
                       gh.write(f"local_source_dir={plugin_dir}\n")
           PYEOF
 
+      # ── Collect plugin files as artifact (for local-source builds) ──
+      - name: Collect plugin files
+        run: |
+          mkdir -p /tmp/plugin-data
+          PLUGIN_DIR="skills/${{ steps.find.outputs.plugin_name }}"
+          if [ -d "$PLUGIN_DIR" ]; then
+            cp -r "$PLUGIN_DIR" /tmp/plugin-data/
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plugin-data
+          path: /tmp/plugin-data/
+
   # ═══ Clone source repo (shared step) ════════════════════════
   # Each build job clones the external repo at the pinned commit SHA.
   # This is a YAML anchor pattern — each job repeats the clone step.
@@ -109,50 +154,62 @@ jobs:
   # ═══════════════════════════════════════════════════════════════
   build-rust:
     name: Build (Rust)
-    needs: detect
-    if: needs.detect.outputs.has_build == 'true' && needs.detect.outputs.build_lang == 'rust'
+    needs: collect
+    if: needs.collect.outputs.has_build == 'true' && needs.collect.outputs.build_lang == 'rust'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
-        if: needs.detect.outputs.source_mode != 'external'
+        # No repository/ref override = checkouts main (trusted code)
+
+      - uses: actions/download-artifact@v4
+        if: needs.collect.outputs.source_mode != 'external'
         with:
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
-          ref: ${{ github.event.pull_request.head.sha }}
+          name: plugin-data
+          path: /tmp/plugin-data/
 
       - name: Prepare source
         run: |
-          if [ "${{ needs.detect.outputs.source_mode }}" = "external" ] && [ -n "${{ needs.detect.outputs.source_repo }}" ]; then
-            git clone "https://github.com/${{ needs.detect.outputs.source_repo }}.git" /tmp/source
-            cd /tmp/source && git checkout "${{ needs.detect.outputs.source_commit }}"
+          if [ "${{ needs.collect.outputs.source_mode }}" = "external" ] && [ -n "${{ needs.collect.outputs.source_repo }}" ]; then
+            git clone "https://github.com/${{ needs.collect.outputs.source_repo }}.git" /tmp/source
+            cd /tmp/source && git checkout "${{ needs.collect.outputs.source_commit }}"
             echo "Checked out $(git rev-parse HEAD)"
           else
-            LOCAL_DIR="${{ needs.detect.outputs.local_source_dir }}"
-            [ -z "$LOCAL_DIR" ] && LOCAL_DIR="${{ needs.detect.outputs.plugin_dir }}"
-            cp -r "$LOCAL_DIR" /tmp/source
-            echo "Using local source from $LOCAL_DIR"
+            PLUGIN_NAME="${{ needs.collect.outputs.plugin_name }}"
+            LOCAL_DIR="${{ needs.collect.outputs.local_source_dir }}"
+            [ -z "$LOCAL_DIR" ] && LOCAL_DIR="${{ needs.collect.outputs.plugin_dir }}"
+            ARTIFACT_DIR="/tmp/plugin-data/${PLUGIN_NAME}"
+            if [ -d "$ARTIFACT_DIR" ]; then
+              cp -r "$ARTIFACT_DIR" /tmp/source
+            else
+              cp -r "$LOCAL_DIR" /tmp/source
+            fi
+            echo "Using local source from artifact"
           fi
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
       - name: Fetch dependencies
-        working-directory: /tmp/source/${{ needs.detect.outputs.source_dir }}
+        working-directory: /tmp/source/${{ needs.collect.outputs.source_dir }}
         run: cargo fetch
 
       - name: Security audit
-        working-directory: /tmp/source/${{ needs.detect.outputs.source_dir }}
+        working-directory: /tmp/source/${{ needs.collect.outputs.source_dir }}
         run: |
           cargo install cargo-audit 2>/dev/null || true
           cargo audit 2>&1 || true
 
       - name: Build
-        working-directory: /tmp/source/${{ needs.detect.outputs.source_dir }}
+        working-directory: /tmp/source/${{ needs.collect.outputs.source_dir }}
         run: cargo build --release 2>&1 | tail -20
 
       - name: Verify artifact
         id: verify
         run: |
-          BIN="/tmp/source/${{ needs.detect.outputs.source_dir }}/target/release/${{ needs.detect.outputs.binary_name }}"
+          BIN="/tmp/source/${{ needs.collect.outputs.source_dir }}/target/release/${{ needs.collect.outputs.binary_name }}"
           if [ -f "$BIN" ]; then
             chmod +x "$BIN"
             SIZE=$(stat -c%s "$BIN" 2>/dev/null || stat -f%z "$BIN")
@@ -168,35 +225,47 @@ jobs:
         if: steps.verify.outputs.status == 'pass'
         uses: actions/upload-artifact@v4
         with:
-          name: build-rust-${{ needs.detect.outputs.plugin_name }}
-          path: /tmp/source/${{ needs.detect.outputs.source_dir }}/target/release/${{ needs.detect.outputs.binary_name }}
+          name: build-rust-${{ needs.collect.outputs.plugin_name }}
+          path: /tmp/source/${{ needs.collect.outputs.source_dir }}/target/release/${{ needs.collect.outputs.binary_name }}
 
   # ═══════════════════════════════════════════════════════════════
   #  Go Build
   # ═══════════════════════════════════════════════════════════════
   build-go:
     name: Build (Go)
-    needs: detect
-    if: needs.detect.outputs.has_build == 'true' && needs.detect.outputs.build_lang == 'go'
+    needs: collect
+    if: needs.collect.outputs.has_build == 'true' && needs.collect.outputs.build_lang == 'go'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
-        if: needs.detect.outputs.source_mode != 'external'
+        # No repository/ref override = checkouts main (trusted code)
+
+      - uses: actions/download-artifact@v4
+        if: needs.collect.outputs.source_mode != 'external'
         with:
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
-          ref: ${{ github.event.pull_request.head.sha }}
+          name: plugin-data
+          path: /tmp/plugin-data/
 
       - name: Prepare source
         run: |
-          if [ "${{ needs.detect.outputs.source_mode }}" = "external" ] && [ -n "${{ needs.detect.outputs.source_repo }}" ]; then
-            git clone "https://github.com/${{ needs.detect.outputs.source_repo }}.git" /tmp/source
-            cd /tmp/source && git checkout "${{ needs.detect.outputs.source_commit }}"
+          if [ "${{ needs.collect.outputs.source_mode }}" = "external" ] && [ -n "${{ needs.collect.outputs.source_repo }}" ]; then
+            git clone "https://github.com/${{ needs.collect.outputs.source_repo }}.git" /tmp/source
+            cd /tmp/source && git checkout "${{ needs.collect.outputs.source_commit }}"
             echo "Checked out $(git rev-parse HEAD)"
           else
-            LOCAL_DIR="${{ needs.detect.outputs.local_source_dir }}"
-            [ -z "$LOCAL_DIR" ] && LOCAL_DIR="${{ needs.detect.outputs.plugin_dir }}"
-            cp -r "$LOCAL_DIR" /tmp/source
-            echo "Using local source from $LOCAL_DIR"
+            PLUGIN_NAME="${{ needs.collect.outputs.plugin_name }}"
+            LOCAL_DIR="${{ needs.collect.outputs.local_source_dir }}"
+            [ -z "$LOCAL_DIR" ] && LOCAL_DIR="${{ needs.collect.outputs.plugin_dir }}"
+            ARTIFACT_DIR="/tmp/plugin-data/${PLUGIN_NAME}"
+            if [ -d "$ARTIFACT_DIR" ]; then
+              cp -r "$ARTIFACT_DIR" /tmp/source
+            else
+              cp -r "$LOCAL_DIR" /tmp/source
+            fi
+            echo "Using local source from artifact"
           fi
 
       - uses: actions/setup-go@v5
@@ -204,25 +273,25 @@ jobs:
           go-version: '1.22'
 
       - name: Fetch dependencies
-        working-directory: /tmp/source/${{ needs.detect.outputs.source_dir }}
+        working-directory: /tmp/source/${{ needs.collect.outputs.source_dir }}
         run: go mod download
 
       - name: Security check
-        working-directory: /tmp/source/${{ needs.detect.outputs.source_dir }}
+        working-directory: /tmp/source/${{ needs.collect.outputs.source_dir }}
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest 2>/dev/null || true
           govulncheck ./... 2>&1 || true
 
       - name: Build
-        working-directory: /tmp/source/${{ needs.detect.outputs.source_dir }}
+        working-directory: /tmp/source/${{ needs.collect.outputs.source_dir }}
         env:
           CGO_ENABLED: 0
-        run: go build -o "${{ needs.detect.outputs.binary_name }}" -ldflags="-s -w" .
+        run: go build -o "${{ needs.collect.outputs.binary_name }}" -ldflags="-s -w" .
 
       - name: Verify artifact
         id: verify
         run: |
-          BIN="/tmp/source/${{ needs.detect.outputs.source_dir }}/${{ needs.detect.outputs.binary_name }}"
+          BIN="/tmp/source/${{ needs.collect.outputs.source_dir }}/${{ needs.collect.outputs.binary_name }}"
           if [ -f "$BIN" ]; then
             SIZE=$(stat -c%s "$BIN")
             echo "size=$((SIZE / 1024 / 1024))MB" >> "$GITHUB_OUTPUT"
@@ -236,51 +305,63 @@ jobs:
         if: steps.verify.outputs.status == 'pass'
         uses: actions/upload-artifact@v4
         with:
-          name: build-go-${{ needs.detect.outputs.plugin_name }}
-          path: /tmp/source/${{ needs.detect.outputs.source_dir }}/${{ needs.detect.outputs.binary_name }}
+          name: build-go-${{ needs.collect.outputs.plugin_name }}
+          path: /tmp/source/${{ needs.collect.outputs.source_dir }}/${{ needs.collect.outputs.binary_name }}
 
   # ═══════════════════════════════════════════════════════════════
   #  TypeScript Build (Bun compile)
   # ═══════════════════════════════════════════════════════════════
   build-typescript:
     name: Build (TypeScript)
-    needs: detect
-    if: needs.detect.outputs.has_build == 'true' && needs.detect.outputs.build_lang == 'typescript'
+    needs: collect
+    if: needs.collect.outputs.has_build == 'true' && needs.collect.outputs.build_lang == 'typescript'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
-        if: needs.detect.outputs.source_mode != 'external'
+        # No repository/ref override = checkouts main (trusted code)
+
+      - uses: actions/download-artifact@v4
+        if: needs.collect.outputs.source_mode != 'external'
         with:
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
-          ref: ${{ github.event.pull_request.head.sha }}
+          name: plugin-data
+          path: /tmp/plugin-data/
 
       - name: Prepare source
         run: |
-          if [ "${{ needs.detect.outputs.source_mode }}" = "external" ] && [ -n "${{ needs.detect.outputs.source_repo }}" ]; then
-            git clone "https://github.com/${{ needs.detect.outputs.source_repo }}.git" /tmp/source
-            cd /tmp/source && git checkout "${{ needs.detect.outputs.source_commit }}"
+          if [ "${{ needs.collect.outputs.source_mode }}" = "external" ] && [ -n "${{ needs.collect.outputs.source_repo }}" ]; then
+            git clone "https://github.com/${{ needs.collect.outputs.source_repo }}.git" /tmp/source
+            cd /tmp/source && git checkout "${{ needs.collect.outputs.source_commit }}"
             echo "Checked out $(git rev-parse HEAD)"
           else
-            LOCAL_DIR="${{ needs.detect.outputs.local_source_dir }}"
-            [ -z "$LOCAL_DIR" ] && LOCAL_DIR="${{ needs.detect.outputs.plugin_dir }}"
-            cp -r "$LOCAL_DIR" /tmp/source
-            echo "Using local source from $LOCAL_DIR"
+            PLUGIN_NAME="${{ needs.collect.outputs.plugin_name }}"
+            LOCAL_DIR="${{ needs.collect.outputs.local_source_dir }}"
+            [ -z "$LOCAL_DIR" ] && LOCAL_DIR="${{ needs.collect.outputs.plugin_dir }}"
+            ARTIFACT_DIR="/tmp/plugin-data/${PLUGIN_NAME}"
+            if [ -d "$ARTIFACT_DIR" ]; then
+              cp -r "$ARTIFACT_DIR" /tmp/source
+            else
+              cp -r "$LOCAL_DIR" /tmp/source
+            fi
+            echo "Using local source from artifact"
           fi
 
       - uses: oven-sh/setup-bun@v2
 
       - name: Install dependencies
-        working-directory: /tmp/source/${{ needs.detect.outputs.source_dir }}
+        working-directory: /tmp/source/${{ needs.collect.outputs.source_dir }}
         run: bun install
 
       - name: Compile to binary
-        working-directory: /tmp/source/${{ needs.detect.outputs.source_dir }}
-        run: bun build --compile "${{ needs.detect.outputs.build_main }}" --outfile "${{ needs.detect.outputs.binary_name }}"
+        working-directory: /tmp/source/${{ needs.collect.outputs.source_dir }}
+        run: bun build --compile "${{ needs.collect.outputs.build_main }}" --outfile "${{ needs.collect.outputs.binary_name }}"
 
       - name: Verify artifact
         id: verify
         run: |
-          BIN="/tmp/source/${{ needs.detect.outputs.source_dir }}/${{ needs.detect.outputs.binary_name }}"
+          BIN="/tmp/source/${{ needs.collect.outputs.source_dir }}/${{ needs.collect.outputs.binary_name }}"
           if [ -f "$BIN" ]; then
             SIZE=$(stat -c%s "$BIN")
             echo "size=$((SIZE / 1024 / 1024))MB" >> "$GITHUB_OUTPUT"
@@ -294,51 +375,63 @@ jobs:
         if: steps.verify.outputs.status == 'pass'
         uses: actions/upload-artifact@v4
         with:
-          name: build-ts-${{ needs.detect.outputs.plugin_name }}
-          path: /tmp/source/${{ needs.detect.outputs.source_dir }}/${{ needs.detect.outputs.binary_name }}
+          name: build-ts-${{ needs.collect.outputs.plugin_name }}
+          path: /tmp/source/${{ needs.collect.outputs.source_dir }}/${{ needs.collect.outputs.binary_name }}
 
   # ═══════════════════════════════════════════════════════════════
   #  Node.js (npm pack)
   # ═══════════════════════════════════════════════════════════════
   build-node:
     name: Build (Node.js)
-    needs: detect
-    if: needs.detect.outputs.has_build == 'true' && needs.detect.outputs.build_lang == 'node'
+    needs: collect
+    if: needs.collect.outputs.has_build == 'true' && needs.collect.outputs.build_lang == 'node'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
-        if: needs.detect.outputs.source_mode != 'external'
+        # No repository/ref override = checkouts main (trusted code)
+
+      - uses: actions/download-artifact@v4
+        if: needs.collect.outputs.source_mode != 'external'
         with:
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
-          ref: ${{ github.event.pull_request.head.sha }}
+          name: plugin-data
+          path: /tmp/plugin-data/
 
       - name: Prepare source
         run: |
-          if [ "${{ needs.detect.outputs.source_mode }}" = "external" ] && [ -n "${{ needs.detect.outputs.source_repo }}" ]; then
-            git clone "https://github.com/${{ needs.detect.outputs.source_repo }}.git" /tmp/source
-            cd /tmp/source && git checkout "${{ needs.detect.outputs.source_commit }}"
+          if [ "${{ needs.collect.outputs.source_mode }}" = "external" ] && [ -n "${{ needs.collect.outputs.source_repo }}" ]; then
+            git clone "https://github.com/${{ needs.collect.outputs.source_repo }}.git" /tmp/source
+            cd /tmp/source && git checkout "${{ needs.collect.outputs.source_commit }}"
             echo "Checked out $(git rev-parse HEAD)"
           else
-            LOCAL_DIR="${{ needs.detect.outputs.local_source_dir }}"
-            [ -z "$LOCAL_DIR" ] && LOCAL_DIR="${{ needs.detect.outputs.plugin_dir }}"
-            cp -r "$LOCAL_DIR" /tmp/source
-            echo "Using local source from $LOCAL_DIR"
+            PLUGIN_NAME="${{ needs.collect.outputs.plugin_name }}"
+            LOCAL_DIR="${{ needs.collect.outputs.local_source_dir }}"
+            [ -z "$LOCAL_DIR" ] && LOCAL_DIR="${{ needs.collect.outputs.plugin_dir }}"
+            ARTIFACT_DIR="/tmp/plugin-data/${PLUGIN_NAME}"
+            if [ -d "$ARTIFACT_DIR" ]; then
+              cp -r "$ARTIFACT_DIR" /tmp/source
+            else
+              cp -r "$LOCAL_DIR" /tmp/source
+            fi
+            echo "Using local source from artifact"
           fi
 
       - uses: oven-sh/setup-bun@v2
 
       - name: Install dependencies
-        working-directory: /tmp/source/${{ needs.detect.outputs.source_dir }}
+        working-directory: /tmp/source/${{ needs.collect.outputs.source_dir }}
         run: bun install
 
       - name: Compile to binary
-        working-directory: /tmp/source/${{ needs.detect.outputs.source_dir }}
-        run: bun build --compile "${{ needs.detect.outputs.build_main }}" --outfile "${{ needs.detect.outputs.binary_name }}"
+        working-directory: /tmp/source/${{ needs.collect.outputs.source_dir }}
+        run: bun build --compile "${{ needs.collect.outputs.build_main }}" --outfile "${{ needs.collect.outputs.binary_name }}"
 
       - name: Verify artifact
         id: verify
         run: |
-          BIN="/tmp/source/${{ needs.detect.outputs.source_dir }}/${{ needs.detect.outputs.binary_name }}"
+          BIN="/tmp/source/${{ needs.collect.outputs.source_dir }}/${{ needs.collect.outputs.binary_name }}"
           if [ -f "$BIN" ]; then
             SIZE=$(stat -c%s "$BIN")
             echo "size=$((SIZE / 1024 / 1024))MB" >> "$GITHUB_OUTPUT"
@@ -352,8 +445,8 @@ jobs:
         if: steps.verify.outputs.status == 'pass'
         uses: actions/upload-artifact@v4
         with:
-          name: build-node-${{ needs.detect.outputs.plugin_name }}
-          path: /tmp/source/${{ needs.detect.outputs.source_dir }}/${{ needs.detect.outputs.binary_name }}
+          name: build-node-${{ needs.collect.outputs.plugin_name }}
+          path: /tmp/source/${{ needs.collect.outputs.source_dir }}/${{ needs.collect.outputs.binary_name }}
 
   # ═══════════════════════════════════════════════════════════════
   #  Python Validation (pip install — no binary packaging)
@@ -362,27 +455,39 @@ jobs:
   # ═══════════════════════════════════════════════════════════════
   build-python:
     name: Build (Python)
-    needs: detect
-    if: needs.detect.outputs.has_build == 'true' && needs.detect.outputs.build_lang == 'python'
+    needs: collect
+    if: needs.collect.outputs.has_build == 'true' && needs.collect.outputs.build_lang == 'python'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
-        if: needs.detect.outputs.source_mode != 'external'
+        # No repository/ref override = checkouts main (trusted code)
+
+      - uses: actions/download-artifact@v4
+        if: needs.collect.outputs.source_mode != 'external'
         with:
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
-          ref: ${{ github.event.pull_request.head.sha }}
+          name: plugin-data
+          path: /tmp/plugin-data/
 
       - name: Prepare source
         run: |
-          if [ "${{ needs.detect.outputs.source_mode }}" = "external" ] && [ -n "${{ needs.detect.outputs.source_repo }}" ]; then
-            git clone "https://github.com/${{ needs.detect.outputs.source_repo }}.git" /tmp/source
-            cd /tmp/source && git checkout "${{ needs.detect.outputs.source_commit }}"
+          if [ "${{ needs.collect.outputs.source_mode }}" = "external" ] && [ -n "${{ needs.collect.outputs.source_repo }}" ]; then
+            git clone "https://github.com/${{ needs.collect.outputs.source_repo }}.git" /tmp/source
+            cd /tmp/source && git checkout "${{ needs.collect.outputs.source_commit }}"
             echo "Checked out $(git rev-parse HEAD)"
           else
-            LOCAL_DIR="${{ needs.detect.outputs.local_source_dir }}"
-            [ -z "$LOCAL_DIR" ] && LOCAL_DIR="${{ needs.detect.outputs.plugin_dir }}"
-            cp -r "$LOCAL_DIR" /tmp/source
-            echo "Using local source from $LOCAL_DIR"
+            PLUGIN_NAME="${{ needs.collect.outputs.plugin_name }}"
+            LOCAL_DIR="${{ needs.collect.outputs.local_source_dir }}"
+            [ -z "$LOCAL_DIR" ] && LOCAL_DIR="${{ needs.collect.outputs.plugin_dir }}"
+            ARTIFACT_DIR="/tmp/plugin-data/${PLUGIN_NAME}"
+            if [ -d "$ARTIFACT_DIR" ]; then
+              cp -r "$ARTIFACT_DIR" /tmp/source
+            else
+              cp -r "$LOCAL_DIR" /tmp/source
+            fi
+            echo "Using local source from artifact"
           fi
 
       - uses: actions/setup-python@v5
@@ -390,7 +495,7 @@ jobs:
           python-version: '3.12'
 
       - name: Check Python version requirements
-        working-directory: /tmp/source/${{ needs.detect.outputs.source_dir }}
+        working-directory: /tmp/source/${{ needs.collect.outputs.source_dir }}
         run: |
           # Extract requires-python from pyproject.toml if present
           if [ -f pyproject.toml ]; then
@@ -404,7 +509,7 @@ jobs:
           fi
 
       - name: Install package
-        working-directory: /tmp/source/${{ needs.detect.outputs.source_dir }}
+        working-directory: /tmp/source/${{ needs.collect.outputs.source_dir }}
         run: |
           pip install pip-audit
           pip install -e . 2>/dev/null || pip install -r requirements.txt 2>/dev/null || pip install . || {
@@ -418,10 +523,10 @@ jobs:
 
       - name: Verify entry point works
         id: verify
-        working-directory: /tmp/source/${{ needs.detect.outputs.source_dir }}
+        working-directory: /tmp/source/${{ needs.collect.outputs.source_dir }}
         run: |
-          MAIN="${{ needs.detect.outputs.build_main }}"
-          BIN="${{ needs.detect.outputs.binary_name }}"
+          MAIN="${{ needs.collect.outputs.build_main }}"
+          BIN="${{ needs.collect.outputs.binary_name }}"
 
           # Check if the entry point script runs
           if [ -n "$MAIN" ] && python3 "$MAIN" --help > /dev/null 2>&1; then
@@ -447,17 +552,20 @@ jobs:
   # ═══════════════════════════════════════════════════════════════
   report:
     name: Build report
-    needs: [detect, build-rust, build-go, build-typescript, build-node, build-python]
-    if: always() && needs.detect.outputs.has_build == 'true'
+    needs: [collect, build-rust, build-go, build-typescript, build-node, build-python]
+    if: always() && needs.collect.outputs.has_build == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - name: Post build report
         uses: actions/github-script@v7
         env:
-          BUILD_LANG: ${{ needs.detect.outputs.build_lang }}
-          PLUGIN_NAME: ${{ needs.detect.outputs.plugin_name }}
-          SOURCE_REPO: ${{ needs.detect.outputs.source_repo }}
-          SOURCE_COMMIT: ${{ needs.detect.outputs.source_commit }}
+          BUILD_LANG: ${{ needs.collect.outputs.build_lang }}
+          PLUGIN_NAME: ${{ needs.collect.outputs.plugin_name }}
+          SOURCE_REPO: ${{ needs.collect.outputs.source_repo }}
+          SOURCE_COMMIT: ${{ needs.collect.outputs.source_commit }}
         with:
           script: |
             const lang = process.env.BUILD_LANG;

@@ -1,6 +1,11 @@
 # Phase 4: AI Review + Summary Generation + Pre-flight Injection
 # Requires maintainer approval via "summary-generation" environment.
 # All Claude API calls are here — no automatic API spend on PR pushes.
+#
+# SECURITY: Split into isolated jobs to prevent Pwn Request attacks.
+# - gate: blocks fork PRs that modify .github/
+# - collect: zero permissions, checkouts fork code, collects data as artifact
+# - review-and-generate: has secrets/write perms, only checkouts main, processes artifact
 
 name: "Phase 4: Generate Summary"
 
@@ -10,14 +15,39 @@ on:
       - 'skills/**'
     types: [opened, synchronize, reopened]
 
-permissions:
-  contents: write
-  pull-requests: write
-
 jobs:
-  detect:
-    name: Detect plugin
+  # ═══════════════════════════════════════════════════════════════
+  #  Security Gate — block fork PRs that modify .github/
+  # ═══════════════════════════════════════════════════════════════
+  gate:
+    name: Security gate
     runs-on: ubuntu-latest
+    permissions: {}
+    outputs:
+      safe: ${{ steps.check.outputs.safe }}
+    steps:
+      - name: Block .github modifications from forks
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_NUM=${{ github.event.pull_request.number }}
+          CHANGES=$(gh api repos/${{ github.repository }}/pulls/$PR_NUM/files --jq '.[].filename' | grep '^\\.github/' || true)
+          if [ -n "$CHANGES" ]; then
+            echo "::error::Fork PRs cannot modify .github/ files: $CHANGES"
+            echo "safe=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          echo "safe=true" >> "$GITHUB_OUTPUT"
+
+  # ═══════════════════════════════════════════════════════════════
+  #  Collect — zero permissions sandbox, checkout fork code
+  # ═══════════════════════════════════════════════════════════════
+  collect:
+    name: Collect plugin data
+    needs: gate
+    runs-on: ubuntu-latest
+    permissions: {}
     outputs:
       plugin_name: ${{ steps.find.outputs.plugin_name }}
       plugin_dir: ${{ steps.find.outputs.plugin_dir }}
@@ -26,6 +56,7 @@ jobs:
         with:
           repository: ${{ github.event.pull_request.head.repo.full_name }}
           ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Find plugin
@@ -43,23 +74,52 @@ jobs:
           echo "plugin_name=${PLUGIN_NAME}" >> "$GITHUB_OUTPUT"
           echo "plugin_dir=skills/${PLUGIN_NAME}" >> "$GITHUB_OUTPUT"
 
+      # ── Collect plugin files as artifact ──────────
+      - name: Collect plugin files
+        run: |
+          mkdir -p /tmp/plugin-data
+          PLUGIN_DIR="skills/${{ steps.find.outputs.plugin_name }}"
+          if [ -d "$PLUGIN_DIR" ]; then
+            cp -r "$PLUGIN_DIR" /tmp/plugin-data/
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plugin-data
+          path: /tmp/plugin-data/
+
+  # ═══════════════════════════════════════════════════════════════
+  #  Review + Generate — privileged job, only checkouts main
+  # ═══════════════════════════════════════════════════════════════
   review-and-generate:
     name: AI Review + Summary
-    needs: detect
+    needs: collect
     runs-on: ubuntu-latest
     environment: summary-generation
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
+        # No repository/ref override = checkouts main (trusted code)
         with:
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
-          ref: ${{ github.event.pull_request.head.sha }}
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 1
 
-      - name: Overlay CI scripts from base branch
+      - uses: actions/download-artifact@v4
+        with:
+          name: plugin-data
+          path: /tmp/plugin-data/
+
+      # ── Reconstruct plugin dir from artifact ──────────
+      - name: Setup plugin data
         run: |
-          git fetch origin main --depth=1
-          git checkout origin/main -- .github/scripts/
+          PLUGIN_NAME="${{ needs.collect.outputs.plugin_name }}"
+          PLUGIN_DIR="${{ needs.collect.outputs.plugin_dir }}"
+          mkdir -p "${PLUGIN_DIR}"
+          if [ -d "/tmp/plugin-data/${PLUGIN_NAME}" ]; then
+            cp -r "/tmp/plugin-data/${PLUGIN_NAME}/." "${PLUGIN_DIR}/"
+          fi
 
       - name: Install yq
         run: |
@@ -69,8 +129,8 @@ jobs:
       - name: Resolve SKILL.md
         id: skill
         run: |
-          NAME="${{ needs.detect.outputs.plugin_name }}"
-          YAML="${{ needs.detect.outputs.plugin_dir }}/plugin.yaml"
+          NAME="${{ needs.collect.outputs.plugin_name }}"
+          YAML="${{ needs.collect.outputs.plugin_dir }}/plugin.yaml"
           SKILL_CONTENT=""
 
           FOUND=$(find "skills/${NAME}" -name "SKILL.md" -type f 2>/dev/null | head -1)
@@ -116,8 +176,8 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          NAME="${{ needs.detect.outputs.plugin_name }}"
-          PLUGIN_DIR="${{ needs.detect.outputs.plugin_dir }}"
+          NAME="${{ needs.collect.outputs.plugin_name }}"
+          PLUGIN_DIR="${{ needs.collect.outputs.plugin_dir }}"
 
           python3 .github/scripts/gen-summary-prompt.py "$NAME" "$PLUGIN_DIR"
 
@@ -150,8 +210,8 @@ jobs:
         id: preflight
         run: |
           python3 .github/scripts/inject-preflight.py \
-            "${{ needs.detect.outputs.plugin_name }}" \
-            "${{ needs.detect.outputs.plugin_dir }}"
+            "${{ needs.collect.outputs.plugin_name }}" \
+            "${{ needs.collect.outputs.plugin_dir }}"
           [ -f /tmp/preflight_injected.txt ] && echo "patched=true" >> "$GITHUB_OUTPUT" || echo "patched=false" >> "$GITHUB_OUTPUT"
 
       # ── Push all changes to PR ──
@@ -160,9 +220,9 @@ jobs:
         run: |
           git config user.name "plugin-store-bot"
           git config user.email "bot@plugin-store.local"
-          git add "${{ needs.detect.outputs.plugin_dir }}"
+          git add "${{ needs.collect.outputs.plugin_dir }}"
           git diff --staged --quiet && echo "No changes" && exit 0
-          git commit -m "auto: summaries + pre-flight for ${{ needs.detect.outputs.plugin_name }}"
+          git commit -m "auto: summaries + pre-flight for ${{ needs.collect.outputs.plugin_name }}"
           git push origin HEAD:refs/heads/${{ github.event.pull_request.head.ref }}
 
       # ── Post combined report to PR ──
@@ -170,7 +230,7 @@ jobs:
         if: always()
         uses: actions/github-script@v7
         env:
-          PLUGIN_NAME: ${{ needs.detect.outputs.plugin_name }}
+          PLUGIN_NAME: ${{ needs.collect.outputs.plugin_name }}
         with:
           script: |
             const fs = require('fs');
