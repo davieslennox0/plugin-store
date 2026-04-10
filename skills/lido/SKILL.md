@@ -351,3 +351,4 @@ After **claim-withdrawal**: suggest checking ETH balance via `onchainos wallet b
 - This plugin routes all blockchain operations through `onchainos` (TEE-sandboxed signing)
 - Always verify transaction amounts and addresses before confirming
 - DeFi protocols carry smart contract risk — only use funds you can afford to lose
+
