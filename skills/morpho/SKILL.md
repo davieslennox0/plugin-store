@@ -667,6 +667,7 @@ morpho --chain 8453 vaults --asset WETH
 5. **Full repay with shares**: Use `--all` for full repayment to avoid dust from interest rounding
 6. **Approval buffer**: Repay automatically adds 0.5% buffer to approval amount for accrued interest
 7. **MarketParams from API**: Market parameters are always fetched from the Morpho GraphQL API at runtime — never hardcoded
+8. **⚠️ ERC-20 approvals broadcast immediately**: Token approval transactions (for supply, supply-collateral, and repay) are sent with `--force` and broadcast to the blockchain **without a user confirmation prompt** from onchainos. This is by design — approvals are non-custodial prerequisite steps that must confirm on-chain before the main operation can simulate successfully. The main protocol transactions (deposit, borrow, repay, withdraw-collateral, claim-rewards) still go through onchainos's normal confirmation flow. **Always dry-run first** and inform the user that the approval will be broadcast automatically before asking them to confirm the main operation.
 
 ---
 

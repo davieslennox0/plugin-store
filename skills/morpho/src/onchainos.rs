@@ -57,14 +57,16 @@ pub async fn wallet_contract_call(
     Ok(serde_json::from_str(&stdout)?)
 }
 
-/// Poll until a transaction is confirmed on-chain (up to ~15 seconds).
+/// Poll until a transaction is confirmed on-chain.
 /// Called after approve --force so the main op simulation sees the updated allowance.
-pub async fn wait_for_tx(tx_hash: &str, rpc_url: &str) -> anyhow::Result<()> {
+/// Uses chain-aware timeouts: Ethereum mainnet (~12s blocks) polls up to 40s; Base (~2s blocks) polls up to 16s.
+pub async fn wait_for_tx(tx_hash: &str, rpc_url: &str, chain_id: u64) -> anyhow::Result<()> {
     if tx_hash == "0x0000000000000000000000000000000000000000000000000000000000000000" {
         return Ok(()); // dry-run stub hash — nothing to wait for
     }
+    let max_attempts: u32 = if chain_id == 1 { 20 } else { 8 }; // 40s for ETH mainnet, 16s for Base
     let client = reqwest::Client::new();
-    for _ in 0..8 {
+    for _ in 0..max_attempts {
         tokio::time::sleep(std::time::Duration::from_secs(2)).await;
         let body = serde_json::json!({
             "jsonrpc": "2.0", "method": "eth_getTransactionReceipt",

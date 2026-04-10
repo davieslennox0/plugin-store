@@ -83,7 +83,7 @@ pub async fn run(
     }
     let approve_result = onchainos::wallet_contract_call(chain_id, &loan_token, &approve_calldata, from, None, dry_run, true).await?;  // --force: approval is a prerequisite step
     let approve_tx = onchainos::extract_tx_hash_or_err(&approve_result)?;
-    onchainos::wait_for_tx(&approve_tx, cfg.rpc_url).await?;
+    onchainos::wait_for_tx(&approve_tx, cfg.rpc_url, chain_id).await?;
 
     // Step 2: repay(marketParams, assets, shares, onBehalf, data)
     let repay_calldata = calldata::encode_repay(&mp, repay_assets, repay_shares, borrower);
