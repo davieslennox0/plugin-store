@@ -58,7 +58,7 @@
     },
     {
       "name": "compound-v3",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "description": "Compound V3 (Comet) lending plugin: supply collateral, borrow/repay the base asset, and claim COMP rewards",
       "author": {
         "name": "skylavis-sky"
