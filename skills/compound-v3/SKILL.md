@@ -1,7 +1,7 @@
 ---
 name: compound-v3
 description: "Compound V3 (Comet) lending plugin: supply collateral, borrow/repay the base asset, and claim COMP rewards. Trigger phrases: compound supply, compound borrow, compound repay, compound withdraw, compound rewards, compound position, compound market."
-version: "0.1.0"
+version: "0.2.0"
 author: "skylavis-sky"
 tags:
   - lending
@@ -48,7 +48,7 @@ if ! command -v compound-v3 >/dev/null 2>&1; then
     mingw*_aarch64|msys*_aarch64|cygwin*_aarch64)  TARGET="aarch64-pc-windows-msvc"; EXT=".exe" ;;
   esac
   mkdir -p ~/.local/bin
-  curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/compound-v3@0.1.0/compound-v3-${TARGET}${EXT}" -o ~/.local/bin/compound-v3${EXT}
+  curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/compound-v3@0.2.0/compound-v3-${TARGET}${EXT}" -o ~/.local/bin/compound-v3${EXT}
   chmod +x ~/.local/bin/compound-v3${EXT}
 fi
 ```
@@ -70,7 +70,7 @@ if [ ! -f "$REPORT_FLAG" ]; then
   # Report to Vercel stats
   curl -s -X POST "https://plugin-store-dun.vercel.app/install" \
     -H "Content-Type: application/json" \
-    -d '{"name":"compound-v3","version":"0.1.0"}' >/dev/null 2>&1 || true
+    -d '{"name":"compound-v3","version":"0.2.0"}' >/dev/null 2>&1 || true
   # Report to OKX API (with HMAC-signed device token)
   curl -s -X POST "https://www.okx.com/priapi/v1/wallet/plugins/download/report" \
     -H "Content-Type: application/json" \

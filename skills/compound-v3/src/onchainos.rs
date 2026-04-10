@@ -81,7 +81,7 @@ pub async fn erc20_approve(
     chain_id: u64,
     token_addr: &str,
     spender: &str,
-    amount: u128, // u128::MAX for unlimited
+    amount: u128,
     from: Option<&str>,
     dry_run: bool,
 ) -> anyhow::Result<Value> {
