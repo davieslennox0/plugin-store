@@ -1,4 +1,4 @@
-# aave-v3
+# aave-v3-plugin
 Lend and borrow crypto assets on Aave V3, the leading decentralized liquidity protocol with over $43B TVL.
 
 ## Highlights

@@ -1,5 +1,5 @@
 ---
-name: aave-v3
+name: aave-v3-plugin
 description: "Aave V3 lending and borrowing. Trigger phrases: supply to aave, deposit to aave, borrow from aave, repay aave loan, aave health factor, my aave positions, aave interest rates, enable emode, disable collateral, claim aave rewards."
 version: "0.1.0"
 author: "skylavis-sky"
@@ -31,10 +31,10 @@ npx skills add okx/onchainos-skills --yes --global
 npx skills add okx/plugin-store --skill plugin-store --yes --global
 ```
 
-### Install aave-v3 binary (auto-injected)
+### Install aave-v3-plugin binary (auto-injected)
 
 ```bash
-if ! command -v aave-v3 >/dev/null 2>&1; then
+if ! command -v aave-v3-plugin >/dev/null 2>&1; then
   OS=$(uname -s | tr A-Z a-z)
   ARCH=$(uname -m)
   EXT=""
@@ -50,15 +50,15 @@ if ! command -v aave-v3 >/dev/null 2>&1; then
     mingw*_aarch64|msys*_aarch64|cygwin*_aarch64)  TARGET="aarch64-pc-windows-msvc"; EXT=".exe" ;;
   esac
   mkdir -p ~/.local/bin
-  curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/aave-v3@0.1.0/aave-v3-${TARGET}${EXT}" -o ~/.local/bin/aave-v3${EXT}
-  chmod +x ~/.local/bin/aave-v3${EXT}
+  curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/aave-v3-plugin@0.1.0/aave-v3-plugin-${TARGET}${EXT}" -o ~/.local/bin/aave-v3-plugin${EXT}
+  chmod +x ~/.local/bin/aave-v3-plugin${EXT}
 fi
 ```
 
 ### Report install (auto-injected, runs once)
 
 ```bash
-REPORT_FLAG="$HOME/.plugin-store/reported/aave-v3"
+REPORT_FLAG="$HOME/.plugin-store/reported/aave-v3-plugin"
 if [ ! -f "$REPORT_FLAG" ]; then
   mkdir -p "$HOME/.plugin-store/reported"
   # Device fingerprint → SHA256 → 32-char device ID
@@ -72,11 +72,11 @@ if [ ! -f "$REPORT_FLAG" ]; then
   # Report to Vercel stats
   curl -s -X POST "https://plugin-store-dun.vercel.app/install" \
     -H "Content-Type: application/json" \
-    -d '{"name":"aave-v3","version":"0.1.0"}' >/dev/null 2>&1 || true
+    -d '{"name":"aave-v3-plugin","version":"0.1.0"}' >/dev/null 2>&1 || true
   # Report to OKX API (with HMAC-signed device token)
   curl -s -X POST "https://www.okx.com/priapi/v1/wallet/plugins/download/report" \
     -H "Content-Type: application/json" \
-    -d '{"pluginName":"aave-v3","divId":"'"$DIV_ID"'"}' >/dev/null 2>&1 || true
+    -d '{"pluginName":"aave-v3-plugin","divId":"'"$DIV_ID"'"}' >/dev/null 2>&1 || true
   touch "$REPORT_FLAG"
 fi
 ```
@@ -88,7 +88,7 @@ fi
 
 ## Overview
 
-Aave V3 is the leading decentralized lending protocol with over $43B TVL. This skill lets users supply assets to earn yield, borrow against collateral, manage health factors, and monitor positions — all via the `aave-v3` binary and `onchainos` CLI.
+Aave V3 is the leading decentralized lending protocol with over $43B TVL. This skill lets users supply assets to earn yield, borrow against collateral, manage health factors, and monitor positions — all via the `aave-v3-plugin` binary and `onchainos` CLI.
 
 **Supported chains:**
 
@@ -100,10 +100,10 @@ Aave V3 is the leading decentralized lending protocol with over $43B TVL. This s
 | Base | 8453 (default) |
 
 **Architecture:**
-- Supply / Withdraw / Borrow / Repay / Set Collateral / Set E-Mode → `aave-v3` binary constructs ABI calldata; **ask user to confirm** before submitting via `onchainos wallet contract-call` directly to Aave Pool
+- Supply / Withdraw / Borrow / Repay / Set Collateral / Set E-Mode → `aave-v3-plugin` binary constructs ABI calldata; **ask user to confirm** before submitting via `onchainos wallet contract-call` directly to Aave Pool
 - Supply / Repay first approve the ERC-20 token (**ask user to confirm** each step) via `wallet contract-call` before the Pool call
 - Claim Rewards → `onchainos defi collect --platform-id <id>` (platform-id from `defi positions`)
-- Health Factor / Reserves / Positions → `aave-v3` binary makes read-only `eth_call` via public RPC
+- Health Factor / Reserves / Positions → `aave-v3-plugin` binary makes read-only `eth_call` via public RPC
 - Pool address is always resolved at runtime via `PoolAddressesProvider.getPool()` — never hardcoded
 
 ---
@@ -120,7 +120,7 @@ Aave V3 is the leading decentralized lending protocol with over $43B TVL. This s
 
 Before executing any command, verify:
 
-1. **Binary installed**: `aave-v3 --version` — if not found, instruct user to install the plugin
+1. **Binary installed**: `aave-v3-plugin --version` — if not found, instruct user to install the plugin
 2. **Wallet connected**: `onchainos wallet status` — confirm logged in and active address is set
 3. **Chain supported**: chain ID must be one of 1, 137, 42161, 8453
 
@@ -135,18 +135,18 @@ Please connect your wallet first: run `onchainos wallet login`
 
 | User Intent | Command |
 |-------------|---------|
-| Supply / deposit / lend asset | `aave-v3 supply --asset <ADDRESS> --amount <AMOUNT>` |
-| Withdraw / redeem aTokens | `aave-v3 withdraw --asset <SYMBOL> --amount <AMOUNT>` |
-| Borrow asset | `aave-v3 borrow --asset <ADDRESS> --amount <AMOUNT>` |
-| Repay debt | `aave-v3 repay --asset <ADDRESS> --amount <AMOUNT>` |
-| Repay all debt | `aave-v3 repay --asset <ADDRESS> --all` |
-| Check health factor | `aave-v3 health-factor` |
-| View positions | `aave-v3 positions` |
-| List reserve rates / APYs | `aave-v3 reserves` |
-| Enable collateral | `aave-v3 set-collateral --asset <ADDRESS> --enable` |
-| Disable collateral | `aave-v3 set-collateral --asset <ADDRESS>` (omit --enable) |
-| Set E-Mode | `aave-v3 set-emode --category <ID>` |
-| Claim rewards | `aave-v3 claim-rewards` |
+| Supply / deposit / lend asset | `aave-v3-plugin supply --asset <ADDRESS> --amount <AMOUNT>` |
+| Withdraw / redeem aTokens | `aave-v3-plugin withdraw --asset <SYMBOL> --amount <AMOUNT>` |
+| Borrow asset | `aave-v3-plugin borrow --asset <ADDRESS> --amount <AMOUNT>` |
+| Repay debt | `aave-v3-plugin repay --asset <ADDRESS> --amount <AMOUNT>` |
+| Repay all debt | `aave-v3-plugin repay --asset <ADDRESS> --all` |
+| Check health factor | `aave-v3-plugin health-factor` |
+| View positions | `aave-v3-plugin positions` |
+| List reserve rates / APYs | `aave-v3-plugin reserves` |
+| Enable collateral | `aave-v3-plugin set-collateral --asset <ADDRESS> --enable` |
+| Disable collateral | `aave-v3-plugin set-collateral --asset <ADDRESS>` (omit --enable) |
+| Set E-Mode | `aave-v3-plugin set-emode --category <ID>` |
+| Claim rewards | `aave-v3-plugin claim-rewards` |
 
 **Global flags (always available):**
 - `--chain <CHAIN_ID>` — target chain (default: 8453 Base)
@@ -170,7 +170,7 @@ The health factor (HF) is a numeric value representing the safety of a borrowing
 
 To check health factor:
 ```bash
-aave-v3 --chain 1 health-factor --from 0xYourAddress
+aave-v3-plugin --chain 1 health-factor --from 0xYourAddress
 ```
 
 ---
@@ -183,8 +183,8 @@ aave-v3 --chain 1 health-factor --from 0xYourAddress
 
 **Usage:**
 ```bash
-aave-v3 --chain 8453 supply --asset USDC --amount 1000
-aave-v3 --chain 8453 --dry-run supply --asset USDC --amount 1000
+aave-v3-plugin --chain 8453 supply --asset USDC --amount 1000
+aave-v3-plugin --chain 8453 --dry-run supply --asset USDC --amount 1000
 ```
 
 **Key parameters:**
@@ -222,8 +222,8 @@ aave-v3 --chain 8453 --dry-run supply --asset USDC --amount 1000
 
 **Usage:**
 ```bash
-aave-v3 --chain 8453 withdraw --asset USDC --amount 500
-aave-v3 --chain 8453 withdraw --asset USDC --all
+aave-v3-plugin --chain 8453 withdraw --asset USDC --amount 500
+aave-v3-plugin --chain 8453 withdraw --asset USDC --all
 ```
 
 **Key parameters:**
@@ -254,9 +254,9 @@ aave-v3 --chain 8453 withdraw --asset USDC --all
 **Usage:**
 ```bash
 # Always dry-run first
-aave-v3 --chain 42161 --dry-run borrow --asset 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1 --amount 0.5
+aave-v3-plugin --chain 42161 --dry-run borrow --asset 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1 --amount 0.5
 # Then execute after user confirms
-aave-v3 --chain 42161 borrow --asset 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1 --amount 0.5
+aave-v3-plugin --chain 42161 borrow --asset 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1 --amount 0.5
 ```
 
 **Key parameters:**
@@ -293,9 +293,9 @@ aave-v3 --chain 42161 borrow --asset 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1 
 **Usage:**
 ```bash
 # Repay specific amount
-aave-v3 --chain 137 --dry-run repay --asset 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174 --amount 1000
+aave-v3-plugin --chain 137 --dry-run repay --asset 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174 --amount 1000
 # Repay all debt
-aave-v3 --chain 137 repay --asset 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174 --all
+aave-v3-plugin --chain 137 repay --asset 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174 --all
 ```
 
 **Key parameters:**
@@ -330,8 +330,8 @@ aave-v3 --chain 137 repay --asset 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174 --a
 
 **Usage:**
 ```bash
-aave-v3 --chain 1 health-factor
-aave-v3 --chain 1 health-factor --from 0xSomeAddress
+aave-v3-plugin --chain 1 health-factor
+aave-v3-plugin --chain 1 health-factor --from 0xSomeAddress
 ```
 
 **Expected output:**
@@ -360,11 +360,11 @@ aave-v3 --chain 1 health-factor --from 0xSomeAddress
 **Usage:**
 ```bash
 # All reserves
-aave-v3 --chain 8453 reserves
+aave-v3-plugin --chain 8453 reserves
 # Filter by symbol
-aave-v3 --chain 8453 reserves --asset USDC
+aave-v3-plugin --chain 8453 reserves --asset USDC
 # Filter by address
-aave-v3 --chain 8453 reserves --asset 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
+aave-v3-plugin --chain 8453 reserves --asset 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
 ```
 
 **Expected output:**
@@ -394,8 +394,8 @@ aave-v3 --chain 8453 reserves --asset 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
 
 **Usage:**
 ```bash
-aave-v3 --chain 8453 positions
-aave-v3 --chain 1 positions --from 0xSomeAddress
+aave-v3-plugin --chain 8453 positions
+aave-v3-plugin --chain 1 positions --from 0xSomeAddress
 ```
 
 **Expected output:**
@@ -424,13 +424,13 @@ aave-v3 --chain 1 positions --from 0xSomeAddress
 **Usage:**
 ```bash
 # Enable collateral (dry-run first)
-aave-v3 --chain 1 --dry-run set-collateral --asset 0x514910771AF9Ca656af840dff83E8264EcF986CA --enable
+aave-v3-plugin --chain 1 --dry-run set-collateral --asset 0x514910771AF9Ca656af840dff83E8264EcF986CA --enable
 # Enable collateral (execute after confirmation)
-aave-v3 --chain 1 set-collateral --asset 0x514910771AF9Ca656af840dff83E8264EcF986CA --enable
+aave-v3-plugin --chain 1 set-collateral --asset 0x514910771AF9Ca656af840dff83E8264EcF986CA --enable
 
 # Disable collateral (omit --enable flag)
-aave-v3 --chain 1 --dry-run set-collateral --asset 0x514910771AF9Ca656af840dff83E8264EcF986CA
-aave-v3 --chain 1 set-collateral --asset 0x514910771AF9Ca656af840dff83E8264EcF986CA
+aave-v3-plugin --chain 1 --dry-run set-collateral --asset 0x514910771AF9Ca656af840dff83E8264EcF986CA
+aave-v3-plugin --chain 1 set-collateral --asset 0x514910771AF9Ca656af840dff83E8264EcF986CA
 ```
 
 ---
@@ -446,8 +446,8 @@ aave-v3 --chain 1 set-collateral --asset 0x514910771AF9Ca656af840dff83E8264EcF98
 
 **Usage:**
 ```bash
-aave-v3 --chain 8453 --dry-run set-emode --category 1
-aave-v3 --chain 8453 set-emode --category 1
+aave-v3-plugin --chain 8453 --dry-run set-emode --category 1
+aave-v3-plugin --chain 8453 set-emode --category 1
 ```
 
 ---
@@ -458,8 +458,8 @@ aave-v3 --chain 8453 set-emode --category 1
 
 **Usage:**
 ```bash
-aave-v3 --chain 8453 claim-rewards
-aave-v3 --chain 8453 --dry-run claim-rewards
+aave-v3-plugin --chain 8453 claim-rewards
+aave-v3-plugin --chain 8453 --dry-run claim-rewards
 ```
 
 ---
