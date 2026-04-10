@@ -35,6 +35,14 @@ pub async fn run(
     let borrow_assets: u128;
 
     if all {
+        if dry_run {
+            // In dry-run mode, skip live position check — no debt to look up
+            repay_shares = 0;
+            repay_assets = 0;
+            borrow_assets = 0;
+            display_amount = "0 (dry-run)".to_string();
+            eprintln!("[morpho] [dry-run] Repaying all debt (skipping live position check)...");
+        } else {
         // Fetch borrow shares for full repayment via GraphQL positions
         let positions = api::get_user_positions(borrower, chain_id).await?;
         let pos = positions.iter().find(|p| p.market.unique_key == market_id)
@@ -49,6 +57,7 @@ pub async fn run(
         display_amount = calldata::format_amount(borrow_assets, decimals);
 
         eprintln!("[morpho] Repaying all debt ({} {}) using {} shares...", display_amount, symbol, repay_shares);
+        }
     } else {
         let amt_str = amount.context("Must provide --amount or --all")?;
         repay_assets = calldata::parse_amount(amt_str, decimals)?;

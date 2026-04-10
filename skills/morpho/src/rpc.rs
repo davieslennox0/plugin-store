@@ -66,11 +66,25 @@ pub async fn erc20_decimals(token: &str, rpc_url: &str) -> anyhow::Result<u8> {
 }
 
 /// Read ERC-20 symbol.
+/// Handles both dynamic string ABI encoding (ERC-20 standard) and bytes32 encoding
+/// used by older tokens (USDC, USDT deployed pre-ERC-20 string standard).
 pub async fn erc20_symbol(token: &str, rpc_url: &str) -> anyhow::Result<String> {
     // symbol() selector = 0x95d89b41
     let hex = eth_call(token, "0x95d89b41", rpc_url).await?;
-    // ABI-decode string: offset(32) + length(32) + data
     let hex_clean = hex.trim_start_matches("0x");
+
+    // bytes32 encoding: exactly 64 hex chars (32 bytes), null-padded ASCII
+    // Used by USDC, USDT, and other tokens deployed before the string standard
+    if hex_clean.len() == 64 {
+        let bytes = hex::decode(hex_clean).unwrap_or_default();
+        let trimmed: Vec<u8> = bytes.into_iter().take_while(|&b| b != 0).collect();
+        if !trimmed.is_empty() {
+            return Ok(String::from_utf8_lossy(&trimmed).to_string());
+        }
+        return Ok("UNKNOWN".to_string());
+    }
+
+    // Dynamic string ABI encoding: offset(32) + length(32) + data
     if hex_clean.len() < 128 {
         return Ok("UNKNOWN".to_string());
     }
