@@ -123,7 +123,7 @@ pub async fn resolve_wallet(from: Option<&str>, _chain_id: u64) -> anyhow::Resul
         .await?;
     let stdout = String::from_utf8_lossy(&output.stdout);
     let v: Value = serde_json::from_str(&stdout)?;
-    let addr = v["data"]["evmAddress"]
+    let addr = v["data"]["evm"][0]["address"]
         .as_str()
         .ok_or_else(|| anyhow::anyhow!("Could not determine active EVM wallet address. Ensure onchainos is logged in."))?
         .to_string();

@@ -1,6 +1,6 @@
 schema_version: 1
 name: morpho
-version: "0.1.0"
+version: "0.1.1"
 description: "Supply, borrow and earn yield on Morpho — a permissionless lending protocol"
 author:
   name: GeoGu360
@@ -25,6 +25,6 @@ build:
 
 api_calls:
   - "https://blue-api.morpho.org/graphql"
-  - "https://eth.llamarpc.com"
+  - "https://ethereum-rpc.publicnode.com"
   - "https://base-rpc.publicnode.com"
   - "https://api.merkl.xyz"
