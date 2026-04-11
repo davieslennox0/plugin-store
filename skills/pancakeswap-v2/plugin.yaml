@@ -28,6 +28,6 @@ build:
   binary_name: pancakeswap-v2
 
 api_calls:
-  - "https://bsc-rpc.publicnode.com"
-  - "https://base-rpc.publicnode.com"
-  - "https://arbitrum-one-rpc.publicnode.com"
+  - bsc-rpc.publicnode.com
+  - base-rpc.publicnode.com
+  - arbitrum-one-rpc.publicnode.com
