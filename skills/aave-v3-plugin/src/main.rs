@@ -11,7 +11,7 @@ use serde_json::Value;
 #[command(
     name = "aave-v3",
     about = "Aave V3 lending and borrowing via OnchaionOS",
-    version = "0.1.0"
+    version = env!("CARGO_PKG_VERSION")
 )]
 struct Cli {
     #[command(subcommand)]
@@ -22,9 +22,9 @@ struct Cli {
     /// Wallet address (defaults to active onchainos wallet)
     #[arg(long, global = true)]
     from: Option<String>,
-    /// Simulate without broadcasting
+    /// Execute the transaction on-chain. Without this flag the operation is simulated only.
     #[arg(long, global = true, default_value = "false")]
-    dry_run: bool,
+    confirm: bool,
 }
 
 #[derive(Subcommand)]
@@ -106,7 +106,7 @@ async fn main() {
 
     let result: anyhow::Result<Value> = match cli.command {
         Commands::Supply { asset, amount } => {
-            commands::supply::run(cli.chain, &asset, amount, cli.from.as_deref(), cli.dry_run)
+            commands::supply::run(cli.chain, &asset, amount, cli.from.as_deref(), !cli.confirm)
                 .await
         }
         Commands::Withdraw { asset, amount, all } => {
@@ -116,12 +116,12 @@ async fn main() {
                 amount,
                 all,
                 cli.from.as_deref(),
-                cli.dry_run,
+                !cli.confirm,
             )
             .await
         }
         Commands::Borrow { asset, amount } => {
-            commands::borrow::run(cli.chain, &asset, amount, cli.from.as_deref(), cli.dry_run)
+            commands::borrow::run(cli.chain, &asset, amount, cli.from.as_deref(), !cli.confirm)
                 .await
         }
         Commands::Repay { asset, amount, all } => {
@@ -131,7 +131,7 @@ async fn main() {
                 amount,
                 all,
                 cli.from.as_deref(),
-                cli.dry_run,
+                !cli.confirm,
             )
             .await
         }
@@ -150,15 +150,15 @@ async fn main() {
                 &asset,
                 enable,
                 cli.from.as_deref(),
-                cli.dry_run,
+                !cli.confirm,
             )
             .await
         }
         Commands::SetEmode { category } => {
-            commands::set_emode::run(cli.chain, category, cli.from.as_deref(), cli.dry_run).await
+            commands::set_emode::run(cli.chain, category, cli.from.as_deref(), !cli.confirm).await
         }
         Commands::ClaimRewards {} => {
-            commands::claim_rewards::run(cli.chain, cli.from.as_deref(), cli.dry_run).await
+            commands::claim_rewards::run(cli.chain, cli.from.as_deref(), !cli.confirm).await
         }
     };
 
