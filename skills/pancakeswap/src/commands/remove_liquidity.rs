@@ -31,7 +31,14 @@ pub async fn run(args: RemoveLiquidityArgs) -> Result<()> {
     let sym0 = crate::rpc::get_symbol(&pos.token0, cfg.rpc_url).await.unwrap_or_else(|_| pos.token0.clone());
     let sym1 = crate::rpc::get_symbol(&pos.token1, cfg.rpc_url).await.unwrap_or_else(|_| pos.token1.clone());
 
-    let liquidity_to_remove = (effective_liquidity as f64 * args.liquidity_pct / 100.0) as u128;
+    // Use integer arithmetic for 100% to avoid f64 precision loss on large u128 values
+    // (f64 has 53-bit mantissa; a 18-digit liquidity value would round up, causing
+    // decreaseLiquidity to revert with "cannot remove more than position liquidity").
+    let liquidity_to_remove = if args.liquidity_pct >= 100.0 {
+        effective_liquidity
+    } else {
+        ((effective_liquidity as u128).saturating_mul(args.liquidity_pct as u128) / 100).min(effective_liquidity)
+    };
 
     // Bug 3 fix: compute actual token amounts from V3 liquidity math using the current
     // pool price, instead of the incorrect tokens_owed proxy used previously.
