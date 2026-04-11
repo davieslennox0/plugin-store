@@ -26,5 +26,5 @@ chain:
   chain_id: 1
 api_calls:
 - ethereum-rpc.publicnode.com
-- app.ether.fi
+- yields.llama.fi
 - etherscan.io
