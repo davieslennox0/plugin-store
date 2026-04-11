@@ -144,7 +144,7 @@ Please connect your wallet first: run `onchainos wallet login`
 **Global flags (always available):**
 - `--chain <CHAIN_ID>` — target chain (default: 8453 Base)
 - `--from <ADDRESS>` — wallet address (defaults to active onchainos wallet)
-- `--dry-run` — simulate without broadcasting
+- `--confirm` — execute the transaction on-chain; without this flag the operation is simulated only (preview mode)
 
 ---
 
@@ -176,8 +176,10 @@ aave-v3-plugin --chain 1 health-factor --from 0xYourAddress
 
 **Usage:**
 ```bash
+# Simulate (default — no --confirm)
 aave-v3-plugin --chain 8453 supply --asset USDC --amount 1000
-aave-v3-plugin --chain 8453 --dry-run supply --asset USDC --amount 1000
+# Execute after user confirms
+aave-v3-plugin --chain 8453 --confirm supply --asset USDC --amount 1000
 ```
 
 **Key parameters:**
@@ -242,14 +244,14 @@ aave-v3-plugin --chain 8453 withdraw --asset USDC --all
 
 **Trigger phrases:** "borrow from aave", "get a loan on aave", "从Aave借款", "Aave借贷"
 
-**IMPORTANT:** Always run with `--dry-run` first, then confirm with user before executing.
+**IMPORTANT:** Always simulate first (no `--confirm`), then ask user to confirm before adding `--confirm` to execute.
 
 **Usage:**
 ```bash
-# Always dry-run first
-aave-v3-plugin --chain 42161 --dry-run borrow --asset 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1 --amount 0.5
-# Then execute after user confirms
+# Simulate first (default — no --confirm)
 aave-v3-plugin --chain 42161 borrow --asset 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1 --amount 0.5
+# Then execute after user confirms
+aave-v3-plugin --chain 42161 --confirm borrow --asset 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1 --amount 0.5
 ```
 
 **Key parameters:**
@@ -281,14 +283,16 @@ aave-v3-plugin --chain 42161 borrow --asset 0x82aF49447D8a07e3bd95BD0d56f3524152
 
 **Trigger phrases:** "repay aave loan", "pay back aave debt", "还Aave款", "偿还Aave"
 
-**IMPORTANT:** Always run with `--dry-run` first.
+**IMPORTANT:** Always simulate first (no `--confirm`), then ask user to confirm before adding `--confirm` to execute.
 
 **Usage:**
 ```bash
-# Repay specific amount
-aave-v3-plugin --chain 137 --dry-run repay --asset 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174 --amount 1000
-# Repay all debt
-aave-v3-plugin --chain 137 repay --asset 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174 --all
+# Simulate repay specific amount
+aave-v3-plugin --chain 137 repay --asset 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174 --amount 1000
+# Execute after user confirms
+aave-v3-plugin --chain 137 --confirm repay --asset 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174 --amount 1000
+# Repay all debt after user confirms
+aave-v3-plugin --chain 137 --confirm repay --asset 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174 --all
 ```
 
 **Key parameters:**
@@ -416,14 +420,14 @@ aave-v3-plugin --chain 1 positions --from 0xSomeAddress
 
 **Usage:**
 ```bash
-# Enable collateral (dry-run first)
-aave-v3-plugin --chain 1 --dry-run set-collateral --asset 0x514910771AF9Ca656af840dff83E8264EcF986CA --enable
-# Enable collateral (execute after confirmation)
+# Simulate enable collateral (default — no --confirm)
 aave-v3-plugin --chain 1 set-collateral --asset 0x514910771AF9Ca656af840dff83E8264EcF986CA --enable
+# Execute after user confirms
+aave-v3-plugin --chain 1 --confirm set-collateral --asset 0x514910771AF9Ca656af840dff83E8264EcF986CA --enable
 
 # Disable collateral (omit --enable flag)
-aave-v3-plugin --chain 1 --dry-run set-collateral --asset 0x514910771AF9Ca656af840dff83E8264EcF986CA
 aave-v3-plugin --chain 1 set-collateral --asset 0x514910771AF9Ca656af840dff83E8264EcF986CA
+aave-v3-plugin --chain 1 --confirm set-collateral --asset 0x514910771AF9Ca656af840dff83E8264EcF986CA
 ```
 
 ---
@@ -439,8 +443,10 @@ aave-v3-plugin --chain 1 set-collateral --asset 0x514910771AF9Ca656af840dff83E82
 
 **Usage:**
 ```bash
-aave-v3-plugin --chain 8453 --dry-run set-emode --category 1
+# Simulate (default)
 aave-v3-plugin --chain 8453 set-emode --category 1
+# Execute after user confirms
+aave-v3-plugin --chain 8453 --confirm set-emode --category 1
 ```
 
 ---
@@ -451,8 +457,8 @@ aave-v3-plugin --chain 8453 set-emode --category 1
 
 **Usage:**
 ```bash
-aave-v3-plugin --chain 8453 claim-rewards
-aave-v3-plugin --chain 8453 --dry-run claim-rewards
+# Execute (claim-rewards is write-only, always requires --confirm)
+aave-v3-plugin --chain 8453 --confirm claim-rewards
 ```
 
 ---
@@ -493,8 +499,8 @@ For borrow and repay, you need ERC-20 contract addresses. Common addresses:
 
 ## Safety Rules
 
-1. **Dry-run first**: Always simulate with `--dry-run` before any on-chain write
-2. **Confirm before broadcast**: Show the user what will happen and wait for explicit confirmation
+1. **Simulate first**: Always run without `--confirm` to preview the operation before broadcasting
+2. **Confirm before broadcast**: Show the user what will happen and only add `--confirm` after explicit user approval
 3. **Never borrow if HF < 1.5 without warning**: Explicitly warn user of liquidation risk
 4. **Block at HF < 1.05**: Require explicit override from user before proceeding
 5. **Full repay safety**: Use `--all` flag for full repay — avoids underpayment due to accrued interest

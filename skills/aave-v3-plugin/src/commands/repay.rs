@@ -87,7 +87,7 @@ pub async fn run(
 
     let mut approval_result: Option<Value> = None;
     if needs_approval {
-        let approve_calldata = calldata::encode_erc20_approve(&pool_addr, u128::MAX)
+        let approve_calldata = calldata::encode_erc20_approve(&pool_addr, amount_minimal)
             .context("Failed to encode approve calldata")?;
         let approve_res = onchainos::wallet_contract_call(
             chain_id,
