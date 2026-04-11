@@ -1,7 +1,7 @@
 ---
 name: pancakeswap-v2
 description: "Swap tokens and manage liquidity on PancakeSwap V2 (xyk AMM) on BSC, Base, and Arbitrum. Triggers: swap pancakeswap v2, add/remove liquidity pancake, pcs v2 quote, check pancake pair."
-version: "0.2.1"
+version: "0.2.2"
 author: "skylavis-sky"
 tags:
   - dex
@@ -91,10 +91,10 @@ Before executing any write operation, verify the environment is ready:
 onchainos --version
 
 # Verify wallet is authenticated
-onchainos wallet address --chain 56
+onchainos wallet addresses --chain 56
 ```
 
-If `onchainos wallet address` returns an error, run `onchainos wallet login` before proceeding.
+If `onchainos wallet addresses` returns an error, run `onchainos wallet login` before proceeding.
 
 ---
 

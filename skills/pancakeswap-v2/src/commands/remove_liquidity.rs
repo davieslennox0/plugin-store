@@ -127,6 +127,9 @@ pub async fn run(args: RemoveLiquidityArgs) -> Result<serde_json::Value> {
             args.from.as_deref(), None, args.dry_run,
         ).await?;
         let tx_hash = onchainos::extract_tx_hash(&result).to_string();
+        if !args.dry_run {
+            onchainos::wait_and_check_receipt(&tx_hash, rpc).await?;
+        }
         steps.push(json!({
             "step": "removeLiquidityETH",
             "txHash": tx_hash,
@@ -144,6 +147,9 @@ pub async fn run(args: RemoveLiquidityArgs) -> Result<serde_json::Value> {
             args.from.as_deref(), None, args.dry_run,
         ).await?;
         let tx_hash = onchainos::extract_tx_hash(&result).to_string();
+        if !args.dry_run {
+            onchainos::wait_and_check_receipt(&tx_hash, rpc).await?;
+        }
         steps.push(json!({
             "step": "removeLiquidity",
             "txHash": tx_hash,

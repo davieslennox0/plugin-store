@@ -20,6 +20,13 @@ pub async fn run(args: QuoteArgs) -> Result<serde_json::Value> {
     let token_in = resolve_token_address(&args.token_in, args.chain_id);
     let token_out = resolve_token_address(&args.token_out, args.chain_id);
 
+    if token_in == token_out {
+        anyhow::bail!("tokenIn and tokenOut must be different tokens.");
+    }
+    if args.amount_in == 0 {
+        anyhow::bail!("Amount must be greater than 0.");
+    }
+
     // Handle native BNB/ETH: map to WBNB/WETH for routing
     let token_in_addr = if is_native(&args.token_in) {
         cfg.weth.to_string()
