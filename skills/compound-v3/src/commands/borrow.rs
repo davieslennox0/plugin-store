@@ -21,25 +21,11 @@ pub async fn run(
         anyhow::bail!("Cannot resolve wallet address. Pass --from or log in via onchainos.");
     }
 
-    // Pre-flight checks
-    let base_borrow_min = rpc::get_base_borrow_min(cfg.comet_proxy, cfg.rpc_url).await?;
-    if amount < base_borrow_min {
-        let decimals_factor = 10u128.pow(cfg.base_asset_decimals as u32) as f64;
-        anyhow::bail!(
-            "Borrow amount {:.6} {} is below minimum borrow {:.6} {}. Increase amount.",
-            amount as f64 / decimals_factor,
-            cfg.base_asset_symbol,
-            base_borrow_min as f64 / decimals_factor,
-            cfg.base_asset_symbol
-        );
-    }
-
-    let is_collateralized = rpc::is_borrow_collateralized(cfg.comet_proxy, &wallet, cfg.rpc_url).await?;
-    if !is_collateralized {
-        anyhow::bail!(
-            "Account is not sufficiently collateralized. Supply collateral first before borrowing."
-        );
-    }
+    // Pre-flight: simulate borrow to catch NotCollateralized() and other reverts
+    // before spending gas. isBorrowCollateralized() is a false positive for new
+    // accounts (principal=0 → returns true even with zero collateral), so we
+    // simulate the actual calldata instead.
+    rpc::simulate_borrow(cfg.comet_proxy, cfg.base_asset, amount, &wallet, cfg.rpc_url).await?;
 
     // Build withdraw(address,uint256) calldata (borrow = withdraw base asset)
     // selector: 0xf3fef3a3

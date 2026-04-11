@@ -170,6 +170,53 @@ pub async fn get_reward_owed(
     Ok(u128::from_str_radix(owed_hex, 16).unwrap_or(0))
 }
 
+/// Simulate a Comet.withdraw(asset, amount) call from a given address.
+/// Returns Ok(()) if the simulation passes; returns a descriptive error if it reverts.
+/// Catches NotCollateralized() (0x14c5f7b6) and surfaces it as a clear message.
+pub async fn simulate_borrow(
+    comet: &str,
+    asset: &str,
+    amount: u128,
+    from: &str,
+    rpc_url: &str,
+) -> anyhow::Result<()> {
+    let calldata = format!("0xf3fef3a3{}{}", pad_address(asset), pad_u128(amount));
+    let client = reqwest::Client::new();
+    let body = json!({
+        "jsonrpc": "2.0",
+        "method": "eth_call",
+        "params": [{ "from": from, "to": comet, "data": calldata }, "latest"],
+        "id": 1
+    });
+    let resp: Value = client
+        .post(rpc_url)
+        .json(&body)
+        .send()
+        .await
+        .context("Borrow simulation RPC request failed")?
+        .json()
+        .await
+        .context("Borrow simulation RPC parse failed")?;
+
+    if let Some(err) = resp.get("error") {
+        let data = err
+            .get("data")
+            .and_then(|d| d.as_str())
+            .unwrap_or("");
+        if data.starts_with("0x14c5f7b6") {
+            // NotCollateralized() custom error
+            anyhow::bail!(
+                "Borrow would fail: account has insufficient collateral. \
+                 Supply collateral (e.g. WETH, cbETH) to this Compound V3 market first \
+                 using 'compound-v3 supply --asset <collateral_address> --amount <amount>', \
+                 then retry the borrow."
+            );
+        }
+        anyhow::bail!("Borrow simulation failed: {}", err);
+    }
+    Ok(())
+}
+
 /// ERC-20 decimals() → u8
 pub async fn get_erc20_decimals(token: &str, rpc_url: &str) -> anyhow::Result<u8> {
     // decimals() selector: 0x313ce567
