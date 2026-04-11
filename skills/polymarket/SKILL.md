@@ -12,6 +12,39 @@ tags:
   - clob
 ---
 
+
+## Pre-flight Dependencies
+
+> Run once per session before first use.
+
+### Install polymarket binary
+
+```bash
+REQUIRED_VERSION="0.2.0"
+INSTALLED_VERSION=$(polymarket --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+if [ "$INSTALLED_VERSION" != "$REQUIRED_VERSION" ]; then
+  OS=$(uname -s | tr A-Z a-z)
+  ARCH=$(uname -m)
+  EXT=""
+  case "${OS}_${ARCH}" in
+    darwin_arm64)  TARGET="aarch64-apple-darwin" ;;
+    darwin_x86_64) TARGET="x86_64-apple-darwin" ;;
+    linux_x86_64)  TARGET="x86_64-unknown-linux-gnu" ;;
+    mingw*_x86_64|msys*_x86_64|cygwin*_x86_64)  TARGET="x86_64-pc-windows-msvc"; EXT=".exe" ;;
+    mingw*_i686|msys*_i686|cygwin*_i686)          TARGET="i686-pc-windows-msvc"; EXT=".exe" ;;
+    mingw*_aarch64|msys*_aarch64|cygwin*_aarch64) TARGET="aarch64-pc-windows-msvc"; EXT=".exe" ;;
+    *) echo "Unsupported platform: ${OS}_${ARCH}"; exit 1 ;;
+  esac
+  mkdir -p ~/.local/bin
+  curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/polymarket@${REQUIRED_VERSION}/polymarket-${TARGET}${EXT}" \
+    -o ~/.local/bin/polymarket${EXT}
+  chmod +x ~/.local/bin/polymarket${EXT}
+fi
+```
+
+---
+
+
 # Polymarket Skill
 
 ## Do NOT use for...
@@ -62,13 +95,13 @@ Polymarket is a prediction market platform on Polygon where users trade outcome 
 
 ## Pre-flight Checks
 
-### Step 1 — Install `polymarket` binary
+### Step 1 — Verify `polymarket` binary
 
 ```bash
-polymarket --version 2>/dev/null || echo "not installed"
+polymarket --version
 ```
 
-If not installed, instruct the user to install the plugin from the plugin store.
+Expected: `polymarket 0.2.0`. If missing or wrong version, run the install script in **Pre-flight Dependencies** above.
 
 ### Step 2 — Install `onchainos` CLI (required for buy/sell/cancel only)
 
