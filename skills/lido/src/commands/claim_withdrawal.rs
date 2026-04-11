@@ -56,8 +56,50 @@ pub async fn run(args: ClaimWithdrawalArgs) -> anyhow::Result<()> {
     };
     println!("Last checkpoint index: {}", last_checkpoint);
 
-    // Step 2: findCheckpointHints(uint256[] requestIds, uint256 firstIndex, uint256 lastIndex)
-    println!("Step 2/3: Finding checkpoint hints...");
+    // Step 2a: getWithdrawalStatus — filter out PENDING / CLAIMED before calling findCheckpointHints.
+    // findCheckpointHints reverts with an opaque error on any non-finalized request ID.
+    println!("Step 2/3: Checking request status...");
+    let status_calldata = rpc::calldata_get_withdrawal_status(&args.ids);
+    let status_result = onchainos::eth_call(
+        chain_id,
+        config::WITHDRAWAL_QUEUE_ADDRESS,
+        &status_calldata,
+    ).await?;
+
+    if let Ok(hex) = rpc::extract_return_data(&status_result) {
+        let hex = hex.trim_start_matches("0x");
+        let data = if hex.len() > 128 { &hex[128..] } else { hex };
+        let entry_size = 6 * 64;
+        let mut pending_ids: Vec<u128> = vec![];
+        let mut already_claimed: Vec<u128> = vec![];
+        for (i, &id) in args.ids.iter().enumerate() {
+            let start = i * entry_size;
+            if start + entry_size > data.len() {
+                break;
+            }
+            let entry = &data[start..start + entry_size];
+            let is_finalized = u128::from_str_radix(&entry[4 * 64..5 * 64], 16).unwrap_or(0) != 0;
+            let is_claimed   = u128::from_str_radix(&entry[5 * 64..6 * 64], 16).unwrap_or(0) != 0;
+            if is_claimed {
+                already_claimed.push(id);
+            } else if !is_finalized {
+                pending_ids.push(id);
+            }
+        }
+        if !already_claimed.is_empty() {
+            eprintln!("Warning: already claimed — skipping: {:?}", already_claimed);
+        }
+        if !pending_ids.is_empty() {
+            anyhow::bail!(
+                "The following requests are not yet finalized (still PENDING): {:?}\n\
+                 Run `lido get-withdrawals` to check status. Withdrawal finalization typically takes 1–5 days.",
+                pending_ids
+            );
+        }
+    }
+
+    // Step 2b: findCheckpointHints(uint256[] requestIds, uint256 firstIndex, uint256 lastIndex)
+    println!("  Finding checkpoint hints...");
     let hints_calldata =
         rpc::calldata_find_checkpoint_hints(&args.ids, 1, last_checkpoint);
     let hints_result = onchainos::eth_call(

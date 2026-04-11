@@ -1,7 +1,7 @@
 ---
 name: lido
 description: Stake ETH with Lido liquid staking protocol to receive stETH, manage withdrawals, and track staking rewards. Supports staking, balance queries, withdrawal requests, withdrawal status, and claiming finalized withdrawals on Ethereum mainnet.
-version: 0.2.1
+version: 0.2.2
 author: GeoGu360
 ---
 
@@ -42,7 +42,7 @@ if ! command -v lido >/dev/null 2>&1; then
     mingw*_aarch64|msys*_aarch64|cygwin*_aarch64)  TARGET="aarch64-pc-windows-msvc"; EXT=".exe" ;;
   esac
   mkdir -p ~/.local/bin
-  curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/lido@0.2.1/lido-${TARGET}${EXT}" -o ~/.local/bin/lido${EXT}
+  curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/lido@0.2.2/lido-${TARGET}${EXT}" -o ~/.local/bin/lido${EXT}
   chmod +x ~/.local/bin/lido${EXT}
 fi
 ```
@@ -164,8 +164,9 @@ lido get-apy
 ```
 
 **Steps:**
-1. HTTP GET `https://eth-api.lido.fi/v1/protocol/steth/apr/sma`
-2. Display: "Current 7-day average stETH APR: X.XX%"
+1. HTTP GET `https://eth-api.lido.fi/v1/protocol/steth/apr/sma` (with `Accept: application/json`)
+2. Falls back to `/v1/protocol/steth/apr/last` if `sma` endpoint returns non-2xx (CDN/geo variability)
+3. Display: "Current 7-day average stETH APR: X.XX%"
 
 **Example output:**
 ```
@@ -303,13 +304,17 @@ onchainos wallet contract-call --chain 1 --to 0x889edC2eDab5f40e902b864aD4d7AdE8
   --input-data 0x526eae3e
 ```
 
-**Step 2 — Find checkpoint hints (read-only):**
+**Step 2 — Check request status (read-only):**
+Calls `getWithdrawalStatus` on all IDs. PENDING requests abort early with a friendly message.
+Already-CLAIMED IDs produce a warning and are skipped.
+
+**Step 3 — Find checkpoint hints (read-only):**
 ```
 onchainos wallet contract-call --chain 1 --to 0x889edC2eDab5f40e902b864aD4d7AdE8E412F9B1 \
   --input-data <ABI_ENCODED: 0x62abe3fa + requestIds[] + firstIndex(1) + lastCheckpointIndex>
 ```
 
-**Step 3 — Claim:**
+**Step 4 — Claim:**
 1. Show user: request IDs, hints, ETH expected, recipient address
 2. **Ask user to confirm** the claim transaction before submitting
 3. Execute: `onchainos wallet contract-call --chain 1 --to 0x889edC2eDab5f40e902b864aD4d7AdE8E412F9B1 --input-data <ABI_ENCODED: 0xe3afe0a3 + requestIds[] + hints[]>`
@@ -326,6 +331,7 @@ onchainos wallet contract-call --chain 1 --to 0x889edC2eDab5f40e902b864aD4d7AdE8
 | "Cannot get wallet address" | Not logged in to onchainos | Run `onchainos wallet login` |
 | "Amount below minimum 100 wei" | Withdrawal amount too small | Increase withdrawal amount |
 | "Amount exceeds maximum" | Withdrawal > 1000 ETH | Split into multiple requests |
+| "requests are not yet finalized (still PENDING)" | `findCheckpointHints` would revert on PENDING IDs; caught early | Wait 1–5 days; run `lido get-withdrawals` to monitor |
 | "Hint count does not match" | Some requests not yet finalized | Check status with `get-withdrawals` first |
 | HTTP 429 from Lido API | Rate limited | Wait and retry with exponential backoff |
 

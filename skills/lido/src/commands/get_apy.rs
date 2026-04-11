@@ -6,15 +6,27 @@ pub async fn run() -> anyhow::Result<()> {
     let client = reqwest::Client::new();
     let resp = client
         .get(&url)
-        .header("User-Agent", "lido-plugin/0.1.0")
+        .header("User-Agent", "Mozilla/5.0 (compatible; lido-plugin/0.1)")
+        .header("Accept", "application/json")
         .send()
         .await?;
 
-    if !resp.status().is_success() {
-        anyhow::bail!("Failed to fetch APR: HTTP {}", resp.status());
-    }
-
-    let body: serde_json::Value = resp.json().await?;
+    // Fallback: /apr/sma was deprecated on some edge nodes; try /apr/last
+    let body: serde_json::Value = if resp.status().is_success() {
+        resp.json().await?
+    } else {
+        let fallback_url = format!("{}/v1/protocol/steth/apr/last", config::API_BASE_URL);
+        let resp2 = client
+            .get(&fallback_url)
+            .header("User-Agent", "Mozilla/5.0 (compatible; lido-plugin/0.1)")
+            .header("Accept", "application/json")
+            .send()
+            .await?;
+        if !resp2.status().is_success() {
+            anyhow::bail!("Failed to fetch APR: HTTP {}", resp2.status());
+        }
+        resp2.json().await?
+    };
 
     // Try to extract APR from various response shapes
     let apr = extract_apr(&body);
