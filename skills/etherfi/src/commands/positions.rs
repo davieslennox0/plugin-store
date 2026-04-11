@@ -37,19 +37,21 @@ pub async fn run(args: PositionsArgs) -> anyhow::Result<()> {
         0
     };
 
-    // Fetch protocol stats (APY, exchange rate) — non-fatal if API is down
+    // Fetch protocol stats (APY, TVL) from DeFiLlama — non-fatal if unavailable
     let stats = fetch_stats().await.unwrap_or(crate::api::EtherFiStats {
         apy: None,
         tvl: None,
-        exchange_rate: None,
     });
+
+    // Exchange rate from on-chain weETH.getRate() — more reliable than any API
+    let exchange_rate = crate::rpc::weeth_get_rate(weeth, rpc).await.ok();
 
     let apy_str = match stats.apy {
         Some(v) => format!("{:.2}%", v),
         None => "N/A".to_string(),
     };
 
-    let exchange_rate_str = match stats.exchange_rate {
+    let exchange_rate_str = match exchange_rate {
         Some(v) => format!("{:.6}", v),
         None => "N/A".to_string(),
     };

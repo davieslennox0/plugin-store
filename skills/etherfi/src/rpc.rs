@@ -74,6 +74,17 @@ pub async fn weeth_convert_to_assets(
     Ok(u128::from_str_radix(trimmed, 16).unwrap_or(0))
 }
 
+/// weETH.getRate() -> uint256
+/// Returns eETH per weETH exchange rate (18 decimals), e.g. 1.092e18 means 1 weETH = 1.092 eETH.
+/// Selector: 0x679aefce (keccak256("getRate()")[0..4])
+pub async fn weeth_get_rate(weeth: &str, rpc_url: &str) -> anyhow::Result<f64> {
+    let hex = eth_call(weeth, "0x679aefce", rpc_url).await?;
+    let clean = hex.trim_start_matches("0x");
+    let trimmed = if clean.len() > 32 { &clean[clean.len() - 32..] } else { clean };
+    let raw = u128::from_str_radix(trimmed, 16).unwrap_or(0);
+    Ok(raw as f64 / 1e18)
+}
+
 /// WithdrawRequestNFT.isFinalized(uint256 tokenId) -> bool
 /// Returns true if the withdrawal request has been finalized and ETH is ready to claim.
 /// Selector: 0x33727c4d (keccak256("isFinalized(uint256)")[0..4])
