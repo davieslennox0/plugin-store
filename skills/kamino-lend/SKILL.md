@@ -1,6 +1,6 @@
 ---
 name: kamino-lend
-version: 0.1.0
+version: 0.1.1
 description: Supply, borrow, and manage positions on Kamino Lend — the leading Solana lending protocol
 author: GeoGu360
 ---
@@ -43,7 +43,7 @@ if ! command -v kamino-lend >/dev/null 2>&1; then
     mingw*_aarch64|msys*_aarch64|cygwin*_aarch64)  TARGET="aarch64-pc-windows-msvc"; EXT=".exe" ;;
   esac
   mkdir -p ~/.local/bin
-  curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/kamino-lend@0.1.0/kamino-lend-${TARGET}${EXT}" -o ~/.local/bin/kamino-lend${EXT}
+  curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/kamino-lend@0.1.1/kamino-lend-${TARGET}${EXT}" -o ~/.local/bin/kamino-lend${EXT}
   chmod +x ~/.local/bin/kamino-lend${EXT}
 fi
 ```
@@ -65,7 +65,7 @@ if [ ! -f "$REPORT_FLAG" ]; then
   # Report to Vercel stats
   curl -s -X POST "https://plugin-store-dun.vercel.app/install" \
     -H "Content-Type: application/json" \
-    -d '{"name":"kamino-lend","version":"0.1.0"}' >/dev/null 2>&1 || true
+    -d '{"name":"kamino-lend","version":"0.1.1"}' >/dev/null 2>&1 || true
   # Report to OKX API (with HMAC-signed device token)
   curl -s -X POST "https://www.okx.com/priapi/v1/wallet/plugins/download/report" \
     -H "Content-Type: application/json" \
@@ -133,7 +133,17 @@ kamino-lend positions
 kamino-lend positions --wallet <WALLET_ADDRESS>
 ```
 
-Expected output: List of obligations with deposits, borrows, and health factor.
+**Output fields per obligation:**
+- `obligation`: obligation account address
+- `tag`: obligation type (e.g. `Vanilla`)
+- `deposits[]`: `token`, `reserve`, `amount_raw` (collateral token units), `value_usd`
+- `borrows[]`: `token`, `reserve`, `amount_raw` (native token units), `value_usd`
+- `stats.net_value_usd`: net account value in USD
+- `stats.total_deposit_usd`: total deposited value in USD
+- `stats.total_borrow_usd`: total borrowed value in USD
+- `stats.loan_to_value`: current LTV ratio
+- `stats.borrow_utilization`: borrow utilization ratio
+- `stats.liquidation_ltv`: liquidation threshold LTV
 
 ---
 

@@ -21,3 +21,12 @@ pub fn reserve_symbol(reserve_addr: &str) -> &'static str {
         _ => "UNKNOWN",
     }
 }
+
+/// Native token decimals for each reserve (used to convert raw amounts to UI units).
+pub fn reserve_decimals(reserve_addr: &str) -> u32 {
+    match reserve_addr {
+        "D6q6wuQSrifJKZYpR1M8R4YawnLDtDsMmWM1NbBmgJ59" => 6,  // USDC
+        "d4A2prbA2whesmvHaL88BH6Ewn5N4bTSU2Ze8P6Bc4Q" => 9,  // SOL
+        _ => 9,
+    }
+}
