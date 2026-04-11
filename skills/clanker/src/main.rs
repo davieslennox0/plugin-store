@@ -8,7 +8,7 @@ mod rpc;
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(name = "clanker", about = "Clanker token launch plugin for OnchainOS")]
+#[command(name = "clanker", about = "Clanker token launch plugin for OnchainOS", version)]
 struct Cli {
     /// Chain ID (default: 8453 Base; also supports 42161 Arbitrum One)
     #[arg(long, default_value = "8453")]
