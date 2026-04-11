@@ -1,7 +1,7 @@
 ---
 name: lido
 description: Stake ETH with Lido liquid staking protocol to receive stETH, manage withdrawals, and track staking rewards. Supports staking, balance queries, withdrawal requests, withdrawal status, and claiming finalized withdrawals on Ethereum mainnet.
-version: 0.2.2
+version: 0.2.3
 author: GeoGu360
 ---
 
@@ -42,7 +42,7 @@ if ! command -v lido >/dev/null 2>&1; then
     mingw*_aarch64|msys*_aarch64|cygwin*_aarch64)  TARGET="aarch64-pc-windows-msvc"; EXT=".exe" ;;
   esac
   mkdir -p ~/.local/bin
-  curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/lido@0.2.2/lido-${TARGET}${EXT}" -o ~/.local/bin/lido${EXT}
+  curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/lido@0.2.3/lido-${TARGET}${EXT}" -o ~/.local/bin/lido${EXT}
   chmod +x ~/.local/bin/lido${EXT}
 fi
 ```
@@ -154,9 +154,9 @@ lido stake --amount-eth 2.5 --dry-run
 
 ---
 
-### `get-apy` — Get Current stETH APR
+### `get-apy` — Get Current stETH APY
 
-Fetch the 7-day simple moving average APR for stETH staking. No wallet required.
+Fetch stETH APY, TVL, and trend data via DeFiLlama. No wallet required.
 
 **Usage:**
 ```
@@ -164,14 +164,25 @@ lido get-apy
 ```
 
 **Steps:**
-1. HTTP GET `https://eth-api.lido.fi/v1/protocol/steth/apr/sma` (with `Accept: application/json`)
-2. Falls back to `/v1/protocol/steth/apr/last` if `sma` endpoint returns non-2xx (CDN/geo variability)
-3. Display: "Current 7-day average stETH APR: X.XX%"
+1. HTTP GET `https://yields.llama.fi/pools`
+2. Filter: `project == "lido"`, `chain == "Ethereum"`, symbol contains `steth`
+3. Pick pool with highest TVL; display APY, TVL, 1D/7D/30D change, 30D average
+
+**Output fields:** APY, TVL, 1D change, 7D change, 30D change, 30D avg APY
 
 **Example output:**
 ```
-Current 7-day average stETH APR: 3.20%
-Note: This is post-10%-fee rate. Rewards are paid daily and compound automatically.
+=== Lido stETH APY (via DeFiLlama) ===
+Asset:       STETH
+APY:         2.378%
+TVL:         $21.17B
+1D change:   0.020%
+7D change:   -0.034%
+30D change:  -0.052%
+30D avg APY: 2.512%
+
+Note: Data sourced from DeFiLlama (third-party aggregator).
+      This is post-10%-fee rate. Rewards compound daily.
 ```
 
 **No onchainos command required** — pure REST API call.

@@ -92,7 +92,7 @@ pub async fn run(args: GetWithdrawalsArgs) -> anyhow::Result<()> {
                     "  Request #{}: {:.6} stETH — {}",
                     id, amount_steth, status
                 );
-                if let Some(wait) = wait_times.as_ref().and_then(|w| w.get(i)) {
+                if let Some(Some(wait)) = wait_times.as_ref().and_then(|w| w.get(i)) {
                     print!(" (est. wait: {})", wait);
                 }
                 println!();
@@ -109,7 +109,7 @@ pub async fn run(args: GetWithdrawalsArgs) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn fetch_wait_times(ids: &[u128]) -> Option<Vec<String>> {
+async fn fetch_wait_times(ids: &[u128]) -> Option<Vec<Option<String>>> {
     if ids.is_empty() {
         return None;
     }
@@ -138,15 +138,18 @@ async fn fetch_wait_times(ids: &[u128]) -> Option<Vec<String>> {
     Some(
         arr.iter()
             .map(|entry| {
+                // Finalized requests have no wait — skip the label entirely
+                if entry["status"].as_str() == Some("finalized") {
+                    return None;
+                }
                 entry["requestInfo"]["finalizationIn"]
                     .as_str()
-                    .map(|s| s.to_string())
-                    .or_else(|| {
+                    .map(|s| Some(s.to_string()))
+                    .unwrap_or_else(|| {
                         entry["expectedWaitTimeSeconds"]
                             .as_u64()
                             .map(|s| format!("{}s", s))
                     })
-                    .unwrap_or_else(|| "unknown".to_string())
             })
             .collect(),
     )

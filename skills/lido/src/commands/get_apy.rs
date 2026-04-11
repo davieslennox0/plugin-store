@@ -1,68 +1,88 @@
-use crate::config;
+use serde::Deserialize;
 
-pub async fn run() -> anyhow::Result<()> {
-    let url = format!("{}/v1/protocol/steth/apr/sma", config::API_BASE_URL);
+const DEFILLAMA_POOLS_URL: &str = "https://yields.llama.fi/pools";
 
-    let client = reqwest::Client::new();
-    let resp = client
-        .get(&url)
-        .header("User-Agent", "Mozilla/5.0 (compatible; lido-plugin/0.1)")
-        .header("Accept", "application/json")
-        .send()
-        .await?;
-
-    // Fallback: /apr/sma was deprecated on some edge nodes; try /apr/last
-    let body: serde_json::Value = if resp.status().is_success() {
-        resp.json().await?
-    } else {
-        let fallback_url = format!("{}/v1/protocol/steth/apr/last", config::API_BASE_URL);
-        let resp2 = client
-            .get(&fallback_url)
-            .header("User-Agent", "Mozilla/5.0 (compatible; lido-plugin/0.1)")
-            .header("Accept", "application/json")
-            .send()
-            .await?;
-        if !resp2.status().is_success() {
-            anyhow::bail!("Failed to fetch APR: HTTP {}", resp2.status());
-        }
-        resp2.json().await?
-    };
-
-    // Try to extract APR from various response shapes
-    let apr = extract_apr(&body);
-
-    println!("=== Lido stETH APR ===");
-    match apr {
-        Some(v) => {
-            println!("Current 7-day average stETH APR: {:.2}%", v);
-            println!(
-                "Note: This is post-10%-fee rate. Rewards are paid daily and compound automatically."
-            );
-        }
-        None => {
-            println!("Raw response: {}", serde_json::to_string_pretty(&body)?);
-        }
-    }
-
-    Ok(())
+#[derive(Debug, Deserialize)]
+struct PoolsResponse {
+    data: Vec<PoolItem>,
 }
 
-fn extract_apr(body: &serde_json::Value) -> Option<f64> {
-    // Try data.smaApr first
-    if let Some(v) = body["data"]["smaApr"].as_f64() {
-        return Some(v);
+#[allow(non_snake_case)]
+#[derive(Debug, Deserialize)]
+struct PoolItem {
+    chain: Option<String>,
+    project: Option<String>,
+    symbol: Option<String>,
+    tvlUsd: Option<f64>,
+    apy: Option<f64>,
+    apyPct1D: Option<f64>,
+    apyPct7D: Option<f64>,
+    apyPct30D: Option<f64>,
+    apyMean30d: Option<f64>,
+}
+
+fn is_target_pool(pool: &PoolItem) -> bool {
+    let project = pool.project.as_deref().unwrap_or("").to_ascii_lowercase();
+    let symbol = pool.symbol.as_deref().unwrap_or("").to_ascii_lowercase();
+    let chain = pool.chain.as_deref().unwrap_or("").to_ascii_lowercase();
+
+    project == "lido"
+        && chain == "ethereum"
+        && (symbol.contains("steth") || symbol.contains("wsteth"))
+}
+
+fn pick_best_pool(mut pools: Vec<PoolItem>) -> Option<PoolItem> {
+    pools.sort_by(|a, b| {
+        let atvl = a.tvlUsd.unwrap_or(0.0);
+        let btvl = b.tvlUsd.unwrap_or(0.0);
+        btvl.partial_cmp(&atvl).unwrap_or(std::cmp::Ordering::Equal)
+    });
+    pools.into_iter().next()
+}
+
+fn fmt_pct(v: Option<f64>) -> String {
+    v.map(|x| format!("{:.3}%", x)).unwrap_or_else(|| "N/A".to_string())
+}
+
+fn fmt_usd(v: Option<f64>) -> String {
+    match v {
+        Some(x) if x >= 1_000_000_000.0 => format!("${:.2}B", x / 1_000_000_000.0),
+        Some(x) if x >= 1_000_000.0 => format!("${:.2}M", x / 1_000_000.0),
+        Some(x) => format!("${:.0}", x),
+        None => "N/A".to_string(),
     }
-    // Try data.aprs[0].apr
-    if let Some(arr) = body["data"]["aprs"].as_array() {
-        if let Some(first) = arr.first() {
-            if let Some(v) = first["apr"].as_f64() {
-                return Some(v);
-            }
-        }
-    }
-    // Try data.apr directly
-    if let Some(v) = body["data"]["apr"].as_f64() {
-        return Some(v);
-    }
-    None
+}
+
+pub async fn run() -> anyhow::Result<()> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .build()?;
+
+    let resp: PoolsResponse = client
+        .get(DEFILLAMA_POOLS_URL)
+        .header("Accept", "application/json")
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
+
+    let matches: Vec<PoolItem> = resp.data.into_iter().filter(is_target_pool).collect();
+
+    let pool = pick_best_pool(matches)
+        .ok_or_else(|| anyhow::anyhow!("No Lido stETH pool found on DeFiLlama"))?;
+
+    println!("=== Lido stETH APY (via DeFiLlama) ===");
+    println!("Asset:       {}", pool.symbol.as_deref().unwrap_or("N/A"));
+    println!("APY:         {}", fmt_pct(pool.apy));
+    println!("TVL:         {}", fmt_usd(pool.tvlUsd));
+    println!("1D change:   {}", fmt_pct(pool.apyPct1D));
+    println!("7D change:   {}", fmt_pct(pool.apyPct7D));
+    println!("30D change:  {}", fmt_pct(pool.apyPct30D));
+    println!("30D avg APY: {}", fmt_pct(pool.apyMean30d));
+    println!();
+    println!("Note: Data sourced from DeFiLlama (third-party aggregator).");
+    println!("      This is post-10%-fee rate. Rewards compound daily.");
+
+    Ok(())
 }

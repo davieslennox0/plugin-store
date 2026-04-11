@@ -1,6 +1,6 @@
 schema_version: 1
 name: lido
-version: "0.2.2"
+version: "0.2.3"
 description: "Stake ETH with Lido liquid staking protocol — stake, manage withdrawals, and track staking rewards on Ethereum mainnet"
 author:
   name: GeoGu360
@@ -20,6 +20,6 @@ build:
   lang: rust
   binary_name: lido
 api_calls:
-  - eth-api.lido.fi
+  - yields.llama.fi
   - wq-api.lido.fi
   - ethereum.publicnode.com

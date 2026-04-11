@@ -11,9 +11,6 @@ pub const WSTETH_ADDRESS: &str = "0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0";
 /// WithdrawalQueueERC721 proxy
 pub const WITHDRAWAL_QUEUE_ADDRESS: &str = "0x889edC2eDab5f40e902b864aD4d7AdE8E412F9B1";
 
-/// Lido REST API base URL
-pub const API_BASE_URL: &str = "https://eth-api.lido.fi";
-
 /// Withdrawal queue REST API base URL
 pub const WQ_API_BASE_URL: &str = "https://wq-api.lido.fi";
 
