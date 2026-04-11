@@ -1,7 +1,7 @@
 ---
 name: gmx-v2
 description: "Trade perpetuals and spot on GMX V2 — open/close leveraged positions, place limit/stop orders, add/remove GM pool liquidity, query markets and positions. Trigger phrases: open position GMX, close position GMX, GMX trade, GMX leverage, GMX liquidity, deposit GM pool, withdraw GM pool, GMX stop loss, GMX take profit, cancel order GMX, claim funding fees GMX."
-version: 0.2.0
+version: 0.2.1
 author: "GeoGu360"
 tags:
   - perpetuals
@@ -49,7 +49,7 @@ if ! command -v gmx-v2 >/dev/null 2>&1; then
     mingw*_aarch64|msys*_aarch64|cygwin*_aarch64)  TARGET="aarch64-pc-windows-msvc"; EXT=".exe" ;;
   esac
   mkdir -p ~/.local/bin
-  curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/gmx-v2@0.2.0/gmx-v2-${TARGET}${EXT}" -o ~/.local/bin/gmx-v2${EXT}
+  curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/gmx-v2@0.2.1/gmx-v2-${TARGET}${EXT}" -o ~/.local/bin/gmx-v2${EXT}
   chmod +x ~/.local/bin/gmx-v2${EXT}
 fi
 ```
@@ -71,7 +71,7 @@ if [ ! -f "$REPORT_FLAG" ]; then
   # Report to Vercel stats
   curl -s -X POST "https://plugin-store-dun.vercel.app/install" \
     -H "Content-Type: application/json" \
-    -d '{"name":"gmx-v2","version":"0.2.0"}' >/dev/null 2>&1 || true
+    -d '{"name":"gmx-v2","version":"0.2.1"}' >/dev/null 2>&1 || true
   # Report to OKX API (with HMAC-signed device token)
   curl -s -X POST "https://www.okx.com/priapi/v1/wallet/plugins/download/report" \
     -H "Content-Type: application/json" \
@@ -250,10 +250,24 @@ gmx-v2 --chain arbitrum open-position \
 
 **Flow:**
 1. Run `--dry-run` to preview calldata and estimated leverage
-2. **Ask user to confirm** market, direction, size, slippage, and execution fee
-3. If collateral allowance is insufficient, the binary prints a NOTE — re-run with `--confirm` flag to approve and open in one step
-4. Submits multicall via `onchainos wallet contract-call`
-5. Keeper executes position within 1–30 seconds
+2. Pre-flight: checks ERC-20 collateral token balance — returns `{"ok":false,"error":"INSUFFICIENT_TOKEN_BALANCE"}` JSON if wallet balance < `--collateral-amount`
+3. Pre-flight: checks GMX `minCollateralUsd` on-chain — returns `{"ok":false,"error":"INSUFFICIENT_COLLATERAL"}` JSON if post-fee collateral would fall below GMX minimum (keeper would cancel immediately)
+4. Pre-flight: checks wallet ETH balance — returns `{"ok":false,"error":"INSUFFICIENT_ETH_FOR_EXECUTION"}` JSON if ETH < execution fee + gas buffer
+5. **Ask user to confirm** market, direction, size, slippage, and execution fee
+6. If collateral allowance is insufficient, the binary prints a NOTE — re-run with `--confirm` flag to approve and open in one step
+7. Submits multicall via `onchainos wallet contract-call`
+8. Keeper executes position within 1–30 seconds
+
+**Pre-flight error JSON examples:**
+```json
+{"ok":false,"error":"INSUFFICIENT_TOKEN_BALANCE","reason":"Wallet collateral token balance is less than the requested collateral amount.","collateral_token":"0xaf88...","wallet_balance":"500000","wallet_balance_usd":"0.5000","required_amount":"1000000","required_amount_usd":"1.0000","suggestion":"Reduce --collateral-amount to at most 500000 or top up the collateral token."}
+```
+```json
+{"ok":false,"error":"INSUFFICIENT_COLLATERAL","reason":"Post-fee collateral is below GMX minimum. Keeper will cancel the order immediately.","collateral_usd":"1.0000","estimated_open_fee_usd":"0.0050","collateral_after_fee_usd":"0.9950","min_collateral_usd":"1.0000","suggestion":"Increase --collateral-amount so that collateral_after_fee_usd >= min_collateral_usd, or reduce --size-usd to lower the fee."}
+```
+```json
+{"ok":false,"error":"INSUFFICIENT_ETH_FOR_EXECUTION","reason":"Wallet does not have enough ETH to cover execution fee + gas.","eth_balance":"0.00050000","execution_fee_eth":"0.00100000","gas_buffer_eth":"0.00020000","eth_required":"0.00120000","suggestion":"Top up wallet 0xYourWallet with at least 0.000700 ETH on Arbitrum."}
+```
 
 ---
 

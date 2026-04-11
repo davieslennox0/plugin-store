@@ -171,12 +171,79 @@ pub async fn run(chain: &str, dry_run: bool, confirm: bool, args: OpenPositionAr
         0.0
     };
 
+    // Pre-flight check 1 — ERC-20 token balance
+    let token_balance = crate::rpc::check_erc20_balance(
+        cfg.rpc_url, &args.collateral_token, &wallet,
+    ).await.unwrap_or(u128::MAX);
+    if token_balance < args.collateral_amount {
+        let collateral_price_for_check = crate::api::find_price(&tickers, &args.collateral_token)
+            .and_then(|t| t.min_price.as_deref().and_then(|p| p.parse::<u128>().ok()))
+            .unwrap_or(0);
+        let collateral_usd_have = token_balance as f64 * collateral_price_for_check as f64 / 1e30;
+        let collateral_usd_need = args.collateral_amount as f64 * collateral_price_for_check as f64 / 1e30;
+        println!("{}", serde_json::to_string_pretty(&serde_json::json!({
+            "ok": false,
+            "error": "INSUFFICIENT_TOKEN_BALANCE",
+            "reason": "Wallet collateral token balance is less than the requested collateral amount.",
+            "collateral_token": args.collateral_token,
+            "wallet_balance": token_balance.to_string(),
+            "wallet_balance_usd": format!("{:.4}", collateral_usd_have),
+            "required_amount": args.collateral_amount.to_string(),
+            "required_amount_usd": format!("{:.4}", collateral_usd_need),
+            "suggestion": format!("Reduce --collateral-amount to at most {} or top up the collateral token.", token_balance)
+        }))?);
+        return Ok(());
+    }
+
+    // Pre-flight check 2 — GMX minimum collateral
+    let min_collateral_usd_key = "6497f0f2c47edc68f06ede1c06d3475f939eb1a8341362460277bcd8ee7419f4";
+    let min_collateral_usd_30 = crate::rpc::datastore_get_uint(
+        cfg.datastore, min_collateral_usd_key, cfg.rpc_url,
+    ).await;
+    let collateral_price_raw = crate::api::find_price(&tickers, &args.collateral_token)
+        .and_then(|t| t.min_price.as_deref().and_then(|p| p.parse::<u128>().ok()))
+        .unwrap_or(0);
+    let collateral_usd_30 = (args.collateral_amount as u128).saturating_mul(collateral_price_raw);
+    let estimated_fee_30 = size_delta_usd / 1000; // 0.1% conservative open fee
+    if min_collateral_usd_30 > 0 && collateral_usd_30 < min_collateral_usd_30.saturating_add(estimated_fee_30) {
+        println!("{}", serde_json::to_string_pretty(&serde_json::json!({
+            "ok": false,
+            "error": "INSUFFICIENT_COLLATERAL",
+            "reason": "Post-fee collateral is below GMX minimum. Keeper will cancel the order immediately.",
+            "collateral_usd": format!("{:.4}", collateral_usd_30 as f64 / 1e30),
+            "estimated_open_fee_usd": format!("{:.4}", estimated_fee_30 as f64 / 1e30),
+            "collateral_after_fee_usd": format!("{:.4}", collateral_usd_30.saturating_sub(estimated_fee_30) as f64 / 1e30),
+            "min_collateral_usd": format!("{:.4}", min_collateral_usd_30 as f64 / 1e30),
+            "suggestion": "Increase --collateral-amount so that collateral_after_fee_usd >= min_collateral_usd, or reduce --size-usd to lower the fee."
+        }))?);
+        return Ok(());
+    }
+
+    // Pre-flight check 3 — ETH execution fee
+    let eth_balance = crate::rpc::get_eth_balance(&wallet, cfg.rpc_url).await;
+    let gas_margin: u128 = 200_000_000_000_000; // 0.0002 ETH conservative gas buffer
+    let eth_required = execution_fee.saturating_add(gas_margin);
+    if eth_balance < eth_required {
+        println!("{}", serde_json::to_string_pretty(&serde_json::json!({
+            "ok": false,
+            "error": "INSUFFICIENT_ETH_FOR_EXECUTION",
+            "reason": "Wallet does not have enough ETH to cover execution fee + gas.",
+            "eth_balance": format!("{:.8}", eth_balance as f64 / 1e18),
+            "execution_fee_eth": format!("{:.8}", execution_fee as f64 / 1e18),
+            "gas_buffer_eth": format!("{:.8}", gas_margin as f64 / 1e18),
+            "eth_required": format!("{:.8}", eth_required as f64 / 1e18),
+            "suggestion": format!("Top up wallet {} with at least {:.6} ETH on Arbitrum.",
+                wallet, (eth_required.saturating_sub(eth_balance)) as f64 / 1e18)
+        }))?);
+        return Ok(());
+    }
+
     // Preview
     eprintln!("=== Open Position Preview ===");
     eprintln!("Market: {}", market.name.as_deref().unwrap_or("?"));
     eprintln!("Direction: {}", if args.long { "LONG" } else { "SHORT" });
     eprintln!("Size: ${:.2} USD", args.size_usd);
-    eprintln!("Collateral: {} units", args.collateral_amount);
+    eprintln!("Collateral: {} units (${:.4} USD)", args.collateral_amount, collateral_usd_30 as f64 / 1e30);
     eprintln!("Current price: ${:.4}", mid_price_usd);
     eprintln!("Acceptable price: {}", acceptable_price);
     eprintln!("Execution fee: {} wei", execution_fee);

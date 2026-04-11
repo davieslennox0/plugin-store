@@ -56,8 +56,7 @@ pub async fn run(chain: &str, args: GetOrdersArgs) -> anyhow::Result<()> {
             "chain": chain,
             "wallet": wallet,
             "count": orders.len(),
-            "orders": orders,
-            "raw": raw
+            "orders": orders
         }))?
     );
     Ok(())
