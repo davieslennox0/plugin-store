@@ -28,31 +28,39 @@ pub async fn run(args: PoolsArgs) -> Result<()> {
         match crate::rpc::get_pool_address(cfg.factory, &addr0, &addr1, fee, cfg.rpc_url).await {
             Ok(pool_addr) => {
                 found += 1;
-                // Query slot0 and liquidity
-                let (sqrt_price, tick) = crate::rpc::get_slot0(&pool_addr, cfg.rpc_url)
-                    .await
-                    .unwrap_or((0, 0));
-                let liquidity = crate::rpc::get_pool_liquidity(&pool_addr, cfg.rpc_url)
-                    .await
-                    .unwrap_or(0);
+                let fee_label = format!("{:.2}%", fee as f64 / 10000.0);
 
-                // Compute approximate price from sqrtPriceX96
-                // price = (sqrtPriceX96 / 2^96)^2
-                let price = if sqrt_price > 0 {
-                    let sq = sqrt_price as f64 / 2f64.powi(96);
-                    format!("{:.4}", sq * sq)
-                } else {
-                    "N/A".to_string()
-                };
+                // Query slot0 and liquidity — surface RPC errors explicitly
+                // so agents don't mistake rate-limit failures for tick=0 bugs.
+                let slot0 = crate::rpc::get_slot0(&pool_addr, cfg.rpc_url).await;
+                let liq = crate::rpc::get_pool_liquidity(&pool_addr, cfg.rpc_url).await;
 
-                println!(
-                    "{:<8} {:<44} {:>14} {:>12}",
-                    format!("{:.2}%", fee as f64 / 10000.0),
-                    pool_addr,
-                    liquidity,
-                    price,
-                );
-                println!("         tick: {}", tick);
+                match (slot0, liq) {
+                    (Ok((sqrt_price, tick)), Ok(liquidity)) => {
+                        let price = if sqrt_price > 0 {
+                            let sq = sqrt_price as f64 / 2f64.powi(96);
+                            format!("{:.4}", sq * sq)
+                        } else {
+                            "N/A".to_string()
+                        };
+                        println!(
+                            "{:<8} {:<44} {:>14} {:>12}",
+                            fee_label, pool_addr, liquidity, price,
+                        );
+                        println!("         tick: {}", tick);
+                    }
+                    (slot0_res, liq_res) => {
+                        let err = slot0_res.err()
+                            .or(liq_res.err())
+                            .map(|e| e.to_string())
+                            .unwrap_or_else(|| "unknown error".to_string());
+                        println!(
+                            "{:<8} {:<44} [RPC error — try again or check rate limits]",
+                            fee_label, pool_addr,
+                        );
+                        println!("         error: {}", err);
+                    }
+                }
             }
             Err(_) => {
                 // Pool doesn't exist for this fee tier — skip silently

@@ -1,7 +1,7 @@
 ---
 name: pancakeswap
 description: "Swap tokens and manage liquidity on PancakeSwap V3 on BNB Chain, Base, and Arbitrum"
-version: "0.2.0"
+version: "0.2.1"
 author: "GeoGu360"
 tags:
   - dex
@@ -48,7 +48,7 @@ if ! command -v pancakeswap >/dev/null 2>&1; then
     mingw*_aarch64|msys*_aarch64|cygwin*_aarch64)  TARGET="aarch64-pc-windows-msvc"; EXT=".exe" ;;
   esac
   mkdir -p ~/.local/bin
-  curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/pancakeswap@0.2.0/pancakeswap-${TARGET}${EXT}" -o ~/.local/bin/pancakeswap${EXT}
+  curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/pancakeswap@0.2.1/pancakeswap-${TARGET}${EXT}" -o ~/.local/bin/pancakeswap${EXT}
   chmod +x ~/.local/bin/pancakeswap${EXT}
 fi
 ```
@@ -67,7 +67,7 @@ if [ ! -f "$REPORT_FLAG" ]; then
   unset _K
   curl -s -X POST "https://plugin-store-dun.vercel.app/install" \
     -H "Content-Type: application/json" \
-    -d '{"name":"pancakeswap","version":"0.2.0"}' >/dev/null 2>&1 || true
+    -d '{"name":"pancakeswap","version":"0.2.1"}' >/dev/null 2>&1 || true
   curl -s -X POST "https://www.okx.com/priapi/v1/wallet/plugins/download/report" \
     -H "Content-Type: application/json" \
     -d '{"pluginName":"pancakeswap","divId":"'"$DIV_ID"'"}' >/dev/null 2>&1 || true
@@ -209,7 +209,9 @@ pancakeswap pools --token0 WBNB --token1 USDT --chain 56
 pancakeswap pools --token0 WETH --token1 USDC --chain 42161
 ```
 
-Returns pool addresses, liquidity, and current price (sqrtPriceX96) for each fee tier. This is a read-only operation using `eth_call` — no transactions or gas required.
+Returns pool addresses, liquidity, current price, and current tick for each fee tier. This is a read-only operation using `eth_call` — no transactions or gas required.
+
+If an RPC call fails (e.g. node rate-limit), the affected pool row displays `[RPC error — try again or check rate limits]` with the error detail, instead of silently showing `tick: 0`.
 
 ---
 
