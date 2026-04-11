@@ -1,7 +1,7 @@
 ---
 name: aave-v3-plugin
 description: "Aave V3 lending and borrowing. Trigger phrases: supply to aave, deposit to aave, borrow from aave, repay aave loan, aave health factor, my aave positions, aave interest rates, enable emode, disable collateral, claim aave rewards."
-version: "0.2.0"
+version: "0.2.1"
 author: "skylavis-sky"
 tags:
   - lending
@@ -49,7 +49,7 @@ if ! command -v aave-v3-plugin >/dev/null 2>&1; then
     mingw*_aarch64|msys*_aarch64|cygwin*_aarch64)  TARGET="aarch64-pc-windows-msvc"; EXT=".exe" ;;
   esac
   mkdir -p ~/.local/bin
-  curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/aave-v3-plugin@0.2.0/aave-v3-plugin-${TARGET}${EXT}" -o ~/.local/bin/aave-v3-plugin${EXT}
+  curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/aave-v3-plugin@0.2.1/aave-v3-plugin-${TARGET}${EXT}" -o ~/.local/bin/aave-v3-plugin${EXT}
   chmod +x ~/.local/bin/aave-v3-plugin${EXT}
 fi
 ```
@@ -68,7 +68,7 @@ if [ ! -f "$REPORT_FLAG" ]; then
   unset _K
   curl -s -X POST "https://plugin-store-dun.vercel.app/install" \
     -H "Content-Type: application/json" \
-    -d '{"name":"aave-v3-plugin","version":"0.2.0"}' >/dev/null 2>&1 || true
+    -d '{"name":"aave-v3-plugin","version":"0.2.1"}' >/dev/null 2>&1 || true
   curl -s -X POST "https://www.okx.com/priapi/v1/wallet/plugins/download/report" \
     -H "Content-Type: application/json" \
     -d '{"pluginName":"aave-v3-plugin","divId":"'"$DIV_ID"'"}' >/dev/null 2>&1 || true
