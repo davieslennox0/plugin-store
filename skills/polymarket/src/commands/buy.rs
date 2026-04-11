@@ -3,7 +3,7 @@ use reqwest::Client;
 
 use crate::api::{
     compute_buy_worst_price, get_balance_allowance, get_clob_market, get_market_fee, get_orderbook,
-    get_tick_size, post_order, round_amount_down, round_price, round_size_down, to_token_units,
+    get_tick_size, post_order, round_price, to_token_units,
     OrderBody, OrderRequest,
 };
 use crate::auth::ensure_credentials;
@@ -124,22 +124,26 @@ pub async fn run(
     //   taker_raw (shares, 6 dec) divisible by 100   → max 4 share decimal places
     //   maker_raw / taker_raw == limit_price exactly
     //
-    // Express price as integer cents (e.g. 0.48 → 48). Then:
-    //   maker_raw = price_cents × taker_raw / 100
-    // For maker_raw to be a multiple of 10,000, taker_raw must be a multiple of:
-    //   step = 1,000,000 / gcd(price_cents, 1,000,000)
+    // Express price as integer ticks: price_ticks = round(price / tick_size).
+    // tick_scale = round(1 / tick_size) — e.g. 100 for tick=0.01, 1000 for tick=0.001.
+    //   maker_raw = price_ticks × taker_raw / tick_scale
+    // For maker_raw to be divisible by 10,000 and taker_raw to be divisible by 100:
+    //   step = lcm(tick_scale × 10,000 / gcd(price_ticks, tick_scale × 10,000), 100)
     // We snap taker_raw DOWN to the nearest step, then maker_raw follows exactly.
     fn gcd(mut a: u128, mut b: u128) -> u128 {
         while b != 0 { let t = b; b = a % b; a = t; }
         a
     }
-    let price_cents = (limit_price * 100.0).round() as u128;
-    let g = gcd(price_cents, 1_000_000);
-    let step = (1_000_000 / g).max(100); // also satisfies the ÷100 taker constraint
+    let tick_scale = (1.0 / tick_size).round() as u128; // 100 for tick=0.01, 1000 for tick=0.001
+    let price_ticks = (limit_price / tick_size).round() as u128;
+    let g = gcd(price_ticks, tick_scale * 10_000);
+    let step_raw = tick_scale * 10_000 / g;
+    let g2 = gcd(step_raw, 100);
+    let step = step_raw / g2 * 100; // lcm(step_raw, 100)
 
     let max_taker_raw = (usdc_amount / limit_price * 1_000_000.0).floor() as u128;
     let taker_amount_raw = (max_taker_raw / step) * step;
-    let maker_amount_raw = price_cents * taker_amount_raw / 100;
+    let maker_amount_raw = price_ticks * taker_amount_raw / tick_scale;
 
     let salt = rand_salt();
 

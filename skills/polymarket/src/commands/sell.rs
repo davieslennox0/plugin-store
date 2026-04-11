@@ -3,7 +3,7 @@ use reqwest::Client;
 
 use crate::api::{
     compute_sell_worst_price, get_balance_allowance, get_market_fee, get_orderbook, get_tick_size,
-    post_order, round_amount_down, round_price, round_size_down, to_token_units, OrderBody,
+    post_order, round_price, to_token_units, OrderBody,
     OrderRequest,
 };
 use crate::auth::ensure_credentials;
@@ -111,13 +111,26 @@ pub async fn run(
         eprintln!("[polymarket] Approval tx: {}", tx_hash);
     }
 
-    // Build order amounts (SELL)
-    let rounded_shares = round_size_down(share_amount);
-    let maker_amount_raw = to_token_units(rounded_shares); // shares to sell
+    // Build order amounts (SELL) using GCD-based integer arithmetic.
+    // For SELL: maker = shares given, taker = USDC received.
+    //   taker_raw = price_ticks × maker_raw / tick_scale  (must be exact integer)
+    // Constraints: maker_raw (shares) ÷100, taker_raw (USDC) ÷10,000.
+    //   step = lcm(tick_scale × 10,000 / gcd(price_ticks, tick_scale × 10,000), 100)
+    // Snap maker_raw DOWN to nearest step; taker_raw follows exactly.
+    fn gcd(mut a: u128, mut b: u128) -> u128 {
+        while b != 0 { let t = b; b = a % b; a = t; }
+        a
+    }
+    let tick_scale = (1.0 / tick_size).round() as u128;
+    let price_ticks = (limit_price / tick_size).round() as u128;
+    let g = gcd(price_ticks, tick_scale * 10_000);
+    let step_raw = tick_scale * 10_000 / g;
+    let g2 = gcd(step_raw, 100);
+    let step = step_raw / g2 * 100; // lcm(step_raw, 100)
 
-    let usdc_out = rounded_shares * limit_price;
-    let rounded_usdc = round_amount_down(usdc_out, tick_size);
-    let taker_amount_raw = to_token_units(rounded_usdc);
+    let max_maker_raw = (share_amount * 1_000_000.0).floor() as u128;
+    let maker_amount_raw = (max_maker_raw / step) * step;
+    let taker_amount_raw = price_ticks * maker_amount_raw / tick_scale;
 
     let salt = rand_salt();
 
@@ -127,8 +140,8 @@ pub async fn run(
         signer: signer_addr.clone(),
         taker: "0x0000000000000000000000000000000000000000".to_string(),
         token_id: token_id.clone(),
-        maker_amount: maker_amount_raw,
-        taker_amount: taker_amount_raw,
+        maker_amount: maker_amount_raw as u64,
+        taker_amount: taker_amount_raw as u64,
         expiration: 0,
         nonce: 0,
         fee_rate_bps,
@@ -179,8 +192,8 @@ pub async fn run(
             "side": "SELL",
             "order_type": order_type.to_uppercase(),
             "limit_price": limit_price,
-            "shares": rounded_shares,
-            "usdc_out": rounded_usdc,
+            "shares": maker_amount_raw as f64 / 1_000_000.0,
+            "usdc_out": taker_amount_raw as f64 / 1_000_000.0,
             "maker_amount_raw": maker_amount_raw,
             "taker_amount_raw": taker_amount_raw,
             "tx_hashes": resp.tx_hashes,

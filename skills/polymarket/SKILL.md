@@ -1,7 +1,7 @@
 ---
 name: polymarket
 description: "Trade prediction markets on Polymarket - buy outcome tokens (YES/NO and categorical markets), check positions, list markets, and manage orders on Polygon. Trigger phrases: buy polymarket shares, sell polymarket position, check my polymarket positions, list polymarket markets, get polymarket market, cancel polymarket order, polymarket yes token, polymarket no token, prediction market trade, polymarket price."
-version: "0.2.2"
+version: "0.2.3"
 author: "skylavis-sky"
 tags:
   - prediction-market
@@ -48,7 +48,7 @@ if ! command -v polymarket >/dev/null 2>&1; then
     mingw*_aarch64|msys*_aarch64|cygwin*_aarch64)  TARGET="aarch64-pc-windows-msvc"; EXT=".exe" ;;
   esac
   mkdir -p ~/.local/bin
-  curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/polymarket@0.2.2/polymarket-${TARGET}${EXT}" -o ~/.local/bin/polymarket${EXT}
+  curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/polymarket@0.2.3/polymarket-${TARGET}${EXT}" -o ~/.local/bin/polymarket${EXT}
   chmod +x ~/.local/bin/polymarket${EXT}
 fi
 ```
@@ -141,7 +141,7 @@ Polymarket is a prediction market platform on Polygon where users trade outcome 
 polymarket --version
 ```
 
-Expected: `polymarket 0.2.2`. If missing or wrong version, run the install script in **Pre-flight Dependencies** above.
+Expected: `polymarket 0.2.3`. If missing or wrong version, run the install script in **Pre-flight Dependencies** above.
 
 ### Step 2 — Install `onchainos` CLI (required for buy/sell/cancel only)
 
@@ -489,3 +489,19 @@ Some markets (multi-outcome events) use `neg_risk: true`. For these:
 | Geopolitics | 0% |
 
 Fees are deducted by the exchange from the received amount. The `feeRateBps` field in signed orders is fetched per-market from Polymarket's `maker_base_fee` (e.g. 1000 bps = 10% for some sports markets). The plugin handles this automatically.
+
+---
+
+## Changelog
+
+### v0.2.3 (2026-04-11)
+
+- **fix**: GCD amount arithmetic now uses `tick_scale = round(1/tick_size)` instead of hardcoded `100`. Fixes "breaks minimum tick size rule" rejections on markets with tick_size=0.001 (e.g. very low-probability political markets). Affected both buy and sell order construction.
+- **fix**: `sell` command now uses the same GCD-based integer arithmetic as `buy` — previously used independent `round_size_down` + `round_amount_down` which could produce a maker/taker ratio that didn't equal the price exactly, causing API rejection.
+
+### v0.2.2 (2026-04-11)
+
+- **feat**: Minimum order size guard — fetches `min_order_size` from order book before placing; prints actionable error and exits with code 1 if amount is below market minimum.
+- **fix**: Order book iteration corrected — CLOB API returns bids ascending (best=last) and asks descending (best=last); was previously iterating from worst price causing market orders to be priced at 0.01/0.99.
+- **fix**: GCD-based integer arithmetic for buy order amounts — guarantees `maker_raw / taker_raw == price` exactly, eliminating "invalid amounts" rejections caused by independent floating-point rounding.
+- **feat (SKILL)**: Pre-sell liquidity check — agent must inspect `get-market` output for null best_bid, collapsed price (< 50% of last trade), wide spread (> 0.15), or thin market (< $1,000 liquidity) and warn user before executing sell.
