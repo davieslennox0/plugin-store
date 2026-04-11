@@ -461,3 +461,4 @@ gmx-v2 --chain arbitrum open-position \
 # 5. Check position was created (wait ~30s for keeper)
 gmx-v2 --chain arbitrum get-positions
 ```
+
