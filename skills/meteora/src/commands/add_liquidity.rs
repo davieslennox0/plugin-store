@@ -96,20 +96,31 @@ pub async fn execute(args: &AddLiquidityArgs, dry_run: bool) -> anyhow::Result<(
     let position = meteora_ix::position_pda(&lb_pair, &wallet, pos_lower, width);
     // Bin arrays cover the liquidity range.
     // DLMM requires bin_array_lower != bin_array_upper (program can't borrow same
-    // account twice). If both bounds fall in the same bin array, extend liq_lower
-    // to cross the bin-array boundary (step back one bin into the prior array).
+    // account twice). If both bounds fall in the same bin array:
+    //   1. Try extending liq_lower into the previous bin array (clamped to pos_lower).
+    //   2. If pos_lower is in the same array, extend liq_upper into the next bin array
+    //      (clamped to pos_upper) instead.
     let lower_idx_raw = meteora_ix::bin_array_index(liq_lower);
-    let upper_idx = meteora_ix::bin_array_index(liq_upper);
-    let (lower_idx, effective_liq_lower) = if lower_idx_raw == upper_idx {
-        // Extend to previous bin array: last bin of (upper_idx - 1)
-        let prev_idx = upper_idx - 1;
-        let prev_last_bin = (prev_idx * 70 + 69) as i32;
-        // Ensure it stays within position range
-        let adj = prev_last_bin.max(pos_lower);
-        (meteora_ix::bin_array_index(adj), adj)
-    } else {
-        (lower_idx_raw, liq_lower)
-    };
+    let upper_idx_raw = meteora_ix::bin_array_index(liq_upper);
+    let (lower_idx, upper_idx, effective_liq_lower, effective_liq_upper) =
+        if lower_idx_raw == upper_idx_raw {
+            // Attempt 1: extend liq_lower into previous bin array
+            let prev_idx = upper_idx_raw - 1;
+            let prev_last_bin = (prev_idx * 70 + 69) as i32;
+            let adj_lower = prev_last_bin.max(pos_lower);
+            let new_lower_idx = meteora_ix::bin_array_index(adj_lower);
+            if new_lower_idx != upper_idx_raw {
+                (new_lower_idx, upper_idx_raw, adj_lower, liq_upper)
+            } else {
+                // pos_lower is in the same bin array — extend liq_upper into next array
+                let next_idx = upper_idx_raw + 1;
+                let next_first_bin = (next_idx * 70) as i32;
+                let adj_upper = next_first_bin.min(pos_upper);
+                (lower_idx_raw, meteora_ix::bin_array_index(adj_upper), liq_lower, adj_upper)
+            }
+        } else {
+            (lower_idx_raw, upper_idx_raw, liq_lower, liq_upper)
+        };
     let bin_array_lower = meteora_ix::bin_array_pda(&lb_pair, lower_idx);
     let bin_array_upper = meteora_ix::bin_array_pda(&lb_pair, upper_idx);
     // Precompute ATAs to use as hints for find_token_account
@@ -149,7 +160,7 @@ pub async fn execute(args: &AddLiquidityArgs, dry_run: bool) -> anyhow::Result<(
             "position_upper_bin_id": pos_upper,
             "position_width": width,
             "liq_lower_bin_id": effective_liq_lower,
-            "liq_upper_bin_id": liq_upper,
+            "liq_upper_bin_id": effective_liq_upper,
             "amount_x": args.amount_x,
             "amount_x_raw": amount_x_raw,
             "amount_y": args.amount_y,
@@ -170,31 +181,31 @@ pub async fn execute(args: &AddLiquidityArgs, dry_run: bool) -> anyhow::Result<(
         return Ok(());
     }
 
-    // ── 9. Validate ATAs exist before live tx ────────────────────────────────
-    if !ata_x_exists {
-        anyhow::bail!(
-            "No token X account found for mint {token_x_mint}.\n\
-             Create one first: spl-token create-account {token_x_mint}"
-        );
-    }
-    if !ata_y_exists {
-        anyhow::bail!(
-            "No token Y account found for mint {token_y_mint}.\n\
-             Create one first: spl-token create-account {token_y_mint}"
-        );
-    }
+    // ATAs are created on-the-fly in the instruction list if missing.
 
-    // ── 10. Check bin array existence & get blockhash (parallel) ────────────
+    // ── 10. Check bin array existence & get blockhash ───────────────────────
+    // Sequential to avoid saturating the public RPC rate limit
+    // (steps 3 and 7 already fired 5+ concurrent calls).
     let bin_arr_lower_str = bin_array_lower.to_string();
     let bin_arr_upper_str = bin_array_upper.to_string();
-    let (bin_arr_lower_exists, bin_arr_upper_exists, blockhash) = tokio::try_join!(
-        solana_rpc::account_exists(&client, &bin_arr_lower_str),
-        solana_rpc::account_exists(&client, &bin_arr_upper_str),
-        solana_rpc::get_latest_blockhash(&client),
-    )?;
+    let bin_arr_lower_exists = solana_rpc::account_exists(&client, &bin_arr_lower_str).await?;
+    let bin_arr_upper_exists = solana_rpc::account_exists(&client, &bin_arr_upper_str).await?;
+    let blockhash = solana_rpc::get_latest_blockhash(&client).await?;
 
     // ── 11. Build instructions ───────────────────────────────────────────────
     let mut instructions = Vec::new();
+
+    // Create ATAs if missing (idempotent — safe to include even if they exist)
+    if !ata_x_exists {
+        instructions.push(meteora_ix::ix_create_ata_idempotent(
+            &wallet, &user_token_x, &wallet, &token_x_mint,
+        ));
+    }
+    if !ata_y_exists {
+        instructions.push(meteora_ix::ix_create_ata_idempotent(
+            &wallet, &user_token_y, &wallet, &token_y_mint,
+        ));
+    }
 
     // Initialize bin arrays if they don't exist (required before adding liquidity)
     if !bin_arr_lower_exists {
@@ -242,7 +253,7 @@ pub async fn execute(args: &AddLiquidityArgs, dry_run: bool) -> anyhow::Result<(
         pool.active_id,
         args.bin_range, // max_active_bin_slippage
         effective_liq_lower,
-        liq_upper,
+        effective_liq_upper,
     ));
 
     // ── 12. Build & encode transaction ───────────────────────────────────────

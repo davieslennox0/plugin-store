@@ -10,7 +10,7 @@ use clap::{Parser, Subcommand};
 #[derive(Parser)]
 #[command(
     name = "meteora",
-    about = "Meteora DLMM plugin — query pools, get quotes, check positions, add liquidity, and execute swaps on Solana",
+    about = "Meteora DLMM plugin — query pools, get quotes, check positions, manage liquidity, and execute swaps on Solana",
     version = "0.2.0"
 )]
 struct Cli {
@@ -41,6 +41,9 @@ enum Commands {
 
     /// Add liquidity to a Meteora DLMM pool (SpotBalanced strategy)
     AddLiquidity(commands::add_liquidity::AddLiquidityArgs),
+
+    /// Remove liquidity from a Meteora DLMM position
+    RemoveLiquidity(commands::remove_liquidity::RemoveLiquidityArgs),
 }
 
 #[tokio::main]
@@ -54,6 +57,7 @@ async fn main() -> anyhow::Result<()> {
         Commands::GetUserPositions(args) => commands::get_user_positions::execute(args).await?,
         Commands::Swap(args) => commands::swap::execute(args, cli.dry_run).await?,
         Commands::AddLiquidity(args) => commands::add_liquidity::execute(args, cli.dry_run).await?,
+        Commands::RemoveLiquidity(args) => commands::remove_liquidity::execute(args, cli.dry_run).await?,
     }
 
     Ok(())
