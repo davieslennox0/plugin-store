@@ -85,3 +85,68 @@ pub async fn get_asset_meta(info_url: &str, coin: &str) -> anyhow::Result<(usize
     }
     anyhow::bail!("Coin '{}' not found in Hyperliquid universe", coin)
 }
+
+/// Get spot token + market metadata.
+/// POST /info {"type":"spotMeta"}
+pub async fn get_spot_meta(info_url: &str) -> anyhow::Result<Value> {
+    info_post(info_url, json!({"type": "spotMeta"})).await
+}
+
+/// Get spot clearinghouse state for a user (spot balances).
+/// POST /info {"type":"spotClearinghouseState","user":"0x..."}
+pub async fn get_spot_clearinghouse_state(info_url: &str, user: &str) -> anyhow::Result<Value> {
+    info_post(
+        info_url,
+        json!({
+            "type": "spotClearinghouseState",
+            "user": user
+        }),
+    )
+    .await
+}
+
+/// Look up the spot asset index, market index, AND szDecimals for a token symbol.
+/// Returns (asset_index, market_index, sz_decimals).
+/// Spot asset index on HL = 10000 + spot market index.
+pub async fn get_spot_asset_meta(info_url: &str, coin: &str) -> anyhow::Result<(usize, usize, u32)> {
+    let meta = get_spot_meta(info_url).await?;
+    let tokens = meta["tokens"]
+        .as_array()
+        .ok_or_else(|| anyhow::anyhow!("spotMeta.tokens missing"))?;
+    let universe = meta["universe"]
+        .as_array()
+        .ok_or_else(|| anyhow::anyhow!("spotMeta.universe missing"))?;
+
+    let coin_upper = coin.to_uppercase();
+
+    // Find token index by name
+    let tok_idx = tokens
+        .iter()
+        .find(|t| t["name"].as_str().map(|n| n.to_uppercase()) == Some(coin_upper.clone()))
+        .and_then(|t| t["index"].as_u64())
+        .ok_or_else(|| anyhow::anyhow!("Spot token '{}' not found", coin))? as usize;
+
+    // Find market that has this token as base (first token in tokens array)
+    let market = universe
+        .iter()
+        .find(|m| {
+            m["tokens"]
+                .as_array()
+                .and_then(|t| t.first())
+                .and_then(|v| v.as_u64())
+                .map(|idx| idx as usize == tok_idx)
+                .unwrap_or(false)
+        })
+        .ok_or_else(|| anyhow::anyhow!("No spot market for '{}'", coin))?;
+
+    let mkt_idx = market["index"].as_u64().unwrap_or(0) as usize;
+    let sz_decimals = tokens
+        .iter()
+        .find(|t| t["index"].as_u64().map(|i| i as usize) == Some(tok_idx))
+        .and_then(|t| t["szDecimals"].as_u64())
+        .unwrap_or(2) as u32;
+
+    // Returns (asset_index, market_index, sz_decimals)
+    // asset_index = 10000 + market_index (used in HL order actions for spot)
+    Ok((10000 + mkt_idx, mkt_idx, sz_decimals))
+}

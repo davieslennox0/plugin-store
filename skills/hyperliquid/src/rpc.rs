@@ -84,3 +84,42 @@ pub async fn erc20_allowance(
         .unwrap_or(0);
     Ok(val)
 }
+
+/// Parse a hex or decimal wei string into u128.
+pub fn parse_wei(raw: &str) -> u128 {
+    let s = raw.trim();
+    if s.is_empty() || s == "0x0" || s == "0" {
+        return 0;
+    }
+    if let Some(hex) = s.strip_prefix("0x") {
+        u128::from_str_radix(hex, 16).unwrap_or(0)
+    } else {
+        s.parse::<u128>().unwrap_or(0)
+    }
+}
+
+/// Poll for transaction receipt until mined or timeout.
+/// Returns true if status == "0x1" (success), false if failed or timed out.
+pub async fn wait_tx_mined(tx_hash: &str, rpc: &str) -> bool {
+    for _ in 0..30 {
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        let body = serde_json::json!({
+            "jsonrpc": "2.0",
+            "method": "eth_getTransactionReceipt",
+            "params": [tx_hash],
+            "id": 1
+        });
+        if let Ok(resp) = reqwest::Client::new().post(rpc).json(&body).send().await {
+            if let Ok(v) = resp.json::<serde_json::Value>().await {
+                let status = v["result"]["status"].as_str().unwrap_or("");
+                if status == "0x1" {
+                    return true;
+                }
+                if !status.is_empty() && status != "0x0" {
+                    // receipt exists but unknown status
+                }
+            }
+        }
+    }
+    false
+}

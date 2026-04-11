@@ -48,3 +48,6 @@ pub fn now_ms() -> u64 {
         .unwrap_or_default()
         .as_millis() as u64
 }
+
+pub const HYPER_EVM_RPC: &str = "https://rpc.hyperliquid.xyz/evm";
+pub const USDC_HYPER_EVM: &str = "0x0000000000000000000000000000000000000000"; // placeholder — HyperEVM USDC contract TBD

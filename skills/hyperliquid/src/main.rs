@@ -7,22 +7,31 @@ mod signing;
 
 use clap::{Parser, Subcommand};
 use commands::{
+    address::AddressArgs,
     cancel::CancelArgs,
     close::CloseArgs,
     deposit::DepositArgs,
+    evm_send::EvmSendArgs,
+    get_gas::GetGasArgs,
     order::OrderArgs,
     orders::OrdersArgs,
     positions::PositionsArgs,
     prices::PricesArgs,
     register::RegisterArgs,
+    spot_balances::SpotBalancesArgs,
+    spot_cancel::SpotCancelArgs,
+    spot_order::SpotOrderArgs,
+    spot_prices::SpotPricesArgs,
     tpsl::TpslArgs,
+    transfer::TransferArgs,
+    withdraw::WithdrawArgs,
 };
 
 #[derive(Parser)]
 #[command(
     name = "hyperliquid",
     version,
-    about = "Hyperliquid on-chain perpetuals DEX plugin — trade perps, set TP/SL, close positions, check prices, deposit USDC"
+    about = "Hyperliquid DEX plugin — trade perps, deposit from Arbitrum, manage gas on HyperEVM"
 )]
 struct Cli {
     #[command(subcommand)]
@@ -35,20 +44,38 @@ enum Commands {
     Positions(PositionsArgs),
     /// List open orders (limit, TP/SL); optionally filter by coin
     Orders(OrdersArgs),
-    /// Get current mid prices for all markets or a specific coin
+    /// Get current mid prices for all perp markets or a specific coin
     Prices(PricesArgs),
-    /// Place a market or limit order; optionally attach TP/SL bracket (requires --confirm)
+    /// Place a market or limit perp order; optionally attach TP/SL bracket (requires --confirm)
     Order(OrderArgs),
-    /// Market-close an open position in one command (requires --confirm)
+    /// Market-close an open perp position in one command (requires --confirm)
     Close(CloseArgs),
-    /// Set stop-loss and/or take-profit on an existing position (requires --confirm)
+    /// Set stop-loss and/or take-profit on an existing perp position (requires --confirm)
     Tpsl(TpslArgs),
-    /// Cancel an open order by order ID (requires --confirm)
+    /// Cancel an open perp order by order ID (requires --confirm)
     Cancel(CancelArgs),
-    /// Deposit USDC from Arbitrum to Hyperliquid via the official bridge
+    /// Deposit USDC to Hyperliquid perp account via Arbitrum bridge (minimum $5)
     Deposit(DepositArgs),
     /// Detect your onchainos signing address on Hyperliquid and show setup instructions
     Register(RegisterArgs),
+    /// Show wallet address with QR code for easy transfers (HyperEVM by default)
+    Address(AddressArgs),
+    /// Swap Arbitrum USDC to HYPE on HyperEVM via relay.link (for gas bootstrap)
+    GetGas(GetGasArgs),
+    /// Send USDC from HyperCore perp account to a HyperEVM address via CoreWriter
+    EvmSend(EvmSendArgs),
+    /// Transfer USDC between perp and spot accounts (requires --confirm)
+    Transfer(TransferArgs),
+    /// Withdraw USDC from Hyperliquid perp account to Arbitrum (requires --confirm)
+    Withdraw(WithdrawArgs),
+    /// Show spot token balances (HYPE, PURR, USDC, etc.)
+    SpotBalances(SpotBalancesArgs),
+    /// Get current prices for spot markets or a specific token
+    SpotPrices(SpotPricesArgs),
+    /// Place a market or limit spot order (requires --confirm)
+    SpotOrder(SpotOrderArgs),
+    /// Cancel an open spot order by order ID or cancel all for a token (requires --confirm)
+    SpotCancel(SpotCancelArgs),
 }
 
 #[tokio::main]
@@ -64,5 +91,14 @@ async fn main() -> anyhow::Result<()> {
         Commands::Cancel(args) => commands::cancel::run(args).await,
         Commands::Deposit(args) => commands::deposit::run(args).await,
         Commands::Register(args) => commands::register::run(args).await,
+        Commands::Address(args) => commands::address::run(args).await,
+        Commands::GetGas(args) => commands::get_gas::run(args).await,
+        Commands::EvmSend(args) => commands::evm_send::run(args).await,
+        Commands::Transfer(args) => commands::transfer::run(args).await,
+        Commands::Withdraw(args) => commands::withdraw::run(args).await,
+        Commands::SpotBalances(args) => commands::spot_balances::run(args).await,
+        Commands::SpotPrices(args) => commands::spot_prices::run(args).await,
+        Commands::SpotOrder(args) => commands::spot_order::run(args).await,
+        Commands::SpotCancel(args) => commands::spot_cancel::run(args).await,
     }
 }

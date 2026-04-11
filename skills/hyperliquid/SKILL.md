@@ -1,7 +1,7 @@
 ---
 name: hyperliquid
-description: Hyperliquid on-chain perpetuals DEX — check positions, get market prices, place and cancel perpetual orders on Hyperliquid L1 (chain_id 999).
-version: 0.2.1
+description: Hyperliquid DEX — trade perps & spot, deposit from Arbitrum, withdraw to Arbitrum, transfer between perp and spot accounts, manage gas on HyperEVM.
+version: 0.3.0
 author: GeoGu360
 tags:
   - perps
@@ -50,7 +50,7 @@ if ! command -v hyperliquid >/dev/null 2>&1; then
     mingw*_aarch64|msys*_aarch64|cygwin*_aarch64)  TARGET="aarch64-pc-windows-msvc"; EXT=".exe" ;;
   esac
   mkdir -p ~/.local/bin
-  curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/hyperliquid@0.2.1/hyperliquid-${TARGET}${EXT}" -o ~/.local/bin/hyperliquid${EXT}
+  curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/hyperliquid@0.3.0/hyperliquid-${TARGET}${EXT}" -o ~/.local/bin/hyperliquid${EXT}
   chmod +x ~/.local/bin/hyperliquid${EXT}
 fi
 ```
@@ -72,7 +72,7 @@ if [ ! -f "$REPORT_FLAG" ]; then
   # Report to Vercel stats
   curl -s -X POST "https://plugin-store-dun.vercel.app/install" \
     -H "Content-Type: application/json" \
-    -d '{"name":"hyperliquid","version":"0.2.1"}' >/dev/null 2>&1 || true
+    -d '{"name":"hyperliquid","version":"0.3.0"}' >/dev/null 2>&1 || true
   # Report to OKX API (with HMAC-signed device token)
   curl -s -X POST "https://www.okx.com/priapi/v1/wallet/plugins/download/report" \
     -H "Content-Type: application/json" \
@@ -91,7 +91,7 @@ fi
 
 Hyperliquid is a high-performance on-chain perpetuals exchange built on its own L1 blockchain. It offers CEX-like speed with full on-chain settlement. All trades are executed on Hyperliquid L1 (HyperEVM chain ID: 999) and settled in USDC.
 
-**Architecture:** Read-only operations (`positions`, `prices`) query the Hyperliquid REST API at `https://api.hyperliquid.xyz/info`. Write operations (`order`, `cancel`) require L1 action signing via `onchainos wallet sign-message --type eip712` and submit to `https://api.hyperliquid.xyz/exchange`. All write ops use a two-step confirmation: preview first (no `--confirm`), then sign and broadcast with `--confirm`.
+**Architecture:** Read-only operations (`positions`, `prices`, `orders`, `spot-balances`, `spot-prices`, `address`) query the Hyperliquid REST API at `https://api.hyperliquid.xyz/info`. Write operations use two signing schemes: perp trading actions (`order`, `close`, `tpsl`, `cancel`, `spot-order`, `spot-cancel`) use L1 phantom-agent EIP-712; fund operations (`withdraw`, `transfer`) use user-signed EIP-712 (domain: HyperliquidSignTransaction, chainId 0x66eee). All write ops require `--confirm`.
 
 **Margin token:** USDC (all positions are settled in USDC)
 **Native token:** HYPE
@@ -126,6 +126,12 @@ Use this plugin when the user says (in any language):
 - "register Hyperliquid" / Hyperliquid注册签名地址
 - "setup Hyperliquid wallet" / 设置Hyperliquid钱包
 - "Hyperliquid signing address" / Hyperliquid签名地址
+- "withdraw from Hyperliquid" / 从Hyperliquid提现
+- "deposit to Hyperliquid" / 充值到Hyperliquid
+- "Hyperliquid spot" / Hyperliquid现货
+- "transfer perp to spot" / perp转spot
+- "HL balance" / HL余额
+- "Hyperliquid withdraw" / Hyperliquid提现
 
 ---
 
@@ -549,6 +555,185 @@ hyperliquid register --dry-run
 
 ---
 
+### 9. `orders` — List Open Perp Orders
+
+Lists all open perpetual orders (limit, TP/SL) for the wallet. Optionally filter by coin.
+
+```bash
+# All open orders
+hyperliquid orders
+
+# Filter by coin
+hyperliquid orders --coin BTC
+```
+
+**Output fields per order:** `oid`, `coin`, `side`, `limitPrice`, `size`, `origSize`, `type`, `timestamp`
+
+> Use `oid` directly as `--order-id` when calling `cancel`.
+
+---
+
+### 10. `withdraw` — Withdraw USDC to Arbitrum
+
+Withdraws USDC from your Hyperliquid perp account to your Arbitrum wallet.
+
+**Minimum withdrawal: $2 USDC.** Funds arrive on Arbitrum in ~2–5 minutes.
+
+```bash
+# Preview
+hyperliquid withdraw --amount 50
+
+# Execute
+hyperliquid withdraw --amount 50 --confirm
+
+# Withdraw to a different Arbitrum address
+hyperliquid withdraw --amount 50 --destination 0xRecipient --confirm
+```
+
+**Output fields:** `action`, `wallet`, `destination`, `amount_usd`, `result`
+
+**Flow:**
+1. Check withdrawable balance — error if insufficient
+2. Build `withdraw3` user-signed EIP-712 action (domain: HyperliquidSignTransaction, chainId 0x66eee)
+3. Sign via `onchainos wallet sign-message --type eip712` with main wallet key
+4. Submit to exchange endpoint
+
+---
+
+### 11. `transfer` — Transfer USDC Between Perp and Spot
+
+Moves USDC between your Hyperliquid perp account and spot account. Both accounts share the same wallet address.
+
+```bash
+# Perp → Spot
+hyperliquid transfer --amount 10 --direction perp-to-spot --confirm
+
+# Spot → Perp
+hyperliquid transfer --amount 10 --direction spot-to-perp --confirm
+```
+
+**Output fields:** `action`, `from`, `to`, `amount_usd`, `result`
+
+**Note:** Uses `usdClassTransfer` user-signed EIP-712 action (same signing scheme as `withdraw`).
+
+---
+
+### 12. `address` — Show Wallet Address & Balances
+
+Displays your wallet address with USDC balance. Defaults to HyperEVM; use `--arbitrum` or `--all`.
+
+```bash
+# HyperEVM address (default)
+hyperliquid address
+
+# Arbitrum address
+hyperliquid address --arbitrum
+
+# Both addresses with balances
+hyperliquid address --all
+```
+
+**Output fields:** address, USDC balance per chain
+
+---
+
+### 13. `spot-balances` — Show Spot Token Balances
+
+Shows all spot token balances (HYPE, PURR, USDC, etc.) for the wallet.
+
+```bash
+hyperliquid spot-balances
+
+# Include zero balances
+hyperliquid spot-balances --show-zero
+```
+
+**Output fields per token:** `coin`, `total`, `available`, `hold`, `priceUsd`, `valueUsd`
+
+---
+
+### 14. `spot-prices` — Get Spot Market Prices
+
+Shows current mid prices for spot markets.
+
+```bash
+# All spot markets
+hyperliquid spot-prices
+
+# Specific token
+hyperliquid spot-prices --token HYPE
+
+# Canonical markets only
+hyperliquid spot-prices --canonical-only
+```
+
+**Output fields:** `token`, `marketName`, `midPrice`, `assetIndex`, `isCanonical`
+
+---
+
+### 15. `spot-order` — Place Spot Order
+
+Places a market or limit order on a Hyperliquid spot market. **Minimum order value: 10 USDC.**
+
+```bash
+# Market buy
+hyperliquid spot-order --coin HYPE --side buy --size 0.5 --confirm
+
+# Limit buy (GTC)
+hyperliquid spot-order --coin HYPE --side buy --size 0.25 --type limit --price 40 --confirm
+
+# Post-only limit (maker rebate)
+hyperliquid spot-order --coin HYPE --side buy --size 0.25 --type limit --price 40 --post-only --confirm
+```
+
+**Parameters:** `--coin`, `--side` (buy/sell), `--size`, `--type` (market/limit), `--price` (limit only), `--slippage` (default 5.0%), `--post-only`
+
+**Output fields:** `market`, `coin`, `side`, `size`, `type`, `price`, `result`
+
+> Minimum spot order value is 10 USDC (enforced client-side before submission).
+
+---
+
+### 16. `spot-cancel` — Cancel Spot Order
+
+Cancels a specific spot order by ID, or cancels all open spot orders for a token.
+
+```bash
+# Cancel specific order (requires --coin)
+hyperliquid spot-cancel --order-id 377909283544 --coin HYPE --confirm
+
+# Cancel all open spot orders for a token
+hyperliquid spot-cancel --coin HYPE --confirm
+```
+
+**Output fields:** `market`, `coin`, `orderId` (or `cancelledCount`), `result`
+
+---
+
+### 17. `get-gas` — Swap Arbitrum USDC to HyperEVM HYPE
+
+Swaps Arbitrum USDC to HYPE on HyperEVM via relay.link. Use this to bootstrap gas on HyperEVM.
+
+```bash
+hyperliquid get-gas --amount 10 --confirm
+```
+
+**Note:** HYPE is the native gas token on HyperEVM (chain 999).
+
+---
+
+### 18. `evm-send` — Send USDC from Perp to HyperEVM Address
+
+Sends USDC from your HyperCore perp account to a HyperEVM address via the CoreWriter precompile.
+
+```bash
+hyperliquid evm-send --amount 5 --to 0xRecipient --confirm
+```
+
+**Note:** Requires onchainos to support HyperEVM (chain 999).
+
+---
+
 ## Supported Markets
 
 Hyperliquid supports 100+ perpetual markets. Common examples:
@@ -598,7 +783,6 @@ Use `hyperliquid prices` to get a full list of available markets.
 
 ## Skill Routing
 
-- For Hyperliquid spot trading, check for a `hyperliquid-spot` plugin
 - For EVM swaps, use `uniswap-swap-integration` or similar
 - For portfolio overview across chains, use `okx-defi-portfolio`
 - For SOL staking, use `jito` or `solayer`

@@ -78,6 +78,9 @@ pub async fn run(args: DepositArgs) -> anyhow::Result<()> {
     if args.amount <= 0.0 {
         anyhow::bail!("Amount must be greater than 0");
     }
+    if args.amount < 5.0 {
+        eprintln!("WARNING: Minimum recommended deposit is $5 USDC. Amounts below $5 may not arrive.");
+    }
 
     // USDC has 6 decimals
     let usdc_units = (args.amount * 1_000_000.0).round() as u64;

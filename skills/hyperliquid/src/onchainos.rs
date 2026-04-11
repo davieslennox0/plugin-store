@@ -57,27 +57,36 @@ pub fn wallet_contract_call(
 }
 
 /// Resolve the wallet address from the onchainos CLI.
-/// For Hyperliquid, we query EVM addresses (HyperEVM chain_id=999).
-/// Falls back to the first EVM address if chain_id 999 is not listed.
+/// Falls back to the first EVM address if chain_id is not listed.
 pub fn resolve_wallet(chain_id: u64) -> anyhow::Result<String> {
+    let (addr, _) = resolve_wallet_with_chain(chain_id)?;
+    Ok(addr)
+}
+
+/// Like resolve_wallet but also returns the chain index that owns the resolved address.
+/// Used when the signing chain must match the resolved wallet (e.g. user-signed actions).
+pub fn resolve_wallet_with_chain(chain_id: u64) -> anyhow::Result<(String, u64)> {
     let output = Command::new("onchainos")
         .args(["wallet", "addresses"])
         .output()?;
     let json: Value = serde_json::from_str(&String::from_utf8_lossy(&output.stdout))?;
     let chain_id_str = chain_id.to_string();
     if let Some(evm_list) = json["data"]["evm"].as_array() {
-        // Try to find exact chain match
         for entry in evm_list {
             if entry["chainIndex"].as_str() == Some(&chain_id_str) {
                 if let Some(addr) = entry["address"].as_str() {
-                    return Ok(addr.to_string());
+                    return Ok((addr.to_string(), chain_id));
                 }
             }
         }
-        // Fallback: use first EVM address (Hyperliquid uses same key as Ethereum)
+        // Fallback: use first EVM address + its chain index
         if let Some(first) = evm_list.first() {
             if let Some(addr) = first["address"].as_str() {
-                return Ok(addr.to_string());
+                let chain = first["chainIndex"]
+                    .as_str()
+                    .and_then(|s| s.parse::<u64>().ok())
+                    .unwrap_or(1);
+                return Ok((addr.to_string(), chain));
             }
         }
     }
@@ -263,6 +272,204 @@ pub fn onchainos_hl_sign(
         .map_err(|e| anyhow::anyhow!("Failed to parse v byte: {}", e))?;
 
     // Build the final Hyperliquid exchange request body
+    Ok(serde_json::json!({
+        "action":       action,
+        "nonce":        nonce,
+        "signature":    { "r": r, "s": s, "v": v },
+        "vaultAddress": null
+    }))
+}
+
+/// Sign a Hyperliquid withdraw3 action via onchainos (user-signed EIP-712).
+/// domain: HyperliquidSignTransaction, chainId 421614 (0x66eee).
+pub fn onchainos_hl_sign_withdraw(
+    destination: &str,
+    amount: &str,
+    nonce: u64,
+    wallet: &str,
+    wallet_chain_id: u64,
+) -> anyhow::Result<Value> {
+    let eip712_message = serde_json::json!({
+        "domain": {
+            "chainId": 421614,  // 0x66eee — matches action.signatureChainId
+            "name": "HyperliquidSignTransaction",
+            "verifyingContract": "0x0000000000000000000000000000000000000000",
+            "version": "1"
+        },
+        "types": {
+            "HyperliquidTransaction:Withdraw": [
+                { "name": "hyperliquidChain", "type": "string"  },
+                { "name": "destination",      "type": "string"  },
+                { "name": "amount",           "type": "string"  },
+                { "name": "time",             "type": "uint64"  }
+            ],
+            "EIP712Domain": [
+                { "name": "name",              "type": "string"  },
+                { "name": "version",           "type": "string"  },
+                { "name": "chainId",           "type": "uint256" },
+                { "name": "verifyingContract", "type": "address" }
+            ]
+        },
+        "primaryType": "HyperliquidTransaction:Withdraw",
+        "message": {
+            "hyperliquidChain": "Mainnet",
+            "destination": destination,
+            "amount": amount,
+            "time": nonce
+        }
+    });
+
+    let eip712_str = serde_json::to_string(&eip712_message)?;
+    let wallet_chain_str = wallet_chain_id.to_string();
+
+    let output = Command::new("onchainos")
+        .args([
+            "wallet", "sign-message",
+            "--type", "eip712",
+            "--message", &eip712_str,
+            "--chain", &wallet_chain_str,
+            "--from", wallet,
+        ])
+        .output()?;
+
+    if !output.status.success() {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let detail = if stdout.trim().is_empty() { stderr.to_string() } else { stdout.to_string() };
+        anyhow::bail!("onchainos sign-message failed: {}", detail.trim());
+    }
+
+    let sign_result: Value = serde_json::from_slice(&output.stdout)
+        .map_err(|e| anyhow::anyhow!("Failed to parse sign-message output: {}", e))?;
+
+    let signature = sign_result["data"]["signature"]
+        .as_str()
+        .or_else(|| sign_result["signature"].as_str())
+        .ok_or_else(|| anyhow::anyhow!("No signature in sign-message response: {}", serde_json::to_string(&sign_result).unwrap_or_default()))?;
+
+    let sig_hex = signature.trim_start_matches("0x");
+    if sig_hex.len() != 130 {
+        anyhow::bail!("Expected 130-char hex signature, got {} chars", sig_hex.len());
+    }
+    let r = format!("0x{}", &sig_hex[0..64]);
+    let s = format!("0x{}", &sig_hex[64..128]);
+    let v: u64 = u64::from_str_radix(&sig_hex[128..130], 16)
+        .map_err(|e| anyhow::anyhow!("Failed to parse v byte: {}", e))?;
+
+    let action = serde_json::json!({
+        "type": "withdraw3",
+        "hyperliquidChain": "Mainnet",
+        "signatureChainId": "0x66eee",
+        "destination": destination,
+        "amount": amount,
+        "time": nonce
+    });
+
+    Ok(serde_json::json!({
+        "action":       action,
+        "nonce":        nonce,
+        "signature":    { "r": r, "s": s, "v": v },
+        "vaultAddress": null
+    }))
+}
+
+/// Sign a Hyperliquid usdClassTransfer action (perp ↔ spot) via onchainos (user-signed EIP-712).
+/// domain: HyperliquidSignTransaction, chainId 421614 (0x66eee).
+pub fn onchainos_hl_sign_usd_class_transfer(
+    action: &Value,
+    nonce: u64,
+    wallet: &str,
+    wallet_chain_id: u64,
+    confirm: bool,
+    dry_run: bool,
+) -> anyhow::Result<Value> {
+    if dry_run {
+        return Ok(serde_json::json!({
+            "ok": true, "dry_run": true,
+            "action": action, "nonce": nonce,
+            "note": "Dry run - not signed or submitted"
+        }));
+    }
+    if !confirm {
+        return Ok(serde_json::json!({
+            "ok": true, "preview": true,
+            "action": action, "nonce": nonce,
+            "note": "Preview only - add --confirm to sign and submit"
+        }));
+    }
+
+    let amount = action["amount"].as_str()
+        .ok_or_else(|| anyhow::anyhow!("action.amount must be a string"))?;
+    let to_perp = action["toPerp"].as_bool()
+        .ok_or_else(|| anyhow::anyhow!("action.toPerp must be a bool"))?;
+
+    let eip712_message = serde_json::json!({
+        "domain": {
+            "chainId": 421614,  // 0x66eee — matches action.signatureChainId
+            "name": "HyperliquidSignTransaction",
+            "verifyingContract": "0x0000000000000000000000000000000000000000",
+            "version": "1"
+        },
+        "types": {
+            "HyperliquidTransaction:UsdClassTransfer": [
+                { "name": "hyperliquidChain", "type": "string"  },
+                { "name": "amount",           "type": "string"  },
+                { "name": "toPerp",           "type": "bool"    },
+                { "name": "nonce",            "type": "uint64"  }
+            ],
+            "EIP712Domain": [
+                { "name": "name",              "type": "string"  },
+                { "name": "version",           "type": "string"  },
+                { "name": "chainId",           "type": "uint256" },
+                { "name": "verifyingContract", "type": "address" }
+            ]
+        },
+        "primaryType": "HyperliquidTransaction:UsdClassTransfer",
+        "message": {
+            "hyperliquidChain": "Mainnet",
+            "amount": amount,
+            "toPerp": to_perp,
+            "nonce": nonce
+        }
+    });
+
+    let eip712_str = serde_json::to_string(&eip712_message)?;
+    let wallet_chain_str = wallet_chain_id.to_string();
+
+    let output = Command::new("onchainos")
+        .args([
+            "wallet", "sign-message",
+            "--type", "eip712",
+            "--message", &eip712_str,
+            "--chain", &wallet_chain_str,
+            "--from", wallet,
+        ])
+        .output()?;
+
+    if !output.status.success() {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let detail = if stdout.trim().is_empty() { stderr.to_string() } else { stdout.to_string() };
+        anyhow::bail!("onchainos sign-message failed: {}", detail.trim());
+    }
+
+    let sign_result: Value = serde_json::from_slice(&output.stdout)
+        .map_err(|e| anyhow::anyhow!("Failed to parse sign-message output: {}", e))?;
+
+    let signature = sign_result["data"]["signature"]
+        .as_str()
+        .or_else(|| sign_result["signature"].as_str())
+        .ok_or_else(|| anyhow::anyhow!("No signature in sign-message response: {}", serde_json::to_string(&sign_result).unwrap_or_default()))?;
+
+    let sig_hex = signature.trim_start_matches("0x");
+    if sig_hex.len() != 130 {
+        anyhow::bail!("Expected 130-char hex signature, got {} chars", sig_hex.len());
+    }
+    let r = format!("0x{}", &sig_hex[0..64]);
+    let s = format!("0x{}", &sig_hex[64..128]);
+    let v: u64 = u64::from_str_radix(&sig_hex[128..130], 16)
+        .map_err(|e| anyhow::anyhow!("Failed to parse v byte: {}", e))?;
+
     Ok(serde_json::json!({
         "action":       action,
         "nonce":        nonce,

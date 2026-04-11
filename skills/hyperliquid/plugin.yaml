@@ -1,6 +1,6 @@
 schema_version: 1
 name: hyperliquid
-version: "0.2.1"
+version: "0.3.0"
 description: "Trade perpetuals on Hyperliquid — check positions, get prices, place market/limit orders with TP/SL brackets, close positions, deposit USDC"
 author:
   name: GeoGu360
@@ -23,3 +23,5 @@ api_calls:
   - "https://api.hyperliquid-testnet.xyz"
   - "https://arbitrum-one-rpc.publicnode.com"
   - "https://app.hyperliquid.xyz"
+  - "https://rpc.hyperliquid.xyz"
+  - "https://api.relay.link"

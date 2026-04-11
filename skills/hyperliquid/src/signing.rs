@@ -99,13 +99,15 @@ pub fn build_market_order_action(
     })
 }
 
-/// Build the order action payload for a limit order (GTC).
+/// Build the order action payload for a limit order.
+/// tif: time-in-force string, e.g. "Gtc", "Alo", "Ioc"
 pub fn build_limit_order_action(
     asset: usize,
     is_buy: bool,
     price_str: &str,
     size_str: &str,
     reduce_only: bool,
+    tif: &str,
 ) -> Value {
     json!({
         "type": "order",
@@ -117,7 +119,7 @@ pub fn build_limit_order_action(
             "r": reduce_only,
             "t": {
                 "limit": {
-                    "tif": "Gtc"
+                    "tif": tif
                 }
             }
         }],
@@ -282,6 +284,21 @@ pub fn build_batch_cancel_action(orders: &[(usize, u64)]) -> Value {
     json!({
         "type": "cancel",
         "cancels": cancels
+    })
+}
+
+// ─── Spot/Class transfer ─────────────────────────────────────────────────────
+
+/// Build a usdClassTransfer action (perp ↔ spot USDC).
+/// amount: USD amount as f64. toPerp: true = spot→perp, false = perp→spot.
+pub fn build_spot_transfer_action(amount: f64, to_perp: bool, nonce: u64) -> Value {
+    json!({
+        "type": "usdClassTransfer",
+        "hyperliquidChain": "Mainnet",
+        "signatureChainId": "0x66eee",
+        "amount": format!("{}", amount),
+        "toPerp": to_perp,
+        "nonce": nonce
     })
 }
 

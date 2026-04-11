@@ -141,7 +141,7 @@ pub async fn run(args: OrderArgs) -> anyhow::Result<()> {
                 let _: f64 = price_str
                     .parse()
                     .map_err(|_| anyhow::anyhow!("Invalid price '{}'", price_str))?;
-                build_limit_order_action(asset_idx, is_buy, price_str, &args.size, args.reduce_only)
+                build_limit_order_action(asset_idx, is_buy, price_str, &args.size, args.reduce_only, "Gtc")
             }
             _ => anyhow::bail!("Unknown order type '{}'", args.r#type),
         }
