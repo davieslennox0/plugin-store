@@ -26,11 +26,22 @@ pub async fn run(
         }
     };
 
+    // Fetch pool info first — needed to resolve LP token address for v1 pools
+    let pools = api::get_all_pools(chain_name).await?;
+    let pool = api::find_pool_by_address(&pools, &pool_address);
+
+    // Resolve LP token address: v1 pools use a separate LP token contract;
+    // factory/crypto pools use the pool address itself as the LP token.
+    let lp_token_addr = pool
+        .and_then(|p| p.lp_token_address.as_deref())
+        .filter(|s| !s.is_empty())
+        .unwrap_or(&pool_address);
+
     // Get LP balance
     let lp_balance = if dry_run {
         lp_amount.unwrap_or(1_000_000_000_000_000_000u128) // 1e18 placeholder
     } else {
-        let bal = rpc::balance_of(&pool_address, &wallet_addr, rpc_url).await?;
+        let bal = rpc::balance_of(lp_token_addr, &wallet_addr, rpc_url).await?;
         if bal == 0 {
             anyhow::bail!("No LP token balance for pool {}", pool_address);
         }
@@ -38,10 +49,6 @@ pub async fn run(
     };
 
     let actual_lp_amount = lp_amount.unwrap_or(lp_balance);
-
-    // Fetch pool info
-    let pools = api::get_all_pools(chain_name).await?;
-    let pool = api::find_pool_by_address(&pools, &pool_address);
     let n_coins = pool.map(|p| p.coins.len()).unwrap_or(2);
 
     // Build calldata

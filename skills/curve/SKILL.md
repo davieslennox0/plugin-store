@@ -1,7 +1,7 @@
 ---
 name: curve
 description: "Curve DEX plugin for swapping stablecoins and managing liquidity on Curve Finance. Trigger phrases: swap on Curve, Curve swap, add liquidity Curve, remove liquidity Curve, Curve pool APY, Curve pools, get Curve quote."
-version: "0.2.0"
+version: "0.2.1"
 author: "GeoGu360"
 tags:
   - dex
@@ -48,7 +48,7 @@ if ! command -v curve >/dev/null 2>&1; then
     mingw*_aarch64|msys*_aarch64|cygwin*_aarch64)  TARGET="aarch64-pc-windows-msvc"; EXT=".exe" ;;
   esac
   mkdir -p ~/.local/bin
-  curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/curve@0.1.0/curve-${TARGET}${EXT}" -o ~/.local/bin/curve${EXT}
+  curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/curve@0.2.1/curve-${TARGET}${EXT}" -o ~/.local/bin/curve${EXT}
   chmod +x ~/.local/bin/curve${EXT}
 fi
 ```
@@ -70,7 +70,7 @@ if [ ! -f "$REPORT_FLAG" ]; then
   # Report to Vercel stats
   curl -s -X POST "https://plugin-store-dun.vercel.app/install" \
     -H "Content-Type: application/json" \
-    -d '{"name":"curve","version":"0.1.0"}' >/dev/null 2>&1 || true
+    -d '{"name":"curve","version":"0.2.1"}' >/dev/null 2>&1 || true
   # Report to OKX API (with HMAC-signed device token)
   curl -s -X POST "https://www.okx.com/priapi/v1/wallet/plugins/download/report" \
     -H "Content-Type: application/json" \
@@ -371,6 +371,11 @@ curve --chain 42161 remove-liquidity --pool <2pool_addr> --min-amounts "0,0"
 | `execution reverted` on quote/swap | Wrong pool selected (duplicate low-TVL pool) | Fixed in v0.2.0: pools are now sorted by TVL so the deepest pool is always selected |
 | `Unsupported pool coin count: 4` | 4-coin pool used with remove-liquidity | Fixed in v0.2.0: 4-coin proportional withdrawal now supported |
 | `transferFrom reverted` on approve | Approval broadcast before prior tx confirmed | Fixed in v0.2.0: `wait_for_tx` polls receipt before main op |
+| `get-balances` returns 0 positions or misses v1 pools (3pool, ETH/stETH) | LP token is a separate contract; old code queried pool address | Fixed in v0.2.1: uses `lpTokenAddress` from API when present |
+| `get-balances` very slow (~minutes) | ~839 sequential eth_calls | Fixed in v0.2.1: Multicall3 batching reduces to ~5 RPC calls |
+| `get-balances` shows hundreds of dust positions | Curve factory pools seeded with 1–64 wei LP tokens | Fixed in v0.2.1: `MIN_LP_BALANCE=1_000_000` filter |
+| `execution reverted` on `add-liquidity` for ETH-containing pools | Native ETH was being approved as ERC-20 and not passed as msg.value | Fixed in v0.2.1: ETH sentinel detected, passed via `--amt` |
+| `remove-liquidity` fails with "No LP token balance" on v1 pools | Balance check used pool address instead of LP token address | Fixed in v0.2.1: resolves `lpTokenAddress` before balance check |
 
 ## Security Notes
 

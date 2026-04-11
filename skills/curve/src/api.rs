@@ -44,6 +44,10 @@ pub struct PoolData {
     pub gauge_crv_apy: Option<Vec<Option<f64>>>,
     #[serde(default, rename = "latestDailyApyPcent")]
     pub latest_daily_apy_pcent: Option<f64>,
+    /// Separate LP token contract address (older Curve v1 pools).
+    /// For factory/crypto pools the LP token IS the pool address — field absent or null.
+    #[serde(default, rename = "lpTokenAddress")]
+    pub lp_token_address: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

@@ -71,11 +71,21 @@ pub async fn run(
         return Ok(());
     }
 
-    // Approve each token with a non-zero amount, waiting for each to confirm on-chain
+    // ETH sentinel address used by Curve for native ETH coins
+    const ETH_SENTINEL: &str = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+
+    // Approve each ERC-20 token; skip native ETH (no approve needed)
+    // and accumulate any ETH amount to pass as msg.value
+    let mut eth_value: u128 = 0;
     if let Some(p) = pool {
         for (i, coin) in p.coins.iter().enumerate() {
             let amount = amounts[i];
             if amount == 0 {
+                continue;
+            }
+            // Native ETH: no approve, pass as msg.value
+            if coin.address.to_lowercase() == ETH_SENTINEL {
+                eth_value += amount;
                 continue;
             }
             let allowance = rpc::get_allowance(&coin.address, &wallet_addr, &pool_address, rpc_url)
@@ -100,13 +110,14 @@ pub async fn run(
         }
     }
 
-    // Execute add_liquidity — requires --force
+    // Execute add_liquidity — pass ETH as msg.value if pool contains native ETH
+    let amt = if eth_value > 0 { Some(eth_value as u64) } else { None };
     let result = onchainos::wallet_contract_call(
         chain_id,
         &pool_address,
         &calldata,
         Some(&wallet_addr),
-        None,
+        amt,
         true,  // --force required
         false,
     )
