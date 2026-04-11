@@ -29,9 +29,8 @@ pub async fn run(args: GetWithdrawalsArgs) -> anyhow::Result<()> {
 
     let ids = match rpc::extract_return_data(&requests_result) {
         Ok(hex) => rpc::decode_uint256_array(&hex).unwrap_or_default(),
-        Err(_) => {
-            println!("No withdrawal requests found for {}", address);
-            return Ok(());
+        Err(e) => {
+            anyhow::bail!("Failed to query withdrawal requests: {}", e);
         }
     };
 
