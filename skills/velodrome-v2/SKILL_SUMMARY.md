@@ -2,19 +2,21 @@
 # velodrome-v2 -- Skill Summary
 
 ## Overview
-This skill provides comprehensive access to Velodrome V2's classic AMM functionality on Optimism, enabling token swaps, liquidity management, and rewards claiming. It supports both volatile (constant-product) and stable (low-slippage) pools, with automatic pool selection for optimal routing. All write operations use a secure two-step confirmation process through the onchainos wallet system.
+This skill enables interaction with Velodrome V2's classic AMM pools on Optimism, supporting token swaps, liquidity management, and reward claiming. It handles both volatile (constant-product) and stable (low-slippage curve) pool types, with automatic pool routing and built-in safety confirmations for all write operations.
 
 ## Usage
-Ensure onchainos CLI is installed and your wallet is configured. Run commands first without `--confirm` to preview transactions, then add `--confirm` to broadcast. The `velodrome-v2` binary must be available in your PATH.
+Install the binary via the auto-injected setup commands, ensure onchainos CLI is configured with your wallet, then use commands like `velodrome-v2 swap` or `velodrome-v2 add-liquidity` with the `--confirm` flag to execute transactions.
 
 ## Commands
-- `quote` - Get swap quotes without executing transactions
-- `swap` - Execute token swaps via Router (requires --confirm)
-- `pools` - Query pool information and reserves
-- `positions` - View LP token balances and positions
-- `add-liquidity` - Add liquidity to pools (requires --confirm)
-- `remove-liquidity` - Remove liquidity from pools (requires --confirm)
-- `claim-rewards` - Claim VELO gauge emissions (requires --confirm)
+| Command | Description |
+|---------|-------------|
+| `quote` | Get swap quotes without executing transactions |
+| `swap` | Execute token swaps via Velodrome Router |
+| `pools` | Query pool addresses and reserve information |
+| `positions` | View LP token balances for your wallet |
+| `add-liquidity` | Add liquidity to volatile or stable pools |
+| `remove-liquidity` | Remove LP tokens and withdraw underlying assets |
+| `claim-rewards` | Claim VELO emissions from pool gauges |
 
 ## Triggers
-Activate this skill when users want to swap tokens, manage liquidity positions, or claim rewards on Velodrome V2's classic AMM pools on Optimism. Use for DeFi operations involving WETH, USDC, VELO, and other major Optimism tokens.
+Activate this skill when users want to trade tokens, provide liquidity, or manage DeFi positions specifically on Velodrome V2 on Optimism. Use for Optimism-native DeFi operations involving WETH, USDC, VELO, and other major tokens.

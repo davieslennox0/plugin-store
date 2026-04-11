@@ -1,7 +1,7 @@
 ---
 name: velodrome-v2
 description: Swap tokens and manage classic AMM (volatile/stable) LP positions on Velodrome V2 on Optimism (chain 10). Supports swap, quote, pools, positions, add-liquidity, remove-liquidity, claim-rewards.
-version: 0.1.0
+version: 0.1.1
 author: GeoGu360
 tags:
   - dex
@@ -49,7 +49,8 @@ if ! command -v velodrome-v2 >/dev/null 2>&1; then
     mingw*_i686|msys*_i686|cygwin*_i686)           TARGET="i686-pc-windows-msvc"; EXT=".exe" ;;
     mingw*_aarch64|msys*_aarch64|cygwin*_aarch64)  TARGET="aarch64-pc-windows-msvc"; EXT=".exe" ;;
   esac
-  curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/velodrome-v2@0.1.0/velodrome-v2-${TARGET}${EXT}" -o ~/.local/bin/velodrome-v2${EXT}
+  mkdir -p ~/.local/bin
+  curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/velodrome-v2@0.1.1/velodrome-v2-${TARGET}${EXT}" -o ~/.local/bin/velodrome-v2${EXT}
   chmod +x ~/.local/bin/velodrome-v2${EXT}
 fi
 ```
@@ -71,7 +72,7 @@ if [ ! -f "$REPORT_FLAG" ]; then
   # Report to Vercel stats
   curl -s -X POST "https://plugin-store-dun.vercel.app/install" \
     -H "Content-Type: application/json" \
-    -d '{"name":"velodrome-v2","version":"0.1.0"}' >/dev/null 2>&1 || true
+    -d '{"name":"velodrome-v2","version":"0.1.1"}' >/dev/null 2>&1 || true
   # Report to OKX API (with HMAC-signed device token)
   curl -s -X POST "https://www.okx.com/priapi/v1/wallet/plugins/download/report" \
     -H "Content-Type: application/json" \
@@ -126,12 +127,12 @@ Queries Router.getAmountsOut via eth_call (no transaction). Auto-checks both vol
 velodrome-v2 quote \
   --token-in WETH \
   --token-out USDC \
-  --amount-in 50000000000000
+  --amount-in 0.00005
 ```
 
 **Specify pool type:**
 ```bash
-velodrome-v2 quote --token-in USDC --token-out DAI --amount-in 1000000 --stable true
+velodrome-v2 quote --token-in USDC --token-out DAI --amount-in 1.0 --stable true
 ```
 
 **Output:**
@@ -156,18 +157,18 @@ Executes swapExactTokensForTokens on the Velodrome V2 Router. Quotes first, then
 velodrome-v2 swap \
   --token-in WETH \
   --token-out USDC \
-  --amount-in 50000000000000 \
+  --amount-in 0.00005 \
   --slippage 0.5
 ```
 
 **With dry run (no broadcast):**
 ```bash
-velodrome-v2 swap --token-in WETH --token-out USDC --amount-in 50000000000000 --dry-run
+velodrome-v2 swap --token-in WETH --token-out USDC --amount-in 0.00005 --dry-run
 ```
 
 **Force stable pool:**
 ```bash
-velodrome-v2 swap --token-in USDC --token-out DAI --amount-in 1000000 --stable true
+velodrome-v2 swap --token-in USDC --token-out DAI --amount-in 1.0 --stable true
 ```
 
 **Output:**
@@ -270,8 +271,8 @@ velodrome-v2 add-liquidity \
   --token-a WETH \
   --token-b USDC \
   --stable false \
-  --amount-a-desired 50000000000000 \
-  --amount-b-desired 118000
+  --amount-a-desired 0.00005 \
+  --amount-b-desired 0.118
 ```
 
 **Auto-quote token B amount:**
@@ -281,7 +282,7 @@ velodrome-v2 add-liquidity \
   --token-a WETH \
   --token-b USDC \
   --stable false \
-  --amount-a-desired 50000000000000
+  --amount-a-desired 0.00005
 ```
 
 **Output:**
@@ -317,7 +318,7 @@ velodrome-v2 remove-liquidity \
   --token-a WETH \
   --token-b USDC \
   --stable false \
-  --liquidity 1000000000000000
+  --liquidity 0.001
 ```
 
 **Output:**
