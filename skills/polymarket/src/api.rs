@@ -330,10 +330,11 @@ pub async fn check_clob_access(client: &Client) -> Option<String> {
 
 pub async fn get_clob_market(client: &Client, condition_id: &str) -> Result<ClobMarket> {
     let url = format!("{}/markets/{}", Urls::CLOB, condition_id);
-    client.get(&url)
-        .send()
-        .await?
-        .json()
+    let resp = client.get(&url).send().await?;
+    if resp.status() == reqwest::StatusCode::NOT_FOUND {
+        anyhow::bail!("Market not found: {}", condition_id);
+    }
+    resp.json()
         .await
         .context("parsing CLOB market response")
 }

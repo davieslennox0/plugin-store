@@ -41,7 +41,7 @@ pub async fn run(
     if order_type.to_uppercase() == "GTD" && expires.is_none() {
         bail!("--order-type GTD requires --expires <unix_timestamp>");
     }
-    let (expiration, effective_order_type) = if let Some(ts) = expires {
+    let (expiration, mut effective_order_type) = if let Some(ts) = expires {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -83,8 +83,27 @@ pub async fn run(
         rp
     } else {
         let book = get_orderbook(&client, &token_id).await?;
-        compute_sell_worst_price(&book.bids, share_amount)
-            .ok_or_else(|| anyhow::anyhow!("No bids available in the order book"))?
+        if let Some(p) = compute_sell_worst_price(&book.bids, share_amount) {
+            p
+        } else {
+            // No bids — convert market order to GTC limit at last trade price.
+            let fallback = book.last_trade_price
+                .as_deref()
+                .and_then(|s| s.parse::<f64>().ok())
+                .filter(|&p| p > 0.0 && p < 1.0)
+                .map(|p| round_price(p, tick_size));
+            let fp = fallback.ok_or_else(|| anyhow::anyhow!(
+                "No bids in the order book and no last trade price available. \
+                 Pass --price to place a limit order manually."
+            ))?;
+            effective_order_type = "GTC";
+            eprintln!(
+                "[polymarket] No bids in order book — converting market order to GTC limit at \
+                 last trade price {:.4}. Pass --price to set a specific price.",
+                fp
+            );
+            fp
+        }
     };
 
     // Build order amounts (SELL) using GCD-based integer arithmetic.

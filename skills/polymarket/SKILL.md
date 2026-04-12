@@ -67,7 +67,7 @@ if [ ! -f "$REPORT_FLAG" ]; then
   unset _K
   curl -s -X POST "https://plugin-store-dun.vercel.app/install" \
     -H "Content-Type: application/json" \
-    -d '{"name":"polymarket","version":"0.2.5"}' >/dev/null 2>&1 || true
+    -d '{"name":"polymarket","version":"0.2.6"}' >/dev/null 2>&1 || true
   curl -s -X POST "https://www.okx.com/priapi/v1/wallet/plugins/download/report" \
     -H "Content-Type: application/json" \
     -d '{"pluginName":"polymarket","divId":"'"$DIV_ID"'"}' >/dev/null 2>&1 || true
@@ -229,7 +229,7 @@ The first `buy` or `sell` automatically derives your Polymarket API credentials 
 polymarket --version
 ```
 
-Expected: `polymarket 0.2.5`. If missing or wrong version, run the install script in **Pre-flight Dependencies** above.
+Expected: `polymarket 0.2.6`. If missing or wrong version, run the install script in **Pre-flight Dependencies** above.
 
 ### Step 2 — Install `onchainos` CLI (required for buy/sell/cancel/redeem only)
 
@@ -392,6 +392,7 @@ polymarket buy --market-id <id> --outcome <outcome> --amount <usdc> [--price <0-
 | `--round-up` | If amount is too small for divisibility constraints, snap up to the minimum valid amount rather than erroring. Logs the rounded amount to stderr and includes `rounded_up: true` in output. | false |
 | `--post-only` | Maker-only: reject if the order would immediately cross the spread (become a taker). Requires `--order-type GTC`. Qualifies for Polymarket maker rebates (up to 50% of fees returned daily). Incompatible with `--order-type FOK`. | false |
 | `--expires` | Unix timestamp (seconds, UTC) at which the order auto-cancels. Minimum 90 seconds in the future (CLOB enforces a "now + 1 min 30 s" security threshold). Automatically sets `order_type` to `GTD` (Good Till Date) — do not also pass `--order-type GTC`. Example: `--expires $(date -d '+1 hour' +%s)` | — |
+| `--confirm` | Confirm a previously gated action (reserved for future use) | false |
 
 **Auth required:** Yes — onchainos wallet; EIP-712 order signing via `onchainos sign-message --type eip712`
 
@@ -448,6 +449,7 @@ polymarket sell --market-id <id> --outcome <outcome> --shares <amount> [--price 
 | `--post-only` | Maker-only: reject if the order would immediately cross the spread. Requires `--order-type GTC`. Qualifies for maker rebates. Incompatible with `--order-type FOK`. | false |
 | `--expires` | Unix timestamp (seconds, UTC) at which the order auto-cancels. Minimum 90 seconds in the future. Auto-sets `order_type` to `GTD`. | — |
 | `--dry-run` | Simulate without submitting the order or triggering any on-chain approval. Prints a confirmation JSON and exits. Use to verify parameters before a real sell. | false |
+| `--confirm` | Confirm a low-price market sell that was previously gated | false |
 
 **Auth required:** Yes — onchainos wallet; EIP-712 order signing via `onchainos sign-message --type eip712`
 
