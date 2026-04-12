@@ -1,7 +1,7 @@
 use clap::Args;
 use reqwest::Client;
 use serde_json::json;
-use solana_sdk::pubkey::Pubkey;
+use solana_pubkey::Pubkey;
 use std::str::FromStr;
 
 use crate::meteora_ix;

@@ -1,28 +1,24 @@
-use solana_sdk::{
-    hash::Hash,
-    instruction::{AccountMeta, Instruction},
-    message::Message,
-    pubkey::Pubkey,
-    signature::Signature,
-    transaction::Transaction,
-};
+use solana_hash::Hash;
+use solana_instruction::{AccountMeta, Instruction};
+use solana_message::Message;
+use solana_pubkey::Pubkey;
 
 // ── Program / sysvar IDs ─────────────────────────────────────────────────────
 
 pub const DLMM_PROGRAM: Pubkey =
-    solana_sdk::pubkey!("LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo");
+    solana_pubkey::pubkey!("LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo");
 
 const TOKEN_PROGRAM: Pubkey =
-    solana_sdk::pubkey!("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
+    solana_pubkey::pubkey!("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 
 const SYSTEM_PROGRAM: Pubkey =
-    solana_sdk::pubkey!("11111111111111111111111111111111");
+    solana_pubkey::pubkey!("11111111111111111111111111111111");
 
 const RENT_SYSVAR: Pubkey =
-    solana_sdk::pubkey!("SysvarRent111111111111111111111111111111111");
+    solana_pubkey::pubkey!("SysvarRent111111111111111111111111111111111");
 
 const ATA_PROGRAM: Pubkey =
-    solana_sdk::pubkey!("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJe8bXh");
+    solana_pubkey::pubkey!("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJe8bXh");
 
 // ── PDA helpers ──────────────────────────────────────────────────────────────
 
@@ -406,7 +402,7 @@ pub fn ix_close_position(
 /// default 200k CU limit (e.g. remove_liquidity_by_range over wide bin ranges).
 pub fn ix_set_compute_unit_limit(units: u32) -> Instruction {
     const COMPUTE_BUDGET: Pubkey =
-        solana_sdk::pubkey!("ComputeBudget111111111111111111111111111111");
+        solana_pubkey::pubkey!("ComputeBudget111111111111111111111111111111");
     let mut data = vec![0x02u8]; // SetComputeUnitLimit discriminator (compact wire format: 0x02 = SetComputeUnitLimit, 0x03 = SetComputeUnitPrice)
     data.extend_from_slice(&units.to_le_bytes());
     Instruction {
@@ -428,11 +424,29 @@ pub fn build_tx_b58(
     let blockhash = Hash::new_from_array(blockhash_bytes);
     let msg = Message::new_with_blockhash(instructions, Some(payer), &blockhash);
 
-    let tx = Transaction {
-        signatures: vec![Signature::default(); msg.header.num_required_signatures as usize],
-        message: msg,
-    };
+    let num_sigs = msg.header.num_required_signatures as usize;
 
-    let tx_bytes = bincode::serialize(&tx)?;
+    // Manually serialize: compact_u16(num_sigs) + num_sigs*[0u8;64] + bincode(message)
+    // This matches the Solana wire format for an unsigned legacy transaction.
+    let mut tx_bytes = Vec::new();
+    encode_compact_u16(num_sigs as u16, &mut tx_bytes);
+    for _ in 0..num_sigs {
+        tx_bytes.extend_from_slice(&[0u8; 64]);
+    }
+    tx_bytes.extend_from_slice(&bincode::serialize(&msg)?);
+
     Ok(bs58::encode(&tx_bytes).into_string())
+}
+
+/// Solana compact_u16 encoding (1-3 bytes, LSB first, high bit = more bytes).
+fn encode_compact_u16(mut val: u16, out: &mut Vec<u8>) {
+    loop {
+        let byte = (val & 0x7f) as u8;
+        val >>= 7;
+        if val == 0 {
+            out.push(byte);
+            break;
+        }
+        out.push(byte | 0x80);
+    }
 }

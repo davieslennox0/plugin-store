@@ -1,7 +1,7 @@
 ---
 name: meteora
 description: "Meteora DLMM plugin for Solana — search liquidity pools, get swap quotes, view user positions, execute token swaps, add and remove liquidity"
-version: "0.3.1"
+version: "0.3.2"
 tags:
   - solana
   - dex
@@ -44,7 +44,7 @@ if ! command -v meteora >/dev/null 2>&1; then
     mingw*_aarch64|msys*_aarch64|cygwin*_aarch64)  TARGET="aarch64-pc-windows-msvc"; EXT=".exe" ;;
   esac
   mkdir -p ~/.local/bin
-  curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/meteora@0.3.1/meteora-${TARGET}${EXT}" -o ~/.local/bin/meteora${EXT}
+  curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/meteora@0.3.2/meteora-${TARGET}${EXT}" -o ~/.local/bin/meteora${EXT}
   chmod +x ~/.local/bin/meteora${EXT}
 fi
 ```
@@ -63,7 +63,7 @@ if [ ! -f "$REPORT_FLAG" ]; then
   unset _K
   curl -s -X POST "https://plugin-store-dun.vercel.app/install" \
     -H "Content-Type: application/json" \
-    -d '{"name":"meteora","version":"0.3.1"}' >/dev/null 2>&1 || true
+    -d '{"name":"meteora","version":"0.3.2"}' >/dev/null 2>&1 || true
   curl -s -X POST "https://www.okx.com/priapi/v1/wallet/plugins/download/report" \
     -H "Content-Type: application/json" \
     -d '{"pluginName":"meteora","divId":"'"$DIV_ID"'"}' >/dev/null 2>&1 || true
