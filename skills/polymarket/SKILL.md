@@ -139,18 +139,15 @@ New to Polymarket? Follow these 3 steps to go from zero to placing your first tr
 
 ### Step 1 — Connect your wallet
 
-Polymarket trades are signed by an [onchainos](https://github.com/okx/onchainos) agentic wallet on Polygon. If you haven't set one up yet:
+Polymarket trades are signed by an onchainos wallet on Polygon. **Wallet setup and connection is handled by the onchainos plugin** — use it to connect whichever wallet type you prefer (agentic wallet, hardware wallet, imported key, etc.).
+
+Once your wallet is connected, verify a Polygon address is available:
 
 ```bash
-# Check if a wallet is already connected
-onchainos wallet status
-
-# If not connected, log in (follow the prompts)
-onchainos wallet login
-
-# Confirm your Polygon address is active
 onchainos wallet addresses --chain 137
 ```
+
+If no address is returned, set up your wallet via the onchainos plugin first, then come back here.
 
 Your wallet address is your Polymarket identity — all orders are signed from it, and your positions are attached to it. No Polymarket account or web UI sign-up needed.
 
@@ -208,25 +205,13 @@ onchainos --version 2>/dev/null || echo "onchainos not installed"
 
 If onchainos is not installed, direct the user to https://github.com/okx/onchainos for installation instructions.
 
-### Step 3 — Connect wallet (required for buy/sell/cancel only)
-
-```bash
-onchainos wallet status
-```
-
-If no wallet is connected or the output shows no active wallet, run:
-
-```bash
-onchainos wallet login
-```
-
-Then confirm Polygon (chain 137) is active:
+### Step 3 — Verify wallet has a Polygon address (required for buy/sell/cancel/redeem only)
 
 ```bash
 onchainos wallet addresses --chain 137
 ```
 
-If no address is returned, the user must add a Polygon wallet via `onchainos wallet login`.
+If no address is returned, the user needs to connect a wallet via the **onchainos plugin** first. Wallet connection and management (including which wallet type to use) is handled entirely by onchainos — it is out of scope for the polymarket plugin.
 
 ### Step 4 — Check USDC.e balance (buy only)
 
