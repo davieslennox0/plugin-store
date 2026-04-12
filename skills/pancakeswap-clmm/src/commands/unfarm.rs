@@ -22,7 +22,6 @@ pub async fn run(
         let pending_wei = rpc::pending_cake(cfg.masterchef_v3, token_id, &rpc)
             .await
             .unwrap_or(0);
-        let pending_cake = pending_wei as f64 / 1e18;
         let calldata = build_withdraw_calldata(token_id, &recipient_addr);
         let placeholder = recipient_addr == "0x0000000000000000000000000000000000000000";
         println!(
@@ -33,7 +32,7 @@ pub async fn run(
                 "chain_id": chain_id,
                 "token_id": token_id,
                 "recipient": recipient_addr,
-                "pending_cake_to_harvest": format!("{:.6}", pending_cake),
+                "pending_cake_to_harvest": rpc::format_cake_wei(pending_wei),
                 "to": cfg.masterchef_v3,
                 "calldata": calldata,
                 "description": "withdraw(tokenId, to) — withdraws NFT from MasterChefV3 and harvests pending CAKE",
@@ -66,7 +65,7 @@ pub async fn run(
     let pending_wei = rpc::pending_cake(cfg.masterchef_v3, token_id, &rpc)
         .await
         .unwrap_or(0);
-    let pending_cake = pending_wei as f64 / 1e18;
+    let pending_cake = rpc::format_cake_wei(pending_wei);
 
     if !confirm {
         // Preview mode: show what will happen and require --confirm to proceed
@@ -79,7 +78,7 @@ pub async fn run(
                 "chain_id": chain_id,
                 "token_id": token_id,
                 "recipient": recipient,
-                "pending_cake_to_harvest": format!("{:.6}", pending_cake),
+                "pending_cake_to_harvest": pending_cake,
                 "masterchef_v3": cfg.masterchef_v3,
                 "message": "Run again with --confirm to withdraw the NFT and harvest CAKE."
             }))?
@@ -88,7 +87,7 @@ pub async fn run(
     }
 
     eprintln!(
-        "Withdrawing NFT {} from MasterChefV3. Pending CAKE to harvest: {:.6}",
+        "Withdrawing NFT {} from MasterChefV3. Pending CAKE to harvest: {}",
         token_id, pending_cake
     );
 
@@ -116,7 +115,7 @@ pub async fn run(
             "token_id": token_id,
             "action": "unfarm",
             "txHash": tx_hash,
-            "pending_cake_harvested": format!("{:.6}", pending_cake),
+            "pending_cake_harvested": pending_cake,
             "recipient": recipient,
             "masterchef_v3": cfg.masterchef_v3,
             "raw": result

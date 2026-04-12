@@ -32,7 +32,7 @@ pub async fn run(
                 "chain_id": chain_id,
                 "token_id": token_id,
                 "recipient": recipient_addr,
-                "pending_cake": format!("{:.6}", pending_wei as f64 / 1e18),
+                "pending_cake": rpc::format_cake_wei(pending_wei),
                 "pending_cake_wei": pending_wei.to_string(),
                 "to": cfg.masterchef_v3,
                 "calldata": calldata,
@@ -68,7 +68,7 @@ pub async fn run(
         return Ok(());
     }
 
-    let pending_cake = pending_wei as f64 / 1e18;
+    let pending_cake = rpc::format_cake_wei(pending_wei);
 
     if !confirm {
         // Preview mode: show what will happen and require --confirm to proceed
@@ -81,7 +81,7 @@ pub async fn run(
                 "chain_id": chain_id,
                 "token_id": token_id,
                 "recipient": recipient,
-                "pending_cake": format!("{:.6}", pending_cake),
+                "pending_cake": pending_cake,
                 "pending_cake_wei": pending_wei.to_string(),
                 "masterchef_v3": cfg.masterchef_v3,
                 "message": "Run again with --confirm to claim CAKE rewards."
@@ -91,7 +91,7 @@ pub async fn run(
     }
 
     eprintln!(
-        "Harvesting {:.6} CAKE for token ID {} on chain {}...",
+        "Harvesting {} CAKE for token ID {} on chain {}...",
         pending_cake, token_id, chain_id
     );
 
@@ -120,7 +120,7 @@ pub async fn run(
             "action": "harvest",
             "txHash": tx_hash,
             "pending_cake_harvested_wei": pending_wei.to_string(),
-            "pending_cake_harvested": format!("{:.6}", pending_cake),
+            "pending_cake_harvested": pending_cake,
             "recipient": recipient,
             "masterchef_v3": cfg.masterchef_v3,
             "raw": result

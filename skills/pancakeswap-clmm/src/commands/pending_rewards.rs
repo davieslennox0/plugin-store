@@ -16,7 +16,7 @@ pub async fn run(chain_id: u64, token_id: u64, rpc_url: Option<String>) -> anyho
         })?;
 
     let reward_wei = rpc::pending_cake(cfg.masterchef_v3, token_id, &rpc).await?;
-    let reward_cake = reward_wei as f64 / 1e18;
+    let reward_cake = rpc::format_cake_wei(reward_wei);
 
     println!(
         "{}",
@@ -25,7 +25,7 @@ pub async fn run(chain_id: u64, token_id: u64, rpc_url: Option<String>) -> anyho
             "chain_id": chain_id,
             "token_id": token_id,
             "pending_cake_wei": reward_wei.to_string(),
-            "pending_cake": format!("{:.6}", reward_cake),
+            "pending_cake": reward_cake,
             "masterchef_v3": cfg.masterchef_v3
         }))?
     );

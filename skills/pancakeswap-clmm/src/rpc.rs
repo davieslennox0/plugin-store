@@ -190,6 +190,14 @@ pub async fn owner_of(
     Ok(decode_address(&result))
 }
 
+/// Format a wei-denominated CAKE amount to 6 decimal places using integer arithmetic.
+/// Avoids f64 precision loss (which starts above ~9,007 CAKE with `as f64 / 1e18`).
+pub fn format_cake_wei(wei: u128) -> String {
+    let whole = wei / 1_000_000_000_000_000_000u128;
+    let frac  = (wei % 1_000_000_000_000_000_000u128) / 1_000_000_000_000u128; // 6 dp
+    format!("{}.{:06}", whole, frac)
+}
+
 /// Query MasterChefV3.pendingCake(tokenId).
 pub async fn pending_cake(
     masterchef: &str,
