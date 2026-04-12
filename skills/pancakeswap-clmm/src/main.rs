@@ -8,6 +8,7 @@ use clap::{Parser, Subcommand};
 #[derive(Parser)]
 #[command(
     name = "pancakeswap-clmm",
+    version,
     about = "PancakeSwap V3 CLMM farming plugin — stake LP NFTs, harvest CAKE, collect fees"
 )]
 struct Cli {
@@ -18,6 +19,10 @@ struct Cli {
     /// Simulate without broadcasting (dry-run mode)
     #[arg(long)]
     dry_run: bool,
+
+    /// Confirm and execute the write operation (required for farm, unfarm, harvest, collect-fees)
+    #[arg(long)]
+    confirm: bool,
 
     /// Override RPC URL for the selected chain
     #[arg(long)]
@@ -96,13 +101,13 @@ async fn main() -> anyhow::Result<()> {
 
     match cli.command {
         Commands::Farm { token_id, from } => {
-            commands::farm::run(cli.chain, token_id, from, cli.dry_run, cli.rpc_url).await?;
+            commands::farm::run(cli.chain, token_id, from, cli.dry_run, cli.confirm, cli.rpc_url).await?;
         }
         Commands::Unfarm { token_id, to } => {
-            commands::unfarm::run(cli.chain, token_id, to, cli.dry_run, cli.rpc_url).await?;
+            commands::unfarm::run(cli.chain, token_id, to, cli.dry_run, cli.confirm, cli.rpc_url).await?;
         }
         Commands::Harvest { token_id, to } => {
-            commands::harvest::run(cli.chain, token_id, to, cli.dry_run, cli.rpc_url).await?;
+            commands::harvest::run(cli.chain, token_id, to, cli.dry_run, cli.confirm, cli.rpc_url).await?;
         }
         Commands::PendingRewards { token_id } => {
             commands::pending_rewards::run(cli.chain, token_id, cli.rpc_url).await?;
@@ -120,7 +125,7 @@ async fn main() -> anyhow::Result<()> {
             token_id,
             recipient,
         } => {
-            commands::collect_fees::run(cli.chain, token_id, recipient, cli.dry_run, cli.rpc_url)
+            commands::collect_fees::run(cli.chain, token_id, recipient, cli.dry_run, cli.confirm, cli.rpc_url)
                 .await?;
         }
     }

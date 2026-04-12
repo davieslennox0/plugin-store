@@ -5,13 +5,25 @@ pub async fn run(
     token_id: u64,
     to: Option<String>,
     dry_run: bool,
+    confirm: bool,
     rpc_url: Option<String>,
 ) -> anyhow::Result<()> {
     let cfg = config::get_chain_config(chain_id)?;
     let rpc = config::get_rpc_url(chain_id, rpc_url.as_deref())?;
 
     if dry_run {
-        let calldata = build_harvest_calldata(token_id, "0x0000000000000000000000000000000000000000");
+        // Try to resolve wallet for accurate calldata; fall back to zero placeholder
+        let recipient_addr = match to.as_deref() {
+            Some(addr) => addr.to_string(),
+            None => onchainos::resolve_wallet(chain_id)
+                .await
+                .unwrap_or_else(|_| "0x0000000000000000000000000000000000000000".to_string()),
+        };
+        let pending_wei = rpc::pending_cake(cfg.masterchef_v3, token_id, &rpc)
+            .await
+            .unwrap_or(0);
+        let calldata = build_harvest_calldata(token_id, &recipient_addr);
+        let placeholder = recipient_addr == "0x0000000000000000000000000000000000000000";
         println!(
             "{}",
             serde_json::to_string_pretty(&serde_json::json!({
@@ -19,15 +31,19 @@ pub async fn run(
                 "dry_run": true,
                 "chain_id": chain_id,
                 "token_id": token_id,
+                "recipient": recipient_addr,
+                "pending_cake": rpc::format_cake_wei(pending_wei),
+                "pending_cake_wei": pending_wei.to_string(),
                 "to": cfg.masterchef_v3,
                 "calldata": calldata,
-                "description": "harvest(tokenId, to) — claims CAKE rewards without withdrawing the NFT"
+                "description": "harvest(tokenId, to) — claims CAKE rewards without withdrawing the NFT",
+                "note": if placeholder { Some("recipient is a placeholder — onchainos wallet not resolved") } else { None }
             }))?
         );
         return Ok(());
     }
 
-    // Resolve recipient address (must not be zero) — only needed for non-dry-run
+    // Resolve recipient address
     let recipient = match to {
         Some(addr) => addr,
         None => onchainos::resolve_wallet(chain_id).await.unwrap_or_default(),
@@ -52,9 +68,30 @@ pub async fn run(
         return Ok(());
     }
 
-    let pending_cake = pending_wei as f64 / 1e18;
+    let pending_cake = rpc::format_cake_wei(pending_wei);
+
+    if !confirm {
+        // Preview mode: show what will happen and require --confirm to proceed
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "ok": true,
+                "preview": true,
+                "action": "harvest",
+                "chain_id": chain_id,
+                "token_id": token_id,
+                "recipient": recipient,
+                "pending_cake": pending_cake,
+                "pending_cake_wei": pending_wei.to_string(),
+                "masterchef_v3": cfg.masterchef_v3,
+                "message": "Run again with --confirm to claim CAKE rewards."
+            }))?
+        );
+        return Ok(());
+    }
+
     eprintln!(
-        "Harvesting {:.6} CAKE for token ID {} on chain {}...",
+        "Harvesting {} CAKE for token ID {} on chain {}...",
         pending_cake, token_id, chain_id
     );
 
@@ -62,7 +99,6 @@ pub async fn run(
     // selector = 0x18fccc76
     let calldata = build_harvest_calldata(token_id, &recipient);
 
-    // Ask user to confirm — agent must present confirmation before calling without --dry-run
     let result = onchainos::wallet_contract_call(
         chain_id,
         cfg.masterchef_v3,
@@ -84,7 +120,7 @@ pub async fn run(
             "action": "harvest",
             "txHash": tx_hash,
             "pending_cake_harvested_wei": pending_wei.to_string(),
-            "pending_cake_harvested": format!("{:.6}", pending_cake),
+            "pending_cake_harvested": pending_cake,
             "recipient": recipient,
             "masterchef_v3": cfg.masterchef_v3,
             "raw": result

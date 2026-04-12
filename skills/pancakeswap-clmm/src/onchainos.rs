@@ -13,11 +13,12 @@ pub async fn resolve_wallet(chain_id: u64) -> anyhow::Result<String> {
     Ok(addr)
 }
 
-/// Submit a transaction via `onchainos wallet contract-call`.
+/// Submit a transaction via `onchainos wallet contract-call --force`.
 ///
 /// dry_run=true returns a simulated response without calling onchainos.
-/// NOTE: `onchainos wallet contract-call` does NOT accept a --dry-run flag.
-/// The DEX/farming operations require --force to avoid "txHash: pending" non-broadcast.
+/// --force is always passed: the plugin's own --confirm flag is the user-facing gate,
+/// so by the time this function is called the user has already confirmed the operation.
+/// Without --force, onchainos queues but does not broadcast the transaction.
 pub async fn wallet_contract_call(
     chain_id: u64,
     to: &str,
@@ -56,6 +57,8 @@ pub async fn wallet_contract_call(
         args.push("--amt".to_string());
         args.push(v.to_string());
     }
+
+    args.push("--force".to_string());
 
     let output = tokio::process::Command::new("onchainos")
         .args(&args)

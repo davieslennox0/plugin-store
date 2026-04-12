@@ -5,13 +5,25 @@ pub async fn run(
     token_id: u64,
     to: Option<String>,
     dry_run: bool,
+    confirm: bool,
     rpc_url: Option<String>,
 ) -> anyhow::Result<()> {
     let cfg = config::get_chain_config(chain_id)?;
     let rpc = config::get_rpc_url(chain_id, rpc_url.as_deref())?;
 
     if dry_run {
-        let calldata = build_withdraw_calldata(token_id, "0x0000000000000000000000000000000000000000");
+        // Try to resolve wallet for accurate calldata; fall back to zero placeholder
+        let recipient_addr = match to.as_deref() {
+            Some(addr) => addr.to_string(),
+            None => onchainos::resolve_wallet(chain_id)
+                .await
+                .unwrap_or_else(|_| "0x0000000000000000000000000000000000000000".to_string()),
+        };
+        let pending_wei = rpc::pending_cake(cfg.masterchef_v3, token_id, &rpc)
+            .await
+            .unwrap_or(0);
+        let calldata = build_withdraw_calldata(token_id, &recipient_addr);
+        let placeholder = recipient_addr == "0x0000000000000000000000000000000000000000";
         println!(
             "{}",
             serde_json::to_string_pretty(&serde_json::json!({
@@ -19,15 +31,18 @@ pub async fn run(
                 "dry_run": true,
                 "chain_id": chain_id,
                 "token_id": token_id,
+                "recipient": recipient_addr,
+                "pending_cake_to_harvest": rpc::format_cake_wei(pending_wei),
                 "to": cfg.masterchef_v3,
                 "calldata": calldata,
-                "description": "withdraw(tokenId, to) — withdraws NFT from MasterChefV3 and harvests pending CAKE"
+                "description": "withdraw(tokenId, to) — withdraws NFT from MasterChefV3 and harvests pending CAKE",
+                "note": if placeholder { Some("recipient is a placeholder — onchainos wallet not resolved") } else { None }
             }))?
         );
         return Ok(());
     }
 
-    // Resolve recipient address (must not be zero) — only needed for non-dry-run
+    // Resolve recipient address
     let recipient = match to {
         Some(addr) => addr,
         None => onchainos::resolve_wallet(chain_id).await.unwrap_or_default(),
@@ -36,15 +51,13 @@ pub async fn run(
         anyhow::bail!("Cannot resolve wallet address. Pass --to or ensure onchainos is logged in.");
     }
 
-    // Pre-check: verify token is staked in MasterChefV3 by this user
+    // Pre-check: verify token is staked in MasterChefV3
     let info = rpc::user_position_infos(cfg.masterchef_v3, token_id, &rpc).await?;
-    if info.user.to_lowercase() != recipient.to_lowercase()
-        && info.user != "0x0000000000000000000000000000000000000000"
-    {
-        // If user field doesn't match, still attempt (user might pass --to a different addr)
-        eprintln!(
-            "Note: token {} staked by {}, withdrawing to {}",
-            token_id, info.user, recipient
+    if info.user == "0x0000000000000000000000000000000000000000" {
+        anyhow::bail!(
+            "Token ID {} is not staked in MasterChefV3. Use 'farm --token-id {}' to stake it first.",
+            token_id,
+            token_id
         );
     }
 
@@ -52,9 +65,29 @@ pub async fn run(
     let pending_wei = rpc::pending_cake(cfg.masterchef_v3, token_id, &rpc)
         .await
         .unwrap_or(0);
-    let pending_cake = pending_wei as f64 / 1e18;
+    let pending_cake = rpc::format_cake_wei(pending_wei);
+
+    if !confirm {
+        // Preview mode: show what will happen and require --confirm to proceed
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "ok": true,
+                "preview": true,
+                "action": "unfarm",
+                "chain_id": chain_id,
+                "token_id": token_id,
+                "recipient": recipient,
+                "pending_cake_to_harvest": pending_cake,
+                "masterchef_v3": cfg.masterchef_v3,
+                "message": "Run again with --confirm to withdraw the NFT and harvest CAKE."
+            }))?
+        );
+        return Ok(());
+    }
+
     eprintln!(
-        "Withdrawing NFT {} from MasterChefV3. Pending CAKE to harvest: {:.6}",
+        "Withdrawing NFT {} from MasterChefV3. Pending CAKE to harvest: {}",
         token_id, pending_cake
     );
 
@@ -62,7 +95,6 @@ pub async fn run(
     // selector = 0x00f714ce
     let calldata = build_withdraw_calldata(token_id, &recipient);
 
-    // Ask user to confirm — agent must present confirmation before calling without --dry-run
     let result = onchainos::wallet_contract_call(
         chain_id,
         cfg.masterchef_v3,
@@ -83,7 +115,7 @@ pub async fn run(
             "token_id": token_id,
             "action": "unfarm",
             "txHash": tx_hash,
-            "pending_cake_harvested": format!("{:.6}", pending_cake),
+            "pending_cake_harvested": pending_cake,
             "recipient": recipient,
             "masterchef_v3": cfg.masterchef_v3,
             "raw": result

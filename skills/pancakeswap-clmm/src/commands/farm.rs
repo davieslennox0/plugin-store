@@ -5,15 +5,22 @@ pub async fn run(
     token_id: u64,
     from: Option<String>,
     dry_run: bool,
+    confirm: bool,
     rpc_url: Option<String>,
 ) -> anyhow::Result<()> {
     let cfg = config::get_chain_config(chain_id)?;
     let rpc = config::get_rpc_url(chain_id, rpc_url.as_deref())?;
 
     if dry_run {
-        // For dry-run use zero address as placeholder (avoids ABI encode errors)
-        let from_addr = "0x0000000000000000000000000000000000000000";
-        let calldata = build_safe_transfer_from_calldata(from_addr, cfg.masterchef_v3, token_id);
+        // Try to resolve wallet for accurate calldata; fall back to zero placeholder
+        let from_addr = match from.as_deref() {
+            Some(addr) => addr.to_string(),
+            None => onchainos::resolve_wallet(chain_id)
+                .await
+                .unwrap_or_else(|_| "0x0000000000000000000000000000000000000000".to_string()),
+        };
+        let calldata = build_safe_transfer_from_calldata(&from_addr, cfg.masterchef_v3, token_id);
+        let placeholder = from_addr == "0x0000000000000000000000000000000000000000";
         println!(
             "{}",
             serde_json::to_string_pretty(&serde_json::json!({
@@ -21,15 +28,17 @@ pub async fn run(
                 "dry_run": true,
                 "chain_id": chain_id,
                 "token_id": token_id,
+                "from": from_addr,
                 "to": cfg.nonfungible_position_manager,
                 "calldata": calldata,
-                "description": "safeTransferFrom(from, masterchef_v3, tokenId) — stakes NFT into MasterChefV3 farming"
+                "description": "safeTransferFrom(from, masterchef_v3, tokenId) — stakes NFT into MasterChefV3 farming",
+                "note": if placeholder { Some("from address is a placeholder — onchainos wallet not resolved") } else { None }
             }))?
         );
         return Ok(());
     }
 
-    // Resolve wallet address (must not be zero) — only needed for non-dry-run
+    // Resolve wallet address
     let wallet = match from {
         Some(addr) => addr,
         None => onchainos::resolve_wallet(chain_id).await.unwrap_or_default(),
@@ -49,10 +58,28 @@ pub async fn run(
         );
     }
 
+    if !confirm {
+        // Preview mode: show what will happen and require --confirm to proceed
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "ok": true,
+                "preview": true,
+                "action": "farm",
+                "chain_id": chain_id,
+                "token_id": token_id,
+                "wallet": wallet,
+                "masterchef_v3": cfg.masterchef_v3,
+                "nonfungible_position_manager": cfg.nonfungible_position_manager,
+                "message": "Run again with --confirm to stake the NFT into MasterChefV3."
+            }))?
+        );
+        return Ok(());
+    }
+
     // Build calldata for safeTransferFrom(from, masterchef_v3, tokenId)
     let calldata = build_safe_transfer_from_calldata(&wallet, cfg.masterchef_v3, token_id);
 
-    // Ask user to confirm — agent must present this to user before calling without --dry-run
     eprintln!(
         "Staking NFT token ID {} into MasterChefV3 ({}) on chain {}...",
         token_id, cfg.masterchef_v3, chain_id
