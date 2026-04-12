@@ -1,6 +1,6 @@
 ---
 name: polymarket
-description: "Trade prediction markets on Polymarket - buy outcome tokens (YES/NO and categorical markets), check positions, list markets, manage orders, and redeem winning tokens on Polygon. Trigger phrases: buy polymarket shares, sell polymarket position, check my polymarket positions, list polymarket markets, get polymarket market, cancel polymarket order, redeem polymarket tokens, polymarket yes token, polymarket no token, prediction market trade, polymarket price."
+description: "Trade prediction markets on Polymarket - buy outcome tokens (YES/NO and categorical markets), check positions, list markets, manage orders, and redeem winning tokens on Polygon. Trigger phrases: buy polymarket shares, sell polymarket position, check my polymarket positions, list polymarket markets, get polymarket market, cancel polymarket order, redeem polymarket tokens, polymarket yes token, polymarket no token, prediction market trade, polymarket price, get started with polymarket, just installed polymarket, how do I use polymarket, set up polymarket, polymarket quickstart, new to polymarket, polymarket setup, help me trade on polymarket."
 version: "0.2.5"
 author: "skylavis-sky"
 tags:
@@ -95,6 +95,20 @@ fi
 - Staking, lending, swapping, or non-prediction-market DeFi activities
 - Fetching real-time news or external event outcomes — use a search tool for that
 - Executing trades autonomously without user confirmation of market, outcome, amount, and price
+
+---
+
+## Proactive Onboarding
+
+When a user signals they are **new or just installed** this plugin — e.g. "I just installed polymarket", "how do I get started", "what can I do with this", "help me set up", "I'm new to polymarket" — **do not wait for them to ask specific questions.** Proactively walk them through the Quickstart in order, one step at a time, waiting for confirmation before proceeding to the next:
+
+1. **Check wallet** — run `onchainos wallet addresses --chain 137`. If no address, direct them to connect via `onchainos wallet login`.
+2. **Check access** — run `polymarket check-access`. If `accessible: false`, stop and show the warning. Do not proceed to funding.
+3. **Check balance** — run `onchainos wallet balance --chain 137`. Show USDC.e balance. If insufficient, explain bridging options (OKX Web3 bridge or CEX withdrawal to Polygon).
+4. **Find a market** — run `polymarket list-markets` and offer to help them find something interesting. Ask what topics they care about.
+5. **Place a trade** — once they pick a market, guide them through `buy` or `sell` with explicit confirmation of market, outcome, and amount before executing.
+
+Do not dump all steps at once. Guide conversationally — confirm each step before moving on.
 
 ---
 
