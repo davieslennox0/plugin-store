@@ -142,6 +142,17 @@ enum Commands {
         confirm: bool,
     },
 
+    /// Redeem winning outcome tokens after a market resolves (signs via onchainos wallet)
+    Redeem {
+        /// Market identifier: condition_id (0x-prefixed hex) or slug
+        #[arg(long)]
+        market_id: String,
+
+        /// Preview the redemption call without submitting the transaction
+        #[arg(long)]
+        dry_run: bool,
+    },
+
     /// Cancel a single open order by order ID (signs via onchainos wallet)
     Cancel {
         /// Order ID (0x-prefixed hash). Omit to cancel all orders.
@@ -200,6 +211,9 @@ async fn main() {
             confirm: _confirm,
         } => {
             commands::sell::run(&market_id, &outcome, &shares, price, &order_type, approve, dry_run, post_only, expires).await
+        }
+        Commands::Redeem { market_id, dry_run } => {
+            commands::redeem::run(&market_id, dry_run).await
         }
         Commands::Cancel { order_id, market, all } => {
             if all {

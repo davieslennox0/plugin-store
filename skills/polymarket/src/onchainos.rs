@@ -167,6 +167,43 @@ pub async fn approve_ctf(neg_risk: bool) -> Result<String> {
     }
 }
 
+/// ABI-encode and submit CTF redeemPositions(collateralToken, parentCollectionId, conditionId, indexSets).
+///
+/// Redeems all outcome positions for the given conditionId. indexSets [1, 2] covers both
+/// YES (bit 0) and NO (bit 1) outcomes — the CTF contract only pays out for winning tokens
+/// and silently no-ops for losing ones, so passing both is safe.
+/// For neg_risk (multi-outcome) markets use the NEG_RISK_ADAPTER path (not implemented here).
+pub async fn ctf_redeem_positions(condition_id: &str) -> Result<String> {
+    use sha3::{Digest, Keccak256};
+    use crate::config::Contracts;
+
+    // Compute the 4-byte function selector: keccak256("redeemPositions(address,bytes32,bytes32,uint256[])")
+    let selector = Keccak256::digest(b"redeemPositions(address,bytes32,bytes32,uint256[])");
+    let selector_hex = hex::encode(&selector[..4]);
+
+    // ABI-encode the four parameters.
+    // Slots 0-2 are static (address and bytes32); slot 3 is the offset to the dynamic uint256[] array.
+    let collateral  = pad_address(Contracts::USDC_E);         // address padded to 32 bytes
+    let parent_id   = format!("{:064x}", 0u128);               // bytes32(0) — null parent collection
+    let cond_id_hex = condition_id.trim_start_matches("0x");
+    let cond_id_pad = format!("{:0>64}", cond_id_hex);         // conditionId as bytes32
+    let array_offset = pad_u256(4 * 32);                       // 4 static slots → offset = 128
+
+    // Dynamic array: length=2, [1, 2] (YES indexSet=1, NO indexSet=2)
+    let array_len  = pad_u256(2);
+    let index_yes  = pad_u256(1);  // outcome 0, indexSet bit 0
+    let index_no   = pad_u256(2);  // outcome 1, indexSet bit 1
+
+    let calldata = format!(
+        "0x{}{}{}{}{}{}{}{}",
+        selector_hex, collateral, parent_id, cond_id_pad,
+        array_offset, array_len, index_yes, index_no
+    );
+
+    let result = wallet_contract_call(Contracts::CTF, &calldata).await?;
+    extract_tx_hash(&result)
+}
+
 /// Check if the CTF contract has setApprovalForAll set for owner → operator.
 /// Makes a direct eth_call to the Polygon RPC to read isApprovedForAll(owner, operator).
 /// Returns true if already approved, false if not approved or on RPC failure (fail-open:

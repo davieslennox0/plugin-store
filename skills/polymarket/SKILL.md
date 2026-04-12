@@ -1,6 +1,6 @@
 ---
 name: polymarket
-description: "Trade prediction markets on Polymarket - buy outcome tokens (YES/NO and categorical markets), check positions, list markets, and manage orders on Polygon. Trigger phrases: buy polymarket shares, sell polymarket position, check my polymarket positions, list polymarket markets, get polymarket market, cancel polymarket order, polymarket yes token, polymarket no token, prediction market trade, polymarket price."
+description: "Trade prediction markets on Polymarket - buy outcome tokens (YES/NO and categorical markets), check positions, list markets, manage orders, and redeem winning tokens on Polygon. Trigger phrases: buy polymarket shares, sell polymarket position, check my polymarket positions, list polymarket markets, get polymarket market, cancel polymarket order, redeem polymarket tokens, polymarket yes token, polymarket no token, prediction market trade, polymarket price."
 version: "0.2.5"
 author: "skylavis-sky"
 tags:
@@ -427,9 +427,47 @@ polymarket cancel --all
 
 ---
 
-## Credential Setup (Required for buy/sell/cancel)
+### `redeem` — Redeem Winning Outcome Tokens
 
-`list-markets`, `get-market`, and `get-positions` require no authentication.
+After a market resolves, the winning side's tokens can be redeemed for USDC.e at a 1:1 rate. This calls `redeemPositions` on the Gnosis CTF contract with `indexSets=[1, 2]` (covers both YES and NO outcomes; the CTF contract no-ops silently for non-winning tokens, so passing both is safe).
+
+```
+polymarket redeem --market-id <condition_id_or_slug>
+polymarket redeem --market-id <condition_id_or_slug> --dry-run
+```
+
+**Flags:**
+| Flag | Description |
+|------|-------------|
+| `--market-id` | Market to redeem from: condition_id (0x-prefixed) or slug |
+| `--dry-run` | Preview the redemption (shows condition_id and call details) without submitting any transaction |
+
+**Auth required:** onchainos wallet (for signing the on-chain tx). No CLOB credentials needed.
+
+**Not supported:** `neg_risk: true` (multi-outcome) markets — use the Polymarket web UI for those.
+
+**Output fields on success:** `condition_id`, `question`, `tx_hash`, `note`
+
+**Agent flow:**
+1. Resolve `--market-id` to a condition_id and check `neg_risk` (auto from market lookup)
+2. Offer `--dry-run` first to show the user what will happen
+3. After user confirms, run without `--dry-run` to submit the tx
+4. Return the `tx_hash` — redemption settles once the tx confirms on Polygon (~seconds)
+
+**Example:**
+```bash
+# Preview first
+polymarket redeem --market-id will-trump-win-2024 --dry-run
+
+# After user confirms:
+polymarket redeem --market-id will-trump-win-2024
+```
+
+---
+
+## Credential Setup (Required for buy/sell/cancel/redeem)
+
+`list-markets`, `get-market`, and `get-positions` require no authentication. `redeem` requires only an onchainos wallet (no CLOB credentials).
 
 **No manual credential setup required.** On the first trading command, the plugin:
 1. Resolves the onchainos wallet address via `onchainos wallet addresses --chain 137`
@@ -557,6 +595,7 @@ User wants to trade:
 | Cancel a specific order | `polymarket cancel --order-id <0x...>` |
 | Cancel all orders for market | `polymarket cancel --market <condition_id>` |
 | Cancel all open orders | `polymarket cancel --all` |
+| Redeem winning tokens after market resolves | `polymarket redeem --market-id <slug_or_condition_id>` |
 
 ---
 
@@ -589,6 +628,7 @@ Fees are deducted by the exchange from the received amount. The `feeRateBps` fie
 
 ### v0.2.5 (2026-04-12)
 
+- **feat**: `redeem --market-id <id>` command — redeems winning outcome tokens after a market resolves by calling `redeemPositions` on the Gnosis CTF contract with `indexSets=[1,2]`. The CTF contract pays out winning tokens and silently no-ops for losing ones, so passing both is safe. `--dry-run` previews the call without submitting. Not supported for `neg_risk: true` markets (use Polymarket web UI).
 - **fix (critical)**: `sell` on `neg_risk: true` markets no longer always fails with "allowance not enough". `approve_ctf` now approves both `NEG_RISK_CTF_EXCHANGE` and `NEG_RISK_ADAPTER` for neg_risk markets, mirroring the `approve_usdc` pattern already used by `buy`.
 - **fix**: `sell` no longer fires a redundant `setApprovalForAll` transaction when CTF tokens are already approved. Approval state is now read via direct on-chain `isApprovedForAll` eth_call to the Polygon RPC before deciding whether to approve.
 - **fix**: `buy` now pre-validates resting limit orders (price below best ask) against `min_order_size` (typically 5 shares). Clear error with share count and ≈USDC cost is returned before any on-chain approval. `--round-up` automatically snaps up to the minimum. Market (FOK) orders are exempt.
