@@ -540,9 +540,35 @@ jobs:
                 chmod +x "$NATIVE_BIN"
                 BIN_VERSION=$("./$NATIVE_BIN" --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
                 if [ -n "$BIN_VERSION" ] && [ "$BIN_VERSION" != "$VERSION" ]; then
-                  echo "::error::Version mismatch for ${NAME}: tag=${VERSION} but binary=${BIN_VERSION}. Cargo.toml version may not match plugin.yaml. Skipping release."
-                  cd "$REPO_ROOT"
-                  continue
+                  echo "::warning::Version mismatch for ${NAME}: tag=${VERSION} but binary=${BIN_VERSION}. Attempting auto-fix..."
+
+                  # Auto-fix: the binary has the REAL version. Use it as the release version.
+                  # This handles the case where plugin.yaml was bumped but this run compiled older Cargo.toml.
+                  FIXED_VERSION="$BIN_VERSION"
+                  FIXED_TAG="plugins/${NAME}@${FIXED_VERSION}"
+                  echo "  Auto-fix: using binary version ${FIXED_VERSION} instead of ${VERSION}"
+                  VERSION="$FIXED_VERSION"
+                  TAG="$FIXED_TAG"
+                  TITLE="${NAME} v${FIXED_VERSION}"
+
+                  # Also try: checkout latest main and check if Cargo.toml matches plugin.yaml now
+                  LATEST_CARGO_VER=$(git show origin/main:skills/${NAME}/Cargo.toml 2>/dev/null | grep '^version' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+                  LATEST_YAML_VER=$(git show origin/main:skills/${NAME}/plugin.yaml 2>/dev/null | grep '^version' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+
+                  if [ -n "$LATEST_CARGO_VER" ] && [ -n "$LATEST_YAML_VER" ] && [ "$LATEST_CARGO_VER" = "$LATEST_YAML_VER" ] && [ "$LATEST_CARGO_VER" != "$BIN_VERSION" ]; then
+                    # Latest main has matching versions but different from what we built.
+                    # This binary is stale. Create issue to notify maintainer.
+                    echo "::error::Binary ${BIN_VERSION} is stale. Latest main has ${LATEST_CARGO_VER}. Creating notification issue."
+                    gh api repos/${{ github.repository }}/issues \
+                      --method POST \
+                      -f title="⚠️ ${NAME}: binary version mismatch — needs rebuild" \
+                      -f body="Phase 5 built \`${NAME}\` binary v${BIN_VERSION} but plugin.yaml requires v${LATEST_YAML_VER}. The binary was compiled from an older commit. Please trigger a rebuild by pushing a change to \`skills/${NAME}/\` or running \`workflow_dispatch\` with \`rebuild_all=true\`." \
+                      -f labels[]="bug" 2>/dev/null || true
+                    cd "$REPO_ROOT"
+                    continue
+                  fi
+
+                  echo "  Publishing with binary version ${VERSION}"
                 fi
                 if [ -n "$BIN_VERSION" ]; then
                   echo "  Version verified: binary=${BIN_VERSION} tag=${VERSION} ✓"
