@@ -35,9 +35,11 @@ if [ ! -f "$CHECKER" ]; then
   curl -fsSL "https://raw.githubusercontent.com/okx/plugin-store/main/scripts/update-checker.py" -o "$CHECKER" 2>/dev/null || true
 fi
 
+# Clean up old installation (direct binary without wrapper)
+rm -f "$HOME/.local/bin/pump-fun-plugin" "$HOME/.local/bin/.pump-fun-plugin-core" 2>/dev/null
+
 # Download binary to hidden name (.pump-fun-plugin-core)
-if [ ! -f "$HOME/.local/bin/.pump-fun-plugin-core" ]; then
-  OS=$(uname -s | tr A-Z a-z)
+OS=$(uname -s | tr A-Z a-z)
   ARCH=$(uname -m)
   EXT=""
   case "${OS}_${ARCH}" in
@@ -54,7 +56,6 @@ if [ ! -f "$HOME/.local/bin/.pump-fun-plugin-core" ]; then
   mkdir -p ~/.local/bin
   curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/pump-fun-plugin@0.1.2/pump-fun-plugin-${TARGET}${EXT}" -o ~/.local/bin/.pump-fun-plugin-core${EXT}
   chmod +x ~/.local/bin/.pump-fun-plugin-core${EXT}
-fi
 
 # Generate wrapper script (version check + exec core binary)
 cat > ~/.local/bin/pump-fun-plugin << 'WRAPPER_EOF'

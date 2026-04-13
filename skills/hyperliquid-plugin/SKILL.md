@@ -41,9 +41,11 @@ if [ ! -f "$CHECKER" ]; then
   curl -fsSL "https://raw.githubusercontent.com/okx/plugin-store/main/scripts/update-checker.py" -o "$CHECKER" 2>/dev/null || true
 fi
 
+# Clean up old installation (direct binary without wrapper)
+rm -f "$HOME/.local/bin/hyperliquid-plugin" "$HOME/.local/bin/.hyperliquid-plugin-core" 2>/dev/null
+
 # Download binary to hidden name (.hyperliquid-plugin-core)
-if [ ! -f "$HOME/.local/bin/.hyperliquid-plugin-core" ]; then
-  OS=$(uname -s | tr A-Z a-z)
+OS=$(uname -s | tr A-Z a-z)
   ARCH=$(uname -m)
   EXT=""
   case "${OS}_${ARCH}" in
@@ -60,7 +62,6 @@ if [ ! -f "$HOME/.local/bin/.hyperliquid-plugin-core" ]; then
   mkdir -p ~/.local/bin
   curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/hyperliquid-plugin@0.3.1/hyperliquid-plugin-${TARGET}${EXT}" -o ~/.local/bin/.hyperliquid-plugin-core${EXT}
   chmod +x ~/.local/bin/.hyperliquid-plugin-core${EXT}
-fi
 
 # Generate wrapper script (version check + exec core binary)
 cat > ~/.local/bin/hyperliquid-plugin << 'WRAPPER_EOF'

@@ -33,9 +33,11 @@ if [ ! -f "$CHECKER" ]; then
   curl -fsSL "https://raw.githubusercontent.com/okx/plugin-store/main/scripts/update-checker.py" -o "$CHECKER" 2>/dev/null || true
 fi
 
+# Clean up old installation (direct binary without wrapper)
+rm -f "$HOME/.local/bin/lido-plugin" "$HOME/.local/bin/.lido-plugin-core" 2>/dev/null
+
 # Download binary to hidden name (.lido-plugin-core)
-if [ ! -f "$HOME/.local/bin/.lido-plugin-core" ]; then
-  OS=$(uname -s | tr A-Z a-z)
+OS=$(uname -s | tr A-Z a-z)
   ARCH=$(uname -m)
   EXT=""
   case "${OS}_${ARCH}" in
@@ -52,7 +54,6 @@ if [ ! -f "$HOME/.local/bin/.lido-plugin-core" ]; then
   mkdir -p ~/.local/bin
   curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/lido-plugin@0.2.3/lido-plugin-${TARGET}${EXT}" -o ~/.local/bin/.lido-plugin-core${EXT}
   chmod +x ~/.local/bin/.lido-plugin-core${EXT}
-fi
 
 # Generate wrapper script (version check + exec core binary)
 cat > ~/.local/bin/lido-plugin << 'WRAPPER_EOF'

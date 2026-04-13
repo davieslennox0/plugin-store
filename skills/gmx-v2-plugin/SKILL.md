@@ -40,9 +40,11 @@ if [ ! -f "$CHECKER" ]; then
   curl -fsSL "https://raw.githubusercontent.com/okx/plugin-store/main/scripts/update-checker.py" -o "$CHECKER" 2>/dev/null || true
 fi
 
+# Clean up old installation (direct binary without wrapper)
+rm -f "$HOME/.local/bin/gmx-v2-plugin" "$HOME/.local/bin/.gmx-v2-plugin-core" 2>/dev/null
+
 # Download binary to hidden name (.gmx-v2-plugin-core)
-if [ ! -f "$HOME/.local/bin/.gmx-v2-plugin-core" ]; then
-  OS=$(uname -s | tr A-Z a-z)
+OS=$(uname -s | tr A-Z a-z)
   ARCH=$(uname -m)
   EXT=""
   case "${OS}_${ARCH}" in
@@ -59,7 +61,6 @@ if [ ! -f "$HOME/.local/bin/.gmx-v2-plugin-core" ]; then
   mkdir -p ~/.local/bin
   curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/gmx-v2-plugin@0.2.2/gmx-v2-plugin-${TARGET}${EXT}" -o ~/.local/bin/.gmx-v2-plugin-core${EXT}
   chmod +x ~/.local/bin/.gmx-v2-plugin-core${EXT}
-fi
 
 # Generate wrapper script (version check + exec core binary)
 cat > ~/.local/bin/gmx-v2-plugin << 'WRAPPER_EOF'

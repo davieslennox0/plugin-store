@@ -39,9 +39,11 @@ if [ ! -f "$CHECKER" ]; then
   curl -fsSL "https://raw.githubusercontent.com/okx/plugin-store/main/scripts/update-checker.py" -o "$CHECKER" 2>/dev/null || true
 fi
 
+# Clean up old installation (direct binary without wrapper)
+rm -f "$HOME/.local/bin/compound-v3-plugin" "$HOME/.local/bin/.compound-v3-plugin-core" 2>/dev/null
+
 # Download binary to hidden name (.compound-v3-plugin-core)
-if [ ! -f "$HOME/.local/bin/.compound-v3-plugin-core" ]; then
-  OS=$(uname -s | tr A-Z a-z)
+OS=$(uname -s | tr A-Z a-z)
   ARCH=$(uname -m)
   EXT=""
   case "${OS}_${ARCH}" in
@@ -58,7 +60,6 @@ if [ ! -f "$HOME/.local/bin/.compound-v3-plugin-core" ]; then
   mkdir -p ~/.local/bin
   curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/compound-v3-plugin@0.2.1/compound-v3-plugin-${TARGET}${EXT}" -o ~/.local/bin/.compound-v3-plugin-core${EXT}
   chmod +x ~/.local/bin/.compound-v3-plugin-core${EXT}
-fi
 
 # Generate wrapper script (version check + exec core binary)
 cat > ~/.local/bin/compound-v3-plugin << 'WRAPPER_EOF'
