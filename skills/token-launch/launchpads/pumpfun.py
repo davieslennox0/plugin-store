@@ -312,24 +312,27 @@ class PumpFunAdapter(LaunchpadAdapter):
 
     async def _wait_funding(self, creator_address: str, max_retries: int = 20) -> bool:
         """Wait for creator address to have SOL balance on-chain."""
-        for i in range(max_retries):
-            await asyncio.sleep(2)
-            try:
-                async with httpx.AsyncClient(timeout=10) as client:
+        delays = [0.5, 0.5, 1, 1] + [2] * (max_retries - 4)
+        async with httpx.AsyncClient(timeout=10) as client:
+            for i in range(max_retries):
+                await asyncio.sleep(delays[i] if i < len(delays) else 2)
+                try:
                     resp = await client.post(_SOLANA_RPC, json={
                         "jsonrpc": "2.0",
                         "id": 1,
                         "method": "getBalance",
                         "params": [creator_address, {"commitment": "confirmed"}],
                     })
-                result = resp.json()
-                lamports = result.get("result", {}).get("value", 0)
-                if lamports > 0:
-                    sol = lamports / 1_000_000_000
-                    print(f"  [pump.fun] Creator funded: {sol:.4f} SOL ({i + 1} polls)")
-                    return True
-            except Exception:
-                pass
+                    result = resp.json()
+                    lamports = result.get("result", {}).get("value", 0)
+                    if lamports > 0:
+                        sol = lamports / 1_000_000_000
+                        print(f"  [pump.fun] Creator funded: {sol:.4f} SOL ({i + 1} polls)")
+                        return True
+                except Exception:
+                    pass
+                if (i + 1) % 3 == 0:
+                    print(f"  [pump.fun] Waiting for funding... ({i + 1}/{max_retries})")
         return False
 
     async def _broadcast_solana(self, signed_tx_bytes: bytes) -> str:
@@ -372,27 +375,30 @@ class PumpFunAdapter(LaunchpadAdapter):
 
     async def _wait_solana_confirmation(self, tx_hash: str, max_retries: int = 15) -> bool:
         """Poll Solana RPC for TX confirmation."""
-        for i in range(max_retries):
-            await asyncio.sleep(2)
-            try:
-                async with httpx.AsyncClient(timeout=10) as client:
+        delays = [0.5, 0.5, 1, 1] + [2] * (max_retries - 4)
+        async with httpx.AsyncClient(timeout=10) as client:
+            for i in range(max_retries):
+                await asyncio.sleep(delays[i] if i < len(delays) else 2)
+                try:
                     resp = await client.post(_SOLANA_RPC, json={
                         "jsonrpc": "2.0",
                         "id": 1,
                         "method": "getSignatureStatuses",
                         "params": [[tx_hash], {"searchTransactionHistory": True}],
                     })
-                result = resp.json()
-                statuses = result.get("result", {}).get("value", [])
-                if statuses and statuses[0]:
-                    status = statuses[0]
-                    if status.get("err"):
-                        print(f"  [pump.fun] TX failed: {status['err']}")
-                        return False
-                    conf = status.get("confirmationStatus", "")
-                    if conf in ("confirmed", "finalized"):
-                        print(f"  [pump.fun] {conf.capitalize()}! ({i + 1} polls)")
-                        return True
-            except Exception:
-                pass
+                    result = resp.json()
+                    statuses = result.get("result", {}).get("value", [])
+                    if statuses and statuses[0]:
+                        status = statuses[0]
+                        if status.get("err"):
+                            print(f"  [pump.fun] TX failed: {status['err']}")
+                            return False
+                        conf = status.get("confirmationStatus", "")
+                        if conf in ("confirmed", "finalized"):
+                            print(f"  [pump.fun] {conf.capitalize()}! ({i + 1} polls)")
+                            return True
+                except Exception:
+                    pass
+                if (i + 1) % 3 == 0:
+                    print(f"  [pump.fun] Waiting for confirmation... ({i + 1}/{max_retries})")
         return False

@@ -51,6 +51,7 @@ _TEMPLATES  = _STATE_DIR / "templates.json"
 _wallet_sol: str = ""
 _wallet_bsc: str = ""
 _wallet_ready: bool = False
+_dashboard_started: bool = False
 _launches_lock = Lock()
 
 
@@ -240,6 +241,7 @@ async def quick_launch(
     twitter: str = "",
     telegram: str = "",
     slippage_bps: int = 1000,
+    auto_confirm: bool = False,
     **extras,
 ) -> LaunchResult:
     """One-call token launch. Handles wallet, image, IPFS, signing, broadcast.
@@ -265,6 +267,12 @@ async def quick_launch(
         result = await quick_launch("MoonDog", "MDOG", "a good boy", "https://i.imgur.com/dog.png",
                                      buy_amount=0.1, twitter="https://twitter.com/moondog")
     """
+    # ── 0. Auto-start dashboard ────────────────────────────────────────
+    global _dashboard_started
+    if not _dashboard_started:
+        _start_dashboard()
+        _dashboard_started = True
+
     # ── 1. Wallet (lazy init) ──────────────────────────────────────────
     _ensure_wallet()
 
@@ -341,7 +349,7 @@ async def quick_launch(
     print(f"{'─' * 54}\n")
 
     # ── 6. Confirmation gate (enforced in LIVE mode) ──────────────────
-    if C.CONFIRM_REQUIRED and not C.DRY_RUN:
+    if C.CONFIRM_REQUIRED and not C.DRY_RUN and not auto_confirm:
         print("  ⚠  LIVE MODE — token creation is IRREVERSIBLE.")
         print('  Type "confirm" to proceed, anything else to abort.')
         try:
@@ -424,26 +432,29 @@ async def execute_launch(params: LaunchParams, _balance: float = -1) -> LaunchRe
     print("  Step 3/3: Saving launch record...")
     _save_launch_record(params, result)
 
-    # ── Lark notification ─────────────────────────────────────────────
+    # ── Lark notification (fire-and-forget) ──────────────────────────
     webhook = C.LARK_WEBHOOK or os.environ.get("LARK_WEBHOOK", "")
     if webhook and result.success:
-        await _send_lark_notification(webhook, params, result)
+        asyncio.create_task(_send_lark_notification(webhook, params, result))
 
-    # ── Post-launch monitor ──────────────────────────────────────────
+    # ── Post-launch monitor (background thread — non-blocking) ──────
     if result.success and result.token_address and not C.DRY_RUN:
-        print("\n  Launching post-launch monitor...")
-        try:
-            import post_launch
-            post_launch.snapshot(
-                result.token_address,
-                chain=C.SOL_CHAIN_INDEX if chain == "solana" else C.BSC_CHAIN_INDEX,
-                launchpad=params.launchpad,
-                wallet=params.wallet_address,
-            )
-            print(f"\n  Run live monitor:")
-            print(f"  python3 post_launch.py {result.token_address} --refresh 10")
-        except Exception as e:
-            print(f"  [Monitor] Failed to show stats: {e}")
+        def _bg_monitor():
+            try:
+                import post_launch
+                post_launch.snapshot(
+                    result.token_address,
+                    chain=C.SOL_CHAIN_INDEX if chain == "solana" else C.BSC_CHAIN_INDEX,
+                    launchpad=params.launchpad,
+                    wallet=params.wallet_address,
+                )
+                print(f"\n  Run live monitor:")
+                print(f"  python3 post_launch.py {result.token_address} --refresh 10")
+            except Exception as e:
+                print(f"  [Monitor] Failed to show stats: {e}")
+
+        Thread(target=_bg_monitor, daemon=True).start()
+        print("  Post-launch stats loading in background...")
 
     return result
 
@@ -624,6 +635,7 @@ def print_banner():
 
 
 def main():
+    global _dashboard_started
     print_banner()
 
     # Wallet preflight
@@ -632,6 +644,7 @@ def main():
 
     # Start dashboard
     _start_dashboard()
+    _dashboard_started = True
 
     print("\n  Ready. One-call launch:")
     print("    from token_launch import quick_launch")

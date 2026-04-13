@@ -20,6 +20,7 @@ import os
 import subprocess
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -135,66 +136,77 @@ def gather_stats(token: str, chain: str = "501", launchpad: str = "pumpfun", wal
         "fetch_time": time.time(),
     }
 
+    # ── Fetch all data concurrently ──────────────────────────────────
+    is_pump = launchpad in ("pumpfun", "letsbonk")
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        f_details = pool.submit(fetch_memepump_details, token, chain, wallet) if is_pump else None
+        f_price   = pool.submit(fetch_price_info, token, chain)
+        f_holders = pool.submit(fetch_holders, token, chain)
+        f_trades  = pool.submit(fetch_trades, token, chain, 10)
+
+        details      = f_details.result() if f_details else {}
+        price_data   = f_price.result()
+        holders_list = f_holders.result()
+        trades       = f_trades.result()
+
     # ── Pump.fun details (primary data source) ──────────────────────
-    if launchpad in ("pumpfun", "letsbonk"):
-        details = fetch_memepump_details(token, chain, wallet)
-        if details:
-            stats["name"] = details.get("name", "")
-            stats["symbol"] = details.get("symbol", "")
-            stats["creator"] = details.get("creatorAddress", "")
+    if is_pump and details:
+        stats["name"] = details.get("name", "")
+        stats["symbol"] = details.get("symbol", "")
+        stats["creator"] = details.get("creatorAddress", "")
 
-            bp = details.get("bondingPercent", "")
-            stats["bonding_pct"] = float(bp) if bp else 0.0
+        bp = details.get("bondingPercent", "")
+        stats["bonding_pct"] = float(bp) if bp else 0.0
 
-            ts = details.get("createdTimestamp", "")
-            stats["created_ts"] = int(ts) / 1000 if ts else None
+        ts = details.get("createdTimestamp", "")
+        stats["created_ts"] = int(ts) / 1000 if ts else None
 
-            # Market data
-            mkt = details.get("market", {})
-            mcap = mkt.get("marketCapUsd", "")
-            stats["mcap_usd"] = float(mcap) if mcap else None
-            vol = mkt.get("volumeUsd1h", "")
-            stats["volume_1h"] = float(vol) if vol else None
-            bc = mkt.get("buyTxCount1h", "")
-            stats["buy_count_1h"] = int(bc) if bc else 0
-            sc = mkt.get("sellTxCount1h", "")
-            stats["sell_count_1h"] = int(sc) if sc else 0
-            tc = mkt.get("txCount1h", "")
-            stats["tx_count_1h"] = int(tc) if tc else 0
+        # Market data
+        mkt = details.get("market", {})
+        mcap = mkt.get("marketCapUsd", "")
+        stats["mcap_usd"] = float(mcap) if mcap else None
+        vol = mkt.get("volumeUsd1h", "")
+        stats["volume_1h"] = float(vol) if vol else None
+        bc = mkt.get("buyTxCount1h", "")
+        stats["buy_count_1h"] = int(bc) if bc else 0
+        sc = mkt.get("sellTxCount1h", "")
+        stats["sell_count_1h"] = int(sc) if sc else 0
+        tc = mkt.get("txCount1h", "")
+        stats["tx_count_1h"] = int(tc) if tc else 0
 
-            # Tags
-            tags = details.get("tags", {})
-            h = tags.get("totalHolders", "")
-            stats["holders"] = int(h) if h else 0
-            t10 = tags.get("top10HoldingsPercent", "")
-            stats["top10_pct"] = float(t10) if t10 else 0.0
-            stats["bundler_pct"] = float(tags.get("bundlersPercent", "0") or "0")
-            stats["sniper_pct"] = float(tags.get("snipersPercent", "0") or "0")
-            stats["dev_hold_pct"] = float(tags.get("devHoldingsPercent", "0") or "0")
-            stats["fresh_wallet_pct"] = float(tags.get("freshWalletsPercent", "0") or "0")
+        # Tags
+        tags = details.get("tags", {})
+        h = tags.get("totalHolders", "")
+        stats["holders"] = int(h) if h else 0
+        t10 = tags.get("top10HoldingsPercent", "")
+        stats["top10_pct"] = float(t10) if t10 else 0.0
+        stats["bundler_pct"] = float(tags.get("bundlersPercent", "0") or "0")
+        stats["sniper_pct"] = float(tags.get("snipersPercent", "0") or "0")
+        stats["dev_hold_pct"] = float(tags.get("devHoldingsPercent", "0") or "0")
+        stats["fresh_wallet_pct"] = float(tags.get("freshWalletsPercent", "0") or "0")
 
-            # Social
-            social = details.get("social", {})
-            stats["twitter"] = social.get("x", "")
-            stats["telegram"] = social.get("telegram", "")
-            stats["website"] = social.get("website", "")
-            stats["dexscreener_paid"] = social.get("dexScreenerPaid", False)
-            stats["cto"] = social.get("communityTakeover", False)
+        # Social
+        social = details.get("social", {})
+        stats["twitter"] = social.get("x", "")
+        stats["telegram"] = social.get("telegram", "")
+        stats["website"] = social.get("website", "")
+        stats["dexscreener_paid"] = social.get("dexScreenerPaid", False)
+        stats["cto"] = social.get("communityTakeover", False)
 
-            # Status
-            migrated_end = details.get("migratedEndTimestamp", "")
-            migrating = details.get("migratedBeginTimestamp", "")
-            if migrated_end:
-                stats["status"] = "MIGRATED"
-            elif migrating:
-                stats["status"] = "MIGRATING"
-            elif stats["bonding_pct"] is not None:
-                stats["status"] = "BONDING CURVE"
-            else:
-                stats["status"] = "ACTIVE"
+        # Status
+        migrated_end = details.get("migratedEndTimestamp", "")
+        migrating = details.get("migratedBeginTimestamp", "")
+        if migrated_end:
+            stats["status"] = "MIGRATED"
+        elif migrating:
+            stats["status"] = "MIGRATING"
+        elif stats["bonding_pct"] is not None:
+            stats["status"] = "BONDING CURVE"
+        else:
+            stats["status"] = "ACTIVE"
 
     # ── Price info (supplement) ─────────────────────────────────────
-    price_data = fetch_price_info(token, chain)
     if price_data:
         p = price_data.get("price", "") or price_data.get("priceUsd", "")
         if p:
@@ -209,14 +221,12 @@ def gather_stats(token: str, chain: str = "501", launchpad: str = "pumpfun", wal
             stats["symbol"] = price_data.get("tokenSymbol", "") or price_data.get("symbol", "")
 
     # ── Holders (supplement — count from list if needed) ────────────
-    holders_list = fetch_holders(token, chain)
     if holders_list:
         stats["top_holders"] = holders_list[:5]
         if not stats["holders"] or stats["holders"] < len(holders_list):
             stats["holders"] = max(stats["holders"] or 0, len(holders_list))
 
     # ── Recent trades ───────────────────────────────────────────────
-    trades = fetch_trades(token, chain, limit=10)
     if trades:
         stats["recent_trades"] = trades[:5]
 
