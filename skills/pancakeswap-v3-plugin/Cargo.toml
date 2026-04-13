@@ -4,7 +4,7 @@ version = "1.0.0"
 edition = "2021"
 
 [[bin]]
-name = "pancakeswap-v3"
+name = "pancakeswap-v3-plugin"
 path = "src/main.rs"
 
 [dependencies]

@@ -1,5 +1,5 @@
 schema_version: 1
-name: pancakeswap-v3
+name: pancakeswap-v3-plugin
 version: "1.0.0"
 description: "Swap tokens and manage concentrated liquidity on PancakeSwap V3 on BNB Chain, Base, and Arbitrum"
 author:
@@ -20,7 +20,7 @@ components:
     dir: .
 build:
   lang: rust
-  binary_name: pancakeswap-v3
+  binary_name: pancakeswap-v3-plugin
 api_calls:
   - bsc-rpc.publicnode.com
   - base-rpc.publicnode.com
