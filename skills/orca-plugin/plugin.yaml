@@ -1,5 +1,5 @@
 schema_version: 1
-name: orca
+name: orca-plugin
 version: "0.3.0"
 description: "Concentrated liquidity AMM on Solana — swap tokens and query pools via the Whirlpools CLMM program"
 author:
@@ -21,7 +21,7 @@ components:
 
 build:
   lang: rust
-  binary_name: orca
+  binary_name: orca-plugin
 
 api_calls:
   - "https://api.orca.so/v1/whirlpool/list"

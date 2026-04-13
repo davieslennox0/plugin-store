@@ -4,7 +4,7 @@ version = "0.3.0"
 edition = "2021"
 
 [[bin]]
-name = "orca"
+name = "orca-plugin"
 path = "src/main.rs"
 
 [dependencies]
