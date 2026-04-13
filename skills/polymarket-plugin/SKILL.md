@@ -995,3 +995,4 @@ Fees are deducted by the exchange from the received amount. The `feeRateBps` fie
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for full version history. Current version: **0.2.6** (2026-04-12).
+
