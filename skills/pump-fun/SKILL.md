@@ -219,3 +219,4 @@ pump-fun sell --mint <MINT>
 | `fee_bps` | 100 | pump.fun trade fee (1%) |
 
 
+
