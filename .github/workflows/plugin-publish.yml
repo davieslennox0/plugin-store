@@ -405,16 +405,25 @@ jobs:
                   # GitHub Actions Windows runners use MSYS2 perl which lacks modules.
                   # Install OpenSSL via vcpkg and point openssl-sys to it instead.
                   case "${{ matrix.target }}" in
-                    *windows*)
-                      echo "Installing pre-built OpenSSL via vcpkg for Windows..."
-                      vcpkg install openssl:x64-windows-static 2>/dev/null || true
-                      VCPKG_ROOT="${VCPKG_INSTALLATION_ROOT:-/c/vcpkg}"
-                      export OPENSSL_DIR="${VCPKG_ROOT}/installed/x64-windows-static"
-                      export OPENSSL_STATIC=1
-                      export OPENSSL_NO_VENDOR=1
-                      echo "  OPENSSL_DIR=${OPENSSL_DIR}"
+                    x86_64-pc-windows-msvc)
+                      VCPKG_TRIPLET="x64-windows-static"
+                      ;;
+                    i686-pc-windows-msvc)
+                      VCPKG_TRIPLET="x86-windows-static"
+                      ;;
+                    aarch64-pc-windows-msvc)
+                      VCPKG_TRIPLET="arm64-windows-static"
                       ;;
                   esac
+                  if [ -n "$VCPKG_TRIPLET" ]; then
+                    echo "Installing pre-built OpenSSL via vcpkg ($VCPKG_TRIPLET)..."
+                    VCPKG_ROOT="${VCPKG_INSTALLATION_ROOT:-/c/vcpkg}"
+                    vcpkg install "openssl:${VCPKG_TRIPLET}" 2>/dev/null || true
+                    export OPENSSL_DIR="${VCPKG_ROOT}/installed/${VCPKG_TRIPLET}"
+                    export OPENSSL_STATIC=1
+                    export OPENSSL_NO_VENDOR=1
+                    echo "  OPENSSL_DIR=${OPENSSL_DIR}"
+                  fi
                 fi
 
                 if [ "${{ matrix.cross }}" = "true" ]; then
