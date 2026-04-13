@@ -476,7 +476,7 @@
         "onchainos",
         "trading-bot"
       ],
-      "type": "community-developer",
+      "type": "community",
       "components": {
         "skill": {
           "dir": "."
@@ -1027,7 +1027,7 @@
         "onchainos",
         "trading-bot"
       ],
-      "type": "community-developer",
+      "type": "community",
       "components": {
         "skill": {
           "dir": "."
@@ -1058,7 +1058,7 @@
         "onchainos",
         "trading-bot"
       ],
-      "type": "community-developer",
+      "type": "community",
       "components": {
         "skill": {
           "dir": "."
