@@ -442,3 +442,4 @@ For any other token, pass the hex address directly.
 - DeFi protocols carry smart contract risk — only use funds you can afford to lose
 - **Token approvals**: This plugin approves only the exact amount required for each transaction — no unlimited approvals. A new approval is submitted whenever the current allowance is insufficient for the requested amount.
 - **Price impact**: No on-chain price impact check is performed before swap confirmation. For large swaps relative to pool liquidity, set a tighter `--slippage` value (e.g. `--slippage 0.1`) and review the quoted `amountOutMin` before adding `--confirm`.
+
