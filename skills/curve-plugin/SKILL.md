@@ -390,3 +390,4 @@ curve --chain 42161 remove-liquidity --pool <2pool_addr> --min-amounts "0,0"
 - ERC-20 approvals do NOT use `--force`; after each approval tx is broadcast, the agent polls `onchainos wallet history` until the tx is confirmed before submitting the main op — prevents simulation race conditions
 - Price impact > 5% triggers a warning; handle in agent before calling `swap`
 - Use `--dry-run` to preview all write operations before execution
+
