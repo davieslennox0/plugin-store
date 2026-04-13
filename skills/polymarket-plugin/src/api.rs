@@ -178,23 +178,40 @@ pub struct Position {
     pub size: Option<f64>,
     #[serde(rename = "avgPrice")]
     pub avg_price: Option<f64>,
+    #[serde(rename = "initialValue")]
+    pub initial_value: Option<f64>,
     #[serde(rename = "currentValue")]
     pub current_value: Option<f64>,
     #[serde(rename = "cashPnl")]
     pub cash_pnl: Option<f64>,
     #[serde(rename = "percentPnl")]
     pub percent_pnl: Option<f64>,
+    #[serde(rename = "totalBought")]
+    pub total_bought: Option<f64>,
     #[serde(rename = "realizedPnl")]
     pub realized_pnl: Option<f64>,
+    #[serde(rename = "percentRealizedPnl")]
+    pub percent_realized_pnl: Option<f64>,
     #[serde(rename = "curPrice")]
     pub cur_price: Option<f64>,
     #[serde(default)]
     pub redeemable: bool,
+    #[serde(default)]
+    pub mergeable: bool,
     pub title: Option<String>,
     pub slug: Option<String>,
+    pub icon: Option<String>,
+    #[serde(rename = "eventId")]
+    pub event_id: Option<String>,
+    #[serde(rename = "eventSlug")]
+    pub event_slug: Option<String>,
     pub outcome: Option<String>,
     #[serde(rename = "outcomeIndex")]
     pub outcome_index: Option<u32>,
+    #[serde(rename = "oppositeOutcome")]
+    pub opposite_outcome: Option<String>,
+    #[serde(rename = "oppositeAsset")]
+    pub opposite_asset: Option<String>,
     #[serde(rename = "endDate")]
     pub end_date: Option<String>,
     #[serde(rename = "negativeRisk", default)]

@@ -1,6 +1,6 @@
 schema_version: 1
-name: polymarket-plugin
-version: "0.2.6"
+name: polymarket
+version: "0.3.0"
 description: "Trade prediction markets on Polymarket — buy and sell YES/NO outcome tokens on Polygon"
 author:
   name: skylavis-sky
@@ -21,9 +21,11 @@ components:
 
 build:
   lang: rust
-  binary_name: polymarket-plugin
+  binary_name: polymarket
 
 api_calls:
   - "https://clob.polymarket.com"
   - "https://gamma-api.polymarket.com"
   - "https://data-api.polymarket.com"
+  - "polygon.drpc.org"
+  - "polygon-bor-rpc.publicnode.com"

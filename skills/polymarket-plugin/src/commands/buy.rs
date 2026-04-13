@@ -7,10 +7,13 @@ use crate::api::{
     OrderBody, OrderRequest,
 };
 use crate::auth::ensure_credentials;
-use crate::onchainos::{approve_usdc, get_wallet_address};
+use crate::onchainos::{approve_usdc, get_usdc_balance, get_wallet_address};
 use crate::signing::{sign_order_via_onchainos, OrderParams};
 
 /// Run the buy command.
+///
+/// mode_override: optional one-time mode override ("eoa" or "proxy").
+///   Does not persist — use `switch-mode` to change the default.
 pub async fn run(
     market_id: &str,
     outcome: &str,
@@ -22,6 +25,7 @@ pub async fn run(
     round_up: bool,
     post_only: bool,
     expires: Option<u64>,
+    mode_override: Option<&str>,
 ) -> Result<()> {
     // Parse USDC amount early so we can enforce the minimum order size
     // check even on dry-run (the agent needs to know before placing).
@@ -199,48 +203,111 @@ pub async fn run(
 
     // ── Auth phase ────────────────────────────────────────────────────────────
 
-    // onchainos wallet is the signer.
+    use crate::config::{Contracts, TradingMode};
+
+    // onchainos wallet is always the signer.
     let signer_addr = get_wallet_address().await?;
     let creds = ensure_credentials(&client, &signer_addr).await?;
-    let maker_addr = signer_addr.clone();
 
-    // Check USDC balance and allowance.
-    // Balance check fires BEFORE the approval tx to avoid wasting gas on orders
-    // that would be rejected for insufficient funds.
-    use crate::config::Contracts;
-    let allowance_info =
-        get_balance_allowance(&client, &signer_addr, &creds, "COLLATERAL", None).await?;
+    // Resolve effective trading mode (one-time override > stored default).
+    let effective_mode = match mode_override {
+        Some("proxy") => TradingMode::PolyProxy,
+        Some("eoa")   => TradingMode::Eoa,
+        _             => creds.mode.clone(),
+    };
+
+    // Resolve maker address and signature type based on mode.
+    let (maker_addr, sig_type) = match &effective_mode {
+        TradingMode::PolyProxy => {
+            let proxy = creds.proxy_wallet.as_ref().ok_or_else(|| anyhow::anyhow!(
+                "POLY_PROXY mode requires a proxy wallet. \
+                 Run `polymarket setup-proxy` to create one first."
+            ))?.clone();
+            eprintln!("[polymarket] Using POLY_PROXY mode — maker: {}", proxy);
+            (proxy, 1u8)
+        }
+        TradingMode::Eoa => (signer_addr.clone(), 0u8),
+    };
 
     let usdc_needed_raw = maker_amount_raw as u64;
 
-    // Pre-flight: bail if wallet USDC.e balance is insufficient.
-    if let Some(bal_str) = &allowance_info.balance {
-        if let Ok(bal) = bal_str.parse::<u64>() {
-            if bal < usdc_needed_raw {
+    // Determine which address holds the USDC.e for this order.
+    let balance_addr = match &effective_mode {
+        TradingMode::PolyProxy => maker_addr.as_str(),
+        TradingMode::Eoa       => signer_addr.as_str(),
+    };
+
+    // Fetch on-chain USDC.e balance and CLOB allowance info in parallel.
+    // Balance uses direct eth_call (authoritative); allowance uses CLOB API.
+    let (onchain_balance_result, allowance_info) = tokio::join!(
+        get_usdc_balance(balance_addr),
+        get_balance_allowance(&client, balance_addr, &creds, "COLLATERAL", None),
+    );
+    let allowance_info = allowance_info?;
+
+    // Pre-flight: bail if on-chain USDC.e balance is insufficient.
+    match onchain_balance_result {
+        Ok(bal_usdc) => {
+            let bal_raw = (bal_usdc * 1_000_000.0).floor() as u64;
+            if bal_raw < usdc_needed_raw {
+                let tip = match &effective_mode {
+                    TradingMode::PolyProxy => format!(
+                        "Run `polymarket deposit --amount {:.2}` to top up the proxy wallet.",
+                        actual_usdc
+                    ),
+                    TradingMode::Eoa => {
+                        // Check if proxy wallet has enough USDC and hint mode switch.
+                        let proxy_hint = crate::config::load_credentials()
+                            .ok()
+                            .flatten()
+                            .and_then(|c| c.proxy_wallet)
+                            .map(|proxy| format!(
+                                " Or switch to proxy mode (`polymarket switch-mode --mode proxy`) \
+                                 if your USDC.e is already in the proxy wallet ({}).",
+                                proxy
+                            ))
+                            .unwrap_or_default();
+                        format!(
+                            "Top up USDC.e on Polygon before placing this order.{}",
+                            proxy_hint
+                        )
+                    }
+                };
                 bail!(
-                    "Insufficient USDC.e balance: have ${:.6}, need ${:.6}. \
-                     Top up USDC.e on Polygon before placing this order.",
-                    bal as f64 / 1_000_000.0,
-                    actual_usdc
+                    "Insufficient USDC.e balance: have ${:.2}, need ${:.2}. {}",
+                    bal_usdc, actual_usdc, tip
                 );
             }
         }
+        Err(e) => {
+            // On-chain read failed — log and fall through (CLOB will catch it at settlement).
+            eprintln!("[polymarket] Warning: could not verify on-chain USDC.e balance ({}); proceeding.", e);
+        }
     }
 
-    let allowance_raw = if neg_risk {
-        let a_exchange = allowance_info.allowance_for(Contracts::NEG_RISK_CTF_EXCHANGE);
-        let a_adapter  = allowance_info.allowance_for(Contracts::NEG_RISK_ADAPTER);
-        a_exchange.min(a_adapter)
-    } else {
-        allowance_info.allowance_for(Contracts::CTF_EXCHANGE)
-    };
+    // EOA mode: submit on-chain approve if allowance is insufficient.
+    // POLY_PROXY mode: approvals are set once during `setup-proxy` — no per-trade approve needed.
+    if effective_mode == TradingMode::Eoa {
+        let allowance_raw = if neg_risk {
+            let a_exchange = allowance_info.allowance_for(Contracts::NEG_RISK_CTF_EXCHANGE);
+            let a_adapter  = allowance_info.allowance_for(Contracts::NEG_RISK_ADAPTER);
+            a_exchange.min(a_adapter)
+        } else {
+            allowance_info.allowance_for(Contracts::CTF_EXCHANGE)
+        };
 
-    if allowance_raw < usdc_needed_raw || auto_approve {
-        let exchange_label = if neg_risk { "Neg Risk CTF Exchange" } else { "CTF Exchange" };
-        eprintln!("[polymarket] Approving {:.6} USDC.e for {}...", actual_usdc, exchange_label);
-        let tx_hash = approve_usdc(neg_risk, usdc_needed_raw).await?;
-        eprintln!("[polymarket] Approval tx: {}", tx_hash);
+        if allowance_raw < usdc_needed_raw || auto_approve {
+            let exchange_label = if neg_risk { "Neg Risk CTF Exchange" } else { "CTF Exchange" };
+            eprintln!("[polymarket] Approving {:.6} USDC.e for {}...", actual_usdc, exchange_label);
+            let tx_hash = approve_usdc(neg_risk, usdc_needed_raw).await?;
+            eprintln!("[polymarket] Approval tx: {}", tx_hash);
+            eprintln!("[polymarket] Waiting for approval to confirm on-chain...");
+            crate::onchainos::wait_for_tx_receipt(&tx_hash, 30).await?;
+            eprintln!("[polymarket] Approval confirmed.");
+        }
     }
+    // POLY_PROXY mode: approvals are set once during `setup-proxy` and verified on-chain there.
+    // The CLOB server checks allowance independently at order submission — no pre-flight needed.
 
     let salt = rand_salt();
 
@@ -256,7 +323,7 @@ pub async fn run(
         nonce: 0,
         fee_rate_bps,
         side: 0, // BUY
-        signature_type: 0, // EOA
+        signature_type: sig_type,
     };
 
     let signature = sign_order_via_onchainos(&params, neg_risk).await?;
@@ -273,7 +340,7 @@ pub async fn run(
         nonce: "0".to_string(),
         fee_rate_bps: fee_rate_bps.to_string(),
         side: "BUY".to_string(),
-        signature_type: 0,
+        signature_type: sig_type,
         signature,
     };
 
@@ -284,6 +351,9 @@ pub async fn run(
         post_only,
     };
 
+    // The order owner for L2 auth must always be the EOA (API key holder),
+    // regardless of trading mode. In POLY_PROXY mode the maker field in the
+    // order struct is the proxy, but the HTTP owner must match the API key.
     let resp = post_order(&client, &signer_addr, &creds, &order_req).await?;
 
     if resp.success != Some(true) {

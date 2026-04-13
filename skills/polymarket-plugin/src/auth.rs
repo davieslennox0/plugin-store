@@ -160,6 +160,7 @@ pub async fn create_api_key(client: &Client, wallet_addr: &str, nonce: u64) -> R
         nonce,
         signing_address: wallet_addr.to_string(),
         proxy_wallet: api_key_resp.proxy_wallet,
+        mode: crate::config::TradingMode::default(),
     };
     save_credentials(&creds)?;
     Ok(creds)
@@ -190,6 +191,7 @@ pub async fn derive_api_key(client: &Client, wallet_addr: &str, nonce: u64) -> R
         nonce,
         signing_address: wallet_addr.to_string(),
         proxy_wallet: api_key_resp.proxy_wallet,
+        mode: crate::config::TradingMode::default(),
     };
     save_credentials(&creds)?;
     Ok(creds)
@@ -197,7 +199,13 @@ pub async fn derive_api_key(client: &Client, wallet_addr: &str, nonce: u64) -> R
 
 /// Load stored credentials or auto-derive them using the onchainos wallet.
 /// Re-derives if the cached credentials were for a different wallet address.
+///
+/// On first use (no creds stored), auto-detects trading mode:
+///   - If Polymarket returns a proxy wallet address → mode = PolyProxy
+///   - Otherwise → mode = EOA, with a hint to run `polymarket setup-proxy`
 pub async fn ensure_credentials(client: &Client, wallet_addr: &str) -> Result<Credentials> {
+    use crate::config::TradingMode;
+
     // Check environment variables first
     let env_key = std::env::var("POLYMARKET_API_KEY").unwrap_or_default();
     let env_secret = std::env::var("POLYMARKET_SECRET").unwrap_or_default();
@@ -211,6 +219,7 @@ pub async fn ensure_credentials(client: &Client, wallet_addr: &str) -> Result<Cr
             nonce: 0,
             signing_address: wallet_addr.to_string(),
             proxy_wallet: None,
+            mode: TradingMode::Eoa,
         });
     }
 
@@ -224,8 +233,33 @@ pub async fn ensure_credentials(client: &Client, wallet_addr: &str) -> Result<Cr
 
     // Auto-derive via onchainos wallet EIP-712 signing
     eprintln!("[polymarket] Deriving API credentials for wallet {}...", wallet_addr);
-    match derive_api_key(client, wallet_addr, 0).await {
-        Ok(c) => Ok(c),
-        Err(_) => create_api_key(client, wallet_addr, 0).await,
+    let mut creds = match derive_api_key(client, wallet_addr, 0).await {
+        Ok(c) => c,
+        Err(_) => create_api_key(client, wallet_addr, 0).await?,
+    };
+
+    // Auto-detect trading mode based on whether a proxy wallet exists.
+    // The API key response already includes proxyWallet if set; fall back to /profile.
+    if creds.proxy_wallet.is_none() {
+        if let Ok(Some(proxy)) = crate::api::get_proxy_wallet(client, wallet_addr).await {
+            creds.proxy_wallet = Some(proxy);
+        }
     }
+
+    creds.mode = if creds.proxy_wallet.is_some() {
+        eprintln!(
+            "[polymarket] Proxy wallet detected: {}. Using POLY_PROXY mode (no POL needed for trading).",
+            creds.proxy_wallet.as_deref().unwrap_or("")
+        );
+        TradingMode::PolyProxy
+    } else {
+        eprintln!(
+            "[polymarket] No proxy wallet found. Using EOA mode (requires POL for gas).\n\
+             Tip: run `polymarket setup-proxy` to create a proxy wallet and switch to gasless trading."
+        );
+        TradingMode::Eoa
+    };
+
+    crate::config::save_credentials(&creds)?;
+    Ok(creds)
 }

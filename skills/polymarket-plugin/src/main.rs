@@ -43,11 +43,15 @@ enum Commands {
     },
 
     /// Get open positions for the active wallet (no auth required — uses public Data API)
+    #[command(alias = "positions")]
     GetPositions {
         /// Wallet address to query (defaults to active onchainos wallet)
         #[arg(long, alias = "wallet")]
         address: Option<String>,
     },
+
+    /// Show POL and USDC.e balances for the EOA wallet (and proxy wallet if initialized)
+    Balance,
 
     /// Buy YES or NO shares in a market (signs via onchainos wallet)
     Buy {
@@ -95,6 +99,11 @@ enum Commands {
         #[arg(long)]
         expires: Option<u64>,
 
+        /// Override trading mode for this order only: eoa or proxy.
+        /// Does not change the stored default — use `switch-mode` for that.
+        #[arg(long, value_parser = ["eoa", "proxy"])]
+        mode: Option<String>,
+
         /// Confirm a previously gated action (reserved for future use)
         #[arg(long)]
         confirm: bool,
@@ -140,9 +149,52 @@ enum Commands {
         #[arg(long)]
         expires: Option<u64>,
 
+        /// Override trading mode for this order only: eoa or proxy.
+        /// Does not change the stored default — use `switch-mode` for that.
+        #[arg(long, value_parser = ["eoa", "proxy"])]
+        mode: Option<String>,
+
         /// Confirm a low-price market sell that was previously gated
         #[arg(long)]
         confirm: bool,
+    },
+
+    /// Create a Polymarket proxy wallet and switch to gasless POLY_PROXY trading mode.
+    /// One-time POL gas cost; all subsequent trading is relayer-paid.
+    SetupProxy {
+        /// Preview the action without submitting any transaction
+        #[arg(long)]
+        dry_run: bool,
+    },
+
+    /// Deposit USDC.e into the proxy wallet (POLY_PROXY mode only).
+    /// Requires `setup-proxy` to have been run first.
+    Deposit {
+        /// USDC.e amount to transfer (e.g. "50" = $50.00)
+        #[arg(long)]
+        amount: String,
+
+        /// Preview the transfer without submitting
+        #[arg(long)]
+        dry_run: bool,
+    },
+
+    /// Withdraw USDC.e from the proxy wallet back to the EOA wallet.
+    Withdraw {
+        /// USDC.e amount to withdraw (e.g. "10" = $10.00)
+        #[arg(long)]
+        amount: String,
+
+        /// Preview the withdrawal without submitting
+        #[arg(long)]
+        dry_run: bool,
+    },
+
+    /// Switch the default trading mode between EOA and POLY_PROXY.
+    SwitchMode {
+        /// Mode to switch to: eoa or proxy
+        #[arg(long, value_parser = ["eoa", "proxy"])]
+        mode: String,
     },
 
     /// Redeem winning outcome tokens after a market resolves (signs via onchainos wallet)
@@ -189,6 +241,9 @@ async fn main() {
         Commands::GetPositions { address } => {
             commands::get_positions::run(address.as_deref()).await
         }
+        Commands::Balance => {
+            commands::balance::run().await
+        }
         Commands::Buy {
             market_id,
             outcome,
@@ -200,9 +255,10 @@ async fn main() {
             round_up,
             post_only,
             expires,
+            mode,
             confirm: _confirm,
         } => {
-            commands::buy::run(&market_id, &outcome, &amount, price, &order_type, approve, dry_run, round_up, post_only, expires).await
+            commands::buy::run(&market_id, &outcome, &amount, price, &order_type, approve, dry_run, round_up, post_only, expires, mode.as_deref()).await
         }
         Commands::Sell {
             market_id,
@@ -214,9 +270,22 @@ async fn main() {
             dry_run,
             post_only,
             expires,
+            mode,
             confirm: _confirm,
         } => {
-            commands::sell::run(&market_id, &outcome, &shares, price, &order_type, approve, dry_run, post_only, expires).await
+            commands::sell::run(&market_id, &outcome, &shares, price, &order_type, approve, dry_run, post_only, expires, mode.as_deref()).await
+        }
+        Commands::SetupProxy { dry_run } => {
+            commands::setup_proxy::run(dry_run).await
+        }
+        Commands::Deposit { amount, dry_run } => {
+            commands::deposit::run(&amount, dry_run).await
+        }
+        Commands::Withdraw { amount, dry_run } => {
+            commands::withdraw::run(&amount, dry_run).await
+        }
+        Commands::SwitchMode { mode } => {
+            commands::switch_mode::run(&mode).await
         }
         Commands::Redeem { market_id, dry_run } => {
             commands::redeem::run(&market_id, dry_run).await

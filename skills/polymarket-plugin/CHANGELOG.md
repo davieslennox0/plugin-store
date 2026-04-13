@@ -1,5 +1,18 @@
 # Polymarket Plugin Changelog
 
+### v0.3.0 (2026-04-13)
+
+- **feat**: POLY_PROXY trading mode. New `setup-proxy` command deploys a Polymarket proxy wallet (one-time POL gas); subsequent `buy`/`sell` orders are relayer-paid (no POL per trade). `setup-proxy` runs 6 on-chain approvals (USDC.e + CTF for all 3 exchanges) idempotently at setup time — no per-trade approve calls.
+- **feat**: `balance` command shows POL and USDC.e for EOA and proxy wallet (if initialized).
+- **feat**: `deposit` transfers USDC.e from EOA → proxy wallet; `withdraw` transfers back (proxy → EOA).
+- **feat**: `switch-mode --mode eoa|proxy` changes the persistent default trading mode.
+- **feat**: `buy --mode eoa|proxy` and `sell --mode eoa|proxy` override mode for a single order without changing the stored default.
+- **feat**: `get-positions` now auto-queries the proxy wallet in POLY_PROXY mode; displays `pol_balance` and `usdc_e_balance` in EOA mode. Filters out zero-value resolved losing positions (Data API cache persists these after on-chain redeem).
+- **feat**: `positions` alias for `get-positions`.
+- **fix**: `sell` in POLY_PROXY mode no longer fails with "insufficient token balance" — CLOB API `/balance-allowance` returns 0 for proxy wallets regardless of actual balance; pre-flight check now skipped for proxy mode.
+- **fix**: Mode-mismatch error messages: `buy` in EOA mode with no USDC.e hints `polymarket deposit` (proxy mode) or top-up; `sell` in EOA mode with no tokens hints `polymarket switch-mode --mode proxy`.
+- **fix**: RPC updated from `polygon-rpc.com` → `polygon.drpc.org` for improved reliability.
+
 ### v0.2.6 (2026-04-12)
 
 - **fix (critical) [C1]**: `buy` on `neg_risk: true` markets no longer approves the wrong contract. Root cause: `get_gamma_market_by_slug` omits `negRisk` for many markets, causing the field to default to `false` and `approve_usdc` to target `CTF_EXCHANGE` instead of `NEG_RISK_CTF_EXCHANGE`. Fix: `resolve_market_token` now fetches the CLOB market by `condition_id` after the Gamma lookup to get the authoritative `neg_risk`. Falls back to the Gamma value if the CLOB is unreachable. Same fix applied in `redeem`.

@@ -5,6 +5,18 @@ use std::path::PathBuf;
 use std::os::unix::fs::PermissionsExt;
 
 
+/// Trading mode: which wallet acts as the order maker.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum TradingMode {
+    /// EOA mode: the onchainos wallet is the maker. Requires POL for gas on every approve.
+    #[default]
+    Eoa,
+    /// PolyProxy mode: a Polymarket proxy contract is the maker. No POL needed for trading;
+    /// Polymarket's relayer covers gas. Requires USDC.e deposited into the proxy wallet.
+    PolyProxy,
+}
+
 /// Persisted API credentials derived via L1 (ClobAuth EIP-712) auth.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Credentials {
@@ -15,9 +27,12 @@ pub struct Credentials {
     /// Ethereum address of the onchainos wallet used to derive these credentials.
     #[serde(default)]
     pub signing_address: String,
-    /// Polymarket proxy wallet address (maker for orders). Populated after polymarket.com onboarding.
+    /// Polymarket proxy wallet address (maker for orders).
     #[serde(default)]
     pub proxy_wallet: Option<String>,
+    /// Active trading mode. Defaults to EOA if not set (backwards-compatible).
+    #[serde(default)]
+    pub mode: TradingMode,
 }
 
 impl Credentials {
@@ -115,5 +130,5 @@ impl Urls {
     pub const CLOB: &'static str = "https://clob.polymarket.com";
     pub const GAMMA: &'static str = "https://gamma-api.polymarket.com";
     pub const DATA: &'static str = "https://data-api.polymarket.com";
-    pub const POLYGON_RPC: &'static str = "https://polygon-rpc.com";
+    pub const POLYGON_RPC: &'static str = "https://polygon.drpc.org";
 }

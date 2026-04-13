@@ -18,6 +18,7 @@ use super::buy::resolve_market_token;
 /// outcome: outcome label, case-insensitive (e.g. "yes", "no", "trump")
 /// shares: number of token shares to sell (human-readable)
 /// price: limit price in [0, 1], or None for market order (FOK)
+/// mode_override: optional one-time mode override ("eoa" or "proxy").
 pub async fn run(
     market_id: &str,
     outcome: &str,
@@ -28,6 +29,7 @@ pub async fn run(
     dry_run: bool,
     post_only: bool,
     expires: Option<u64>,
+    mode_override: Option<&str>,
 ) -> Result<()> {
     // Parse shares and validate order flags up front (before any network calls).
     let share_amount: f64 = shares.parse().context("invalid shares amount")?;
@@ -169,23 +171,58 @@ pub async fn run(
 
     // ── Auth phase ────────────────────────────────────────────────────────────
 
+    use crate::config::{Contracts, TradingMode};
+
     let signer_addr = get_wallet_address().await?;
     let creds = ensure_credentials(&client, &signer_addr).await?;
-    let maker_addr = signer_addr.clone();
 
-    // Check CTF token balance.
-    let token_balance = get_balance_allowance(&client, &signer_addr, &creds, "CONDITIONAL", Some(&token_id)).await?;
-    let balance_raw = token_balance.balance.as_deref().unwrap_or("0").parse::<u64>().unwrap_or(0);
-    let shares_needed_raw = to_token_units(share_amount);
+    // Resolve effective trading mode.
+    let effective_mode = match mode_override {
+        Some("proxy") => TradingMode::PolyProxy,
+        Some("eoa")   => TradingMode::Eoa,
+        _             => creds.mode.clone(),
+    };
 
-    if balance_raw < shares_needed_raw {
-        bail!(
-            "Insufficient token balance: have {} raw units ({:.6} shares), need {} raw units ({:.6} shares)",
-            balance_raw,
-            balance_raw as f64 / 1_000_000.0,
-            shares_needed_raw,
-            share_amount
-        );
+    let (maker_addr, sig_type) = match &effective_mode {
+        TradingMode::PolyProxy => {
+            let proxy = creds.proxy_wallet.as_ref().ok_or_else(|| anyhow::anyhow!(
+                "POLY_PROXY mode requires a proxy wallet. \
+                 Run `polymarket setup-proxy` to create one first."
+            ))?.clone();
+            eprintln!("[polymarket] Using POLY_PROXY mode — maker: {}", proxy);
+            (proxy, 1u8)
+        }
+        TradingMode::Eoa => (signer_addr.clone(), 0u8),
+    };
+
+    // Check CTF token balance (from maker's address).
+    // EOA mode: use CLOB API (reliable for EOA wallets).
+    // POLY_PROXY mode: CLOB API returns 0 for proxy wallets regardless of actual balance;
+    // skip the pre-flight check and let the CLOB server validate at order submission.
+    if effective_mode == TradingMode::Eoa {
+        let token_balance = get_balance_allowance(&client, &maker_addr, &creds, "CONDITIONAL", Some(&token_id)).await?;
+        let balance_raw = token_balance.balance.as_deref().unwrap_or("0").parse::<u64>().unwrap_or(0);
+        let shares_needed_raw = to_token_units(share_amount);
+
+        if balance_raw < shares_needed_raw {
+            // Check if the proxy wallet might hold these tokens and hint mode switch.
+            let proxy_hint = crate::config::load_credentials()
+                .ok()
+                .flatten()
+                .and_then(|c| c.proxy_wallet)
+                .map(|proxy| format!(
+                    " Your position tokens may be in the proxy wallet ({}). \
+                     Switch modes with: polymarket switch-mode --mode proxy",
+                    proxy
+                ))
+                .unwrap_or_default();
+            bail!(
+                "Insufficient token balance in EOA wallet: have {:.6} shares, need {:.6} shares.{}",
+                balance_raw as f64 / 1_000_000.0,
+                share_amount,
+                proxy_hint
+            );
+        }
     }
 
     // Warn if GCD alignment reduced the share amount.
@@ -198,38 +235,43 @@ pub async fn run(
         );
     }
 
-    // Check CTF token approval via on-chain isApprovedForAll (ERC-1155).
-    use crate::config::Contracts;
-    let already_approved = if neg_risk {
-        let ok1 = match is_ctf_approved_for_all(&signer_addr, Contracts::NEG_RISK_CTF_EXCHANGE).await {
-            Ok(v) => v,
-            Err(e) => {
-                eprintln!("[polymarket] Note: could not verify NEG_RISK_CTF_EXCHANGE approval ({}); will re-approve (setApprovalForAll is idempotent).", e);
-                false
+    // EOA mode: check and submit CTF setApprovalForAll if needed.
+    // POLY_PROXY mode: no approval tx — relayer handles settlement through the proxy.
+    if effective_mode == TradingMode::Eoa {
+        let already_approved = if neg_risk {
+            let ok1 = match is_ctf_approved_for_all(&signer_addr, Contracts::NEG_RISK_CTF_EXCHANGE).await {
+                Ok(v) => v,
+                Err(e) => {
+                    eprintln!("[polymarket] Note: could not verify NEG_RISK_CTF_EXCHANGE approval ({}); will re-approve.", e);
+                    false
+                }
+            };
+            let ok2 = match is_ctf_approved_for_all(&signer_addr, Contracts::NEG_RISK_ADAPTER).await {
+                Ok(v) => v,
+                Err(e) => {
+                    eprintln!("[polymarket] Note: could not verify NEG_RISK_ADAPTER approval ({}); will re-approve.", e);
+                    false
+                }
+            };
+            ok1 && ok2
+        } else {
+            match is_ctf_approved_for_all(&signer_addr, Contracts::CTF_EXCHANGE).await {
+                Ok(v) => v,
+                Err(e) => {
+                    eprintln!("[polymarket] Note: could not verify CTF_EXCHANGE approval ({}); will re-approve.", e);
+                    false
+                }
             }
         };
-        let ok2 = match is_ctf_approved_for_all(&signer_addr, Contracts::NEG_RISK_ADAPTER).await {
-            Ok(v) => v,
-            Err(e) => {
-                eprintln!("[polymarket] Note: could not verify NEG_RISK_ADAPTER approval ({}); will re-approve (setApprovalForAll is idempotent).", e);
-                false
-            }
-        };
-        ok1 && ok2
-    } else {
-        match is_ctf_approved_for_all(&signer_addr, Contracts::CTF_EXCHANGE).await {
-            Ok(v) => v,
-            Err(e) => {
-                eprintln!("[polymarket] Note: could not verify CTF_EXCHANGE approval ({}); will re-approve (setApprovalForAll is idempotent).", e);
-                false
-            }
+        if !already_approved || auto_approve {
+            let exchange_label = if neg_risk { "Neg Risk CTF Exchange" } else { "CTF Exchange" };
+            eprintln!("[polymarket] Approving CTF tokens for {}...", exchange_label);
+            let tx_hash = approve_ctf(neg_risk).await?;
+            eprintln!("[polymarket] Approval tx: {}", tx_hash);
+            eprintln!("[polymarket] Waiting for approval to confirm on-chain...");
+            crate::onchainos::wait_for_tx_receipt(&tx_hash, 30).await?;
+            eprintln!("[polymarket] Approval confirmed.");
         }
-    };
-    if !already_approved || auto_approve {
-        let exchange_label = if neg_risk { "Neg Risk CTF Exchange" } else { "CTF Exchange" };
-        eprintln!("[polymarket] Approving CTF tokens for {}...", exchange_label);
-        let tx_hash = approve_ctf(neg_risk).await?;
-        eprintln!("[polymarket] Approval tx: {}", tx_hash);
     }
 
     let salt = rand_salt();
@@ -246,7 +288,7 @@ pub async fn run(
         nonce: 0,
         fee_rate_bps,
         side: 1, // SELL
-        signature_type: 0,
+        signature_type: sig_type,
     };
 
     let signature = sign_order_via_onchainos(&params, neg_risk).await?;
@@ -263,7 +305,7 @@ pub async fn run(
         nonce: "0".to_string(),
         fee_rate_bps: fee_rate_bps.to_string(),
         side: "SELL".to_string(),
-        signature_type: 0,
+        signature_type: sig_type,
         signature,
     };
 
@@ -274,6 +316,9 @@ pub async fn run(
         post_only,
     };
 
+    // The order owner for L2 auth must always be the EOA (API key holder),
+    // regardless of trading mode. In POLY_PROXY mode the maker field in the
+    // order struct is the proxy, but the HTTP owner must match the API key.
     let resp = post_order(&client, &signer_addr, &creds, &order_req).await?;
 
     if resp.success != Some(true) {

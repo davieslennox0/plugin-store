@@ -1,7 +1,7 @@
 ---
 name: polymarket
 description: "Trade prediction markets on Polymarket - buy outcome tokens (YES/NO and categorical markets), check positions, list markets, manage orders, and redeem winning tokens on Polygon. Trigger phrases: buy polymarket shares, sell polymarket position, check my polymarket positions, list polymarket markets, get polymarket market, cancel polymarket order, redeem polymarket tokens, polymarket yes token, polymarket no token, prediction market trade, polymarket price, get started with polymarket, just installed polymarket, how do I use polymarket, set up polymarket, polymarket quickstart, new to polymarket, polymarket setup, help me trade on polymarket, place a bet on, buy prediction market, bet on, trade on prediction markets, prediction trading, place a prediction market bet, i want to bet on."
-version: "0.2.6"
+version: "0.3.0"
 author: "skylavis-sky"
 tags:
   - prediction-market
@@ -11,7 +11,6 @@ tags:
   - defi
   - clob
 ---
-
 
 ## Pre-flight Dependencies (auto-injected by Plugin Store CI)
 
@@ -30,21 +29,11 @@ npx skills add okx/onchainos-skills --yes --global
 npx skills add okx/plugin-store --skill plugin-store --yes --global
 ```
 
-### Install polymarket-plugin binary + update wrapper (auto-injected)
+### Install polymarket binary (auto-injected)
 
 ```bash
-# Install update checker (shared by all plugins, only once)
-CHECKER="$HOME/.plugin-store/update-checker.py"
-if [ ! -f "$CHECKER" ]; then
-  mkdir -p "$HOME/.plugin-store"
-  curl -fsSL "https://raw.githubusercontent.com/okx/plugin-store/main/scripts/update-checker.py" -o "$CHECKER" 2>/dev/null || true
-fi
-
-# Clean up old installation (direct binary without wrapper)
-rm -f "$HOME/.local/bin/polymarket-plugin" "$HOME/.local/bin/.polymarket-plugin-core" 2>/dev/null
-
-# Download binary to hidden name (.polymarket-plugin-core)
-OS=$(uname -s | tr A-Z a-z)
+if ! command -v polymarket >/dev/null 2>&1; then
+  OS=$(uname -s | tr A-Z a-z)
   ARCH=$(uname -m)
   EXT=""
   case "${OS}_${ARCH}" in
@@ -59,56 +48,34 @@ OS=$(uname -s | tr A-Z a-z)
     mingw*_aarch64|msys*_aarch64|cygwin*_aarch64)  TARGET="aarch64-pc-windows-msvc"; EXT=".exe" ;;
   esac
   mkdir -p ~/.local/bin
-  curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/polymarket-plugin@0.2.6/polymarket-plugin-${TARGET}${EXT}" -o ~/.local/bin/.polymarket-plugin-core${EXT}
-  chmod +x ~/.local/bin/.polymarket-plugin-core${EXT}
-
-# Generate wrapper script (version check + exec core binary)
-cat > ~/.local/bin/polymarket-plugin << 'WRAPPER_EOF'
-#!/bin/sh
-PLUGIN_NAME="polymarket-plugin"
-PLUGIN_VERSION="0.2.6"
-CHECKER="$HOME/.plugin-store/update-checker.py"
-CORE="$(dirname "$0")/.polymarket-plugin-core"
-if [ -f "$CHECKER" ]; then
-  if command -v python3 >/dev/null 2>&1; then
-    python3 "$CHECKER" "$PLUGIN_NAME" "$PLUGIN_VERSION"
-  elif command -v python >/dev/null 2>&1; then
-    python "$CHECKER" "$PLUGIN_NAME" "$PLUGIN_VERSION"
-  fi
+  curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/polymarket@0.3.0/polymarket-${TARGET}${EXT}" -o ~/.local/bin/polymarket${EXT}
+  chmod +x ~/.local/bin/polymarket${EXT}
 fi
-exec "$CORE" "$@"
-WRAPPER_EOF
-chmod +x ~/.local/bin/polymarket-plugin
 ```
 
 ### Report install (auto-injected, runs once)
 
 ```bash
-REPORT_FLAG="$HOME/.plugin-store/reported/polymarket-plugin"
+REPORT_FLAG="$HOME/.plugin-store/reported/polymarket"
 if [ ! -f "$REPORT_FLAG" ]; then
   mkdir -p "$HOME/.plugin-store/reported"
-  # Device fingerprint → SHA256 → 32-char device ID
   DEV_RAW="$(hostname):$(uname -s):$(uname -m):$HOME"
   DEV_ID=$(echo -n "$DEV_RAW" | shasum -a 256 | head -c 32)
-  # HMAC signature (obfuscated key, same as CLI binary)
   _K=$(echo 'OE9nNWFRUFdfSVJkektrMExOV2RNeTIzV2JibXo3ZWNTbExJUDFIWnVoZw==' | base64 -d 2>/dev/null || echo 'OE9nNWFRUFdfSVJkektrMExOV2RNeTIzV2JibXo3ZWNTbExJUDFIWnVoZw==' | openssl base64 -d)
   HMAC_SIG=$(echo -n "${_K}${DEV_ID}" | shasum -a 256 | head -c 8)
   DIV_ID="${DEV_ID}${HMAC_SIG}"
   unset _K
-  # Report to Vercel stats
   curl -s -X POST "https://plugin-store-dun.vercel.app/install" \
     -H "Content-Type: application/json" \
-    -d '{"name":"polymarket-plugin","version":"0.2.6"}' >/dev/null 2>&1 || true
-  # Report to OKX API (with HMAC-signed device token)
+    -d '{"name":"polymarket","version":"0.3.0"}' >/dev/null 2>&1 || true
   curl -s -X POST "https://www.okx.com/priapi/v1/wallet/plugins/download/report" \
     -H "Content-Type: application/json" \
-    -d '{"pluginName":"polymarket-plugin","divId":"'"$DIV_ID"'"}' >/dev/null 2>&1 || true
+    -d '{"pluginName":"polymarket","divId":"'"$DIV_ID"'"}' >/dev/null 2>&1 || true
   touch "$REPORT_FLAG"
 fi
 ```
 
 ---
-
 
 ## Pre-flight Dependencies
 
@@ -140,9 +107,12 @@ When a user signals they are **new or just installed** this plugin — e.g. "I j
 
 1. **Check wallet** — run `onchainos wallet addresses --chain 137`. If no address, direct them to connect via `onchainos wallet login`. Also verify `onchainos wallet sign-message --help` works — if missing, run `onchainos upgrade` and re-verify. Do not proceed to trading or suggest workarounds (MetaMask, private key export, manual curl signing) until sign-message is confirmed working.
 2. **Check access** — run `polymarket check-access`. If `accessible: false`, stop and show the warning. Do not proceed to funding.
-3. **Check balance** — run `onchainos wallet balance --chain 137`. Show USDC.e balance. If insufficient, explain bridging options (OKX Web3 bridge or CEX withdrawal to Polygon).
-4. **Find a market** — run `polymarket list-markets` and offer to help them find something interesting. Ask what topics they care about.
-5. **Place a trade** — once they pick a market, guide them through `buy` or `sell` with explicit confirmation of market, outcome, and amount before executing.
+3. **Choose trading mode** — explain the two modes and ask which they prefer:
+   - **EOA mode** (default): trade directly from the onchainos wallet; each buy requires a USDC.e `approve` tx (POL gas, typically < $0.01)
+   - **POLY_PROXY mode** (recommended): deploy a proxy wallet once via `polymarket setup-proxy` (one-time ~$0.01 POL), then trade without any gas. USDC.e must be deposited into the proxy via `polymarket deposit`.
+4. **Check balance** — run `polymarket balance`. Shows POL and USDC.e for both EOA and proxy wallet (if set up). If insufficient, explain bridging options (OKX Web3 bridge or CEX withdrawal to Polygon). Verify the `usdc_e_contract` field matches `0x2791...a84174` before bridging.
+5. **Find a market** — run `polymarket list-markets` and offer to help them find something interesting. Ask what topics they care about.
+6. **Place a trade** — once they pick a market, guide them through `buy` or `sell` with explicit confirmation of market, outcome, and amount before executing.
 
 Do not dump all steps at once. Guide conversationally — confirm each step before moving on.
 
@@ -172,9 +142,11 @@ Polymarket is a prediction market platform on Polygon where users trade outcome 
 
 **Architecture:**
 - Read-only commands (`list-markets`, `get-market`, `get-positions`) — direct REST API calls; no wallet required
-- Write commands (`buy`, `sell`, `cancel`) — EOA mode (signature_type=0): maker = signer = onchainos wallet; EIP-712 signing via `onchainos sign-message --type eip712`; no proxy wallet or polymarket.com onboarding required
-- On-chain approvals — submitted via `onchainos wallet contract-call --chain 137 --force`
-- **Approval model**: `buy` uses exact-amount USDC.e approval (`approve(exchange, order_amount)`) — only the precise order amount is approved, never an unlimited allowance. `sell` uses `setApprovalForAll(exchange, true)` for CTF outcome tokens — blanket ERC-1155 approval (per-token amounts are not supported by the ERC-1155 standard; this is the same model used by Polymarket's web interface).
+- Write commands (`buy`, `sell`, `cancel`) support two trading modes:
+  - **EOA mode** (default, signature_type=0): maker = onchainos wallet; each buy requires a USDC.e `approve` tx costing POL gas
+  - **POLY_PROXY mode** (signature_type=1): maker = proxy wallet deployed via `setup-proxy`; Polymarket's relayer pays gas; no POL needed per trade
+- On-chain ops submitted via `onchainos wallet contract-call --chain 137 --force`
+- **Approval model (EOA)**: `buy` uses exact-amount USDC.e `approve(exchange, amount)`. `sell` uses `setApprovalForAll(exchange, true)` for CTF tokens (blanket ERC-1155 approval; same as Polymarket's web interface). No on-chain approvals needed in POLY_PROXY mode.
 
 **How it works:**
 1. On first trading command, API credentials are auto-derived from the onchainos wallet via Polymarket's CLOB API and cached at `~/.config/polymarket/creds.json`
@@ -219,33 +191,54 @@ polymarket check-access
 - `accessible: true` — you're good to proceed
 - `accessible: false` — your IP is restricted; **do not top up USDC.e** until you have reviewed Polymarket's Terms of Use
 
-### Step 3 — Top up USDC.e on Polygon
+### Step 3 — Choose a trading mode
 
-Polymarket uses **USDC.e** (bridged USDC) on Polygon as collateral. Check your balance:
+There are two modes. Pick one before topping up:
 
+| | **EOA mode** (default) | **POLY_PROXY mode** (recommended) |
+|--|--|--|
+| Maker | onchainos wallet | proxy contract wallet |
+| POL for gas | Required per `buy`/`sell` approve tx | Not needed — relayer pays |
+| Setup | None | One-time `setup-proxy` (costs ~$0.01 POL) |
+| USDC.e lives in | EOA wallet | Proxy wallet (top up via `deposit`) |
+
+**EOA mode** — works out of the box, but every buy needs a USDC.e `approve` on-chain (POL gas).
+
+**POLY_PROXY mode** — one-time setup, then trade without spending POL:
 ```bash
-onchainos wallet balance --chain 137
+polymarket setup-proxy   # deploy proxy wallet (one-time ~$0.01 gas)
+polymarket deposit --amount 50   # fund it with USDC.e
 ```
 
-Look for `USDC.e` (contract `0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174`). If your balance is zero or insufficient:
+### Step 4 — Top up USDC.e on Polygon
+
+Check your current balances:
+
+```bash
+polymarket balance
+```
+
+This shows POL and USDC.e for both your EOA wallet and proxy wallet (if set up). The `usdc_e_contract` field shows the truncated contract address — verify it matches `0x2791...a84174` before bridging.
+
+If balance is zero or insufficient:
 
 - **From another chain**: bridge USDC to Polygon via the OKX Web3 bridge or Polygon Bridge
-- **From a CEX**: withdraw USDC to your Polygon address via the Polygon network
-- **Minimum suggested**: $5–$10 to cover a small test trade plus gas (Polygon gas is cheap, typically < $0.01 per tx)
+- **From a CEX**: withdraw USDC to your Polygon address (EOA) via the Polygon network, then run `polymarket deposit` to move it to the proxy wallet if using POLY_PROXY mode
+- **Minimum suggested**: $5–$10 for a small test trade. EOA mode also needs a small amount of POL for gas (typically < $0.01 per approve tx)
 
-> **There is no "Polymarket deposit"**: Polymarket does not have a deposit step. USDC.e lives in your onchainos wallet on Polygon and is spent directly when you buy shares — no transfer to a Polymarket account is required or possible.
+> **There is no "Polymarket deposit"**: Polymarket does not have a deposit step. USDC.e lives in your wallet on Polygon and is spent directly when you buy shares.
 
-### Step 4 — Find a market and place a trade
+### Step 5 — Find a market and place a trade
 
 ```bash
 # Browse active markets
 polymarket list-markets --keyword "trump"
 
 # Get details on a specific market
-polymarket get-market --market-id will-trump-win-2024
+polymarket get-market --market-id <slug>
 
 # Buy $5 of YES shares at market price
-polymarket buy --market-id will-trump-win-2024 --outcome yes --amount 5
+polymarket buy --market-id <slug> --outcome yes --amount 5
 
 # Check your open positions
 polymarket get-positions
@@ -263,7 +256,7 @@ The first `buy` or `sell` automatically derives your Polymarket API credentials 
 polymarket --version
 ```
 
-Expected: `polymarket 0.2.6`. If missing or wrong version, run the install script in **Pre-flight Dependencies** above.
+Expected: `polymarket 0.3.0`. If missing or wrong version, run the install script in **Pre-flight Dependencies** above.
 
 ### Step 2 — Install `onchainos` CLI (required for buy/sell/cancel/redeem only)
 
@@ -308,6 +301,23 @@ Confirm the wallet holds sufficient USDC.e (contract `0x2791Bca1f2de4661ED88A30C
 ---
 
 ## Commands
+
+| Command | Auth | Description |
+|---------|------|-------------|
+| `check-access` | No | Verify region is not restricted |
+| `list-markets` | No | Browse active prediction markets |
+| `get-market` | No | Get market details and order book |
+| `get-positions` | No | View open positions |
+| `balance` | No | Show POL and USDC.e balances (EOA + proxy wallet) |
+| `buy` | Yes | Buy YES/NO outcome shares |
+| `sell` | Yes | Sell outcome shares |
+| `cancel` | Yes | Cancel an open order |
+| `redeem` | Yes | Redeem winning tokens after market resolves |
+| `setup-proxy` | Yes | Deploy proxy wallet for gasless trading (one-time) |
+| `deposit` | Yes | Transfer USDC.e from EOA to proxy wallet |
+| `switch-mode` | Yes | Switch default trading mode (eoa / proxy) |
+
+---
 
 ### `check-access` — Verify Region is Not Restricted
 
@@ -382,6 +392,29 @@ polymarket get-market --market-id 0xabc123...
 
 ---
 
+### `balance` — View Wallet Balances
+
+Show POL and USDC.e balances for the EOA wallet and proxy wallet (if initialized).
+
+```
+polymarket balance
+```
+
+**Auth required:** No (reads on-chain via Polygon RPC)
+
+**Output fields:**
+- `eoa_wallet`: `address`, `pol`, `usdc_e`, `usdc_e_contract`
+- `proxy_wallet` (only shown if proxy wallet is initialized): `address`, `pol`, `usdc_e`, `usdc_e_contract`
+
+`usdc_e_contract` is shown in truncated format (`0x2791...a84174`) — verify it matches before bridging funds.
+
+**Example:**
+```bash
+polymarket balance
+```
+
+---
+
 ### `get-positions` — View Open Positions
 
 ```
@@ -391,11 +424,15 @@ polymarket get-positions [--address <wallet_address>]
 **Flags:**
 | Flag | Description | Default |
 |------|-------------|---------|
-| `--address` | Wallet address to query | Active onchainos wallet |
+| `--address` | Wallet address to query | Active onchainos wallet (or proxy wallet if POLY_PROXY mode) |
 
 **Auth required:** No (uses public Data API)
 
-**Output fields:** `title`, `outcome`, `size` (shares), `avg_price`, `cur_price`, `current_value`, `cash_pnl`, `percent_pnl`, `realized_pnl`, `redeemable`, `end_date`
+**Default behavior (no `--address`):**
+- POLY_PROXY mode → queries proxy wallet
+- EOA mode → queries EOA wallet + shows `pol_balance` and `usdc_e_balance`
+
+**Output fields:** `title`, `outcome`, `size` (shares), `avg_price`, `initial_value`, `total_bought`, `cur_price`, `current_value`, `cash_pnl`, `percent_pnl`, `realized_pnl`, `percent_realized_pnl`, `redeemable`, `redeemable_note`, `mergeable`, `opposite_outcome`, `opposite_asset`, `event_id`, `event_slug`, `end_date`
 
 **Example:**
 ```
@@ -426,11 +463,12 @@ polymarket buy --market-id <id> --outcome <outcome> --amount <usdc> [--price <0-
 | `--round-up` | If amount is too small for divisibility constraints, snap up to the minimum valid amount rather than erroring. Logs the rounded amount to stderr and includes `rounded_up: true` in output. | false |
 | `--post-only` | Maker-only: reject if the order would immediately cross the spread (become a taker). Requires `--order-type GTC`. Qualifies for Polymarket maker rebates (up to 50% of fees returned daily). Incompatible with `--order-type FOK`. | false |
 | `--expires` | Unix timestamp (seconds, UTC) at which the order auto-cancels. Minimum 90 seconds in the future (CLOB enforces a "now + 1 min 30 s" security threshold). Automatically sets `order_type` to `GTD` (Good Till Date) — do not also pass `--order-type GTC`. Example: `--expires $(date -d '+1 hour' +%s)` | — |
+| `--mode` | Override trading mode for this order only: `eoa` or `proxy`. Does not change the stored default. | — |
 | `--confirm` | Confirm a previously gated action (reserved for future use) | false |
 
 **Auth required:** Yes — onchainos wallet; EIP-712 order signing via `onchainos sign-message --type eip712`
 
-**On-chain ops:** If USDC.e allowance is insufficient, runs `onchainos wallet contract-call --chain 137 --to <USDC.e> --input-data <approve_calldata> --force` automatically.
+**On-chain ops (EOA mode only):** If USDC.e allowance is insufficient, runs `onchainos wallet contract-call` automatically. In POLY_PROXY mode, no on-chain approve is needed — the relayer handles settlement.
 
 > ⚠️ **Approval notice**: Before each buy, the plugin checks the current USDC.e allowance and, if insufficient, submits an `approve(exchange, amount)` transaction for **exactly the order amount** — no more. This fires automatically with no additional onchainos confirmation gate. **Agent confirmation before calling `buy` is the sole safety gate for this approval.**
 
@@ -483,11 +521,12 @@ polymarket sell --market-id <id> --outcome <outcome> --shares <amount> [--price 
 | `--post-only` | Maker-only: reject if the order would immediately cross the spread. Requires `--order-type GTC`. Qualifies for maker rebates. Incompatible with `--order-type FOK`. | false |
 | `--expires` | Unix timestamp (seconds, UTC) at which the order auto-cancels. Minimum 90 seconds in the future. Auto-sets `order_type` to `GTD`. | — |
 | `--dry-run` | Simulate without submitting the order or triggering any on-chain approval. Prints a confirmation JSON and exits. Use to verify parameters before a real sell. | false |
+| `--mode` | Override trading mode for this order only: `eoa` or `proxy`. Does not change the stored default. | — |
 | `--confirm` | Confirm a low-price market sell that was previously gated | false |
 
 **Auth required:** Yes — onchainos wallet; EIP-712 order signing via `onchainos sign-message --type eip712`
 
-**On-chain ops:** If CTF token allowance is insufficient, runs `onchainos wallet contract-call --chain 137 --to <CTF> --input-data <setApprovalForAll_calldata> --force` automatically.
+**On-chain ops (EOA mode only):** If CTF token allowance is insufficient, submits `setApprovalForAll` automatically. In POLY_PROXY mode, no on-chain approval is needed.
 
 > ⚠️ **setApprovalForAll notice**: The CTF token approval calls `setApprovalForAll(exchange, true)` — this grants the exchange contract blanket approval over **all** ERC-1155 outcome tokens in the wallet, not just the tokens being sold. This is the standard ERC-1155 approval model (per-token amounts are not supported by the standard) and is the same mechanism used by Polymarket's own web interface. Always confirm the user understands this before their first sell.
 
@@ -617,6 +656,124 @@ polymarket redeem --market-id will-trump-win-2024 --dry-run
 # After user confirms:
 polymarket redeem --market-id will-trump-win-2024
 ```
+
+---
+
+### `setup-proxy` — Create a Proxy Wallet (Gasless Trading)
+
+Deploy a Polymarket proxy wallet and switch to POLY_PROXY mode. One-time POL gas cost; all subsequent trading is relayer-paid (no POL needed per order).
+
+```
+polymarket setup-proxy [--dry-run]
+```
+
+**Flags:**
+| Flag | Description |
+|------|-------------|
+| `--dry-run` | Preview the action without submitting any transaction |
+
+**Auth required:** Yes — onchainos wallet
+
+**Flow:**
+1. If proxy wallet already exists and mode is already POLY_PROXY → returns current config
+2. If proxy wallet exists but mode is EOA → switches mode to POLY_PROXY (no gas cost)
+3. If no proxy wallet → calls `PROXY_FACTORY.proxy([])` on-chain (one POL gas tx) → resolves proxy address from the transaction trace → saves proxy wallet + mode to creds
+
+**Output fields:** `status` (already_configured | mode_switched | created), `proxy_wallet`, `mode`, `deploy_tx` (if new proxy was created)
+
+**Agent flow:**
+1. Run `polymarket setup-proxy --dry-run` to preview
+2. After user confirms, run `polymarket setup-proxy`
+3. Follow up with `polymarket deposit --amount <N>` to fund the proxy wallet
+
+**Example:**
+```bash
+polymarket setup-proxy --dry-run
+polymarket setup-proxy
+```
+
+---
+
+### `deposit` — Fund the Proxy Wallet
+
+Transfer USDC.e from the EOA wallet to the proxy wallet. Only applicable in POLY_PROXY mode. Requires `setup-proxy` to have been run first.
+
+```
+polymarket deposit --amount <usdc> [--dry-run]
+```
+
+**Flags:**
+| Flag | Description |
+|------|-------------|
+| `--amount` | USDC.e amount to transfer, e.g. `50` = $50.00 | required |
+| `--dry-run` | Preview the transfer without submitting |
+
+**Auth required:** Yes — onchainos wallet (signs the on-chain ERC-20 transfer)
+
+**Output fields:** `tx_hash`, `from` (EOA), `to` (proxy wallet), `token`, `amount`
+
+**Example:**
+```bash
+polymarket deposit --amount 100 --dry-run
+polymarket deposit --amount 100
+```
+
+---
+
+### `withdraw` — Withdraw from Proxy Wallet
+
+Transfer USDC.e from the proxy wallet back to the EOA wallet. Only applicable in POLY_PROXY mode.
+
+```
+polymarket withdraw --amount <usdc> [--dry-run]
+```
+
+**Flags:**
+| Flag | Description |
+|------|-------------|
+| `--amount` | USDC.e amount to withdraw, e.g. `50` = $50.00 | required |
+| `--dry-run` | Preview the withdrawal without submitting |
+
+**Auth required:** Yes — onchainos wallet (signs via proxy factory)
+
+**Output fields:** `tx_hash`, `from` (proxy wallet), `to` (EOA), `token`, `amount`
+
+**Example:**
+```bash
+polymarket withdraw --amount 50 --dry-run
+polymarket withdraw --amount 50
+```
+
+---
+
+### `switch-mode` — Change Default Trading Mode
+
+Permanently change the stored default trading mode between EOA and POLY_PROXY.
+
+```
+polymarket switch-mode --mode <eoa|proxy>
+```
+
+**Flags:**
+| Flag | Description |
+|------|-------------|
+| `--mode` | Trading mode: `eoa` or `proxy` | required |
+
+**Auth required:** Yes (reads stored credentials)
+
+**Modes:**
+- **EOA** — maker = onchainos wallet; each buy requires a USDC.e `approve` tx (POL gas)
+- **POLY_PROXY** — maker = proxy wallet; Polymarket's relayer pays gas; no POL needed per trade
+
+**Output fields:** `mode`, `description`, `proxy_wallet`
+
+**Example:**
+```bash
+polymarket switch-mode --mode proxy
+polymarket switch-mode --mode eoa
+```
+
+> **Note:** `--mode eoa|proxy` on `buy`/`sell` is a one-time override for a single order. `switch-mode` changes the persistent default.
 
 ---
 
@@ -785,4 +942,3 @@ Fees are deducted by the exchange from the received amount. The `feeRateBps` fie
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for full version history. Current version: **0.2.6** (2026-04-12).
-
