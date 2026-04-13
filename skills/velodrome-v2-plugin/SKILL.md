@@ -444,3 +444,4 @@ For any other token, pass the hex address directly.
 - **Price impact**: No on-chain price impact check is performed before swap confirmation. For large swaps relative to pool liquidity, set a tighter `--slippage` value (e.g. `--slippage 0.1`) and review the quoted `amountOutMin` before adding `--confirm`.
 
 
+
