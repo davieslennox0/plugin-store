@@ -46,32 +46,32 @@ if [ "$INSTALLED_VERSION" != "$REQUIRED_VERSION" ]; then
     mingw*_aarch64|msys*_aarch64|cygwin*_aarch64)  TARGET="aarch64-pc-windows-msvc"; EXT=".exe" ;;
     *) echo "Unsupported platform: ${OS}_${ARCH}"; exit 1 ;;
   esac
-  BASE_URL="https://github.com/okx/plugin-store/releases/download/plugins/pump-fun@${REQUIRED_VERSION}"
+  BASE_URL="https://github.com/okx/plugin-store/releases/download/plugins/pump-fun-plugin@${REQUIRED_VERSION}"
   mkdir -p ~/.local/bin
   curl -fsSL "${BASE_URL}/checksums.txt" -o /tmp/pump-fun-checksums.txt
-  curl -fsSL "${BASE_URL}/pump-fun-${TARGET}${EXT}" -o ~/.local/bin/pump-fun${EXT}
+  curl -fsSL "${BASE_URL}/pump-fun-plugin-${TARGET}${EXT}" -o ~/.local/bin/pump-fun-plugin${EXT}
   EXPECTED=$(grep "pump-fun-${TARGET}${EXT}" /tmp/pump-fun-checksums.txt | awk '{print $1}')
   if command -v sha256sum >/dev/null 2>&1; then
-    ACTUAL=$(sha256sum ~/.local/bin/pump-fun${EXT} | awk '{print $1}')
+    ACTUAL=$(sha256sum ~/.local/bin/pump-fun-plugin${EXT} | awk '{print $1}')
   elif command -v shasum >/dev/null 2>&1; then
-    ACTUAL=$(shasum -a 256 ~/.local/bin/pump-fun${EXT} | awk '{print $1}')
+    ACTUAL=$(shasum -a 256 ~/.local/bin/pump-fun-plugin${EXT} | awk '{print $1}')
   else
     echo "Warning: cannot verify checksum" && ACTUAL="$EXPECTED"
   fi
   if [ "$ACTUAL" != "$EXPECTED" ]; then
     echo "Checksum mismatch for pump-fun-${TARGET}${EXT} — aborting install"
-    rm -f ~/.local/bin/pump-fun${EXT} /tmp/pump-fun-checksums.txt
+    rm -f ~/.local/bin/pump-fun-plugin${EXT} /tmp/pump-fun-checksums.txt
     exit 1
   fi
   rm -f /tmp/pump-fun-checksums.txt
-  chmod +x ~/.local/bin/pump-fun${EXT}
+  chmod +x ~/.local/bin/pump-fun-plugin-plugin${EXT}
 fi
 ```
 
 ### Report install (auto-injected, runs once)
 
 ```bash
-REPORT_FLAG="$HOME/.plugin-store/reported/pump-fun"
+REPORT_FLAG="$HOME/.plugin-store/reported/pump-fun-plugin"
 if [ ! -f "$REPORT_FLAG" ]; then
   mkdir -p "$HOME/.plugin-store/reported"
   # Device fingerprint → SHA256 → 32-char device ID
@@ -85,11 +85,11 @@ if [ ! -f "$REPORT_FLAG" ]; then
   # Report to Vercel stats
   curl -s -X POST "https://plugin-store-dun.vercel.app/install" \
     -H "Content-Type: application/json" \
-    -d '{"name":"pump-fun","version":"0.1.2"}' >/dev/null 2>&1 || true
+    -d '{"name":"pump-fun-plugin","version":"0.1.2"}' >/dev/null 2>&1 || true
   # Report to OKX API (with HMAC-signed device token)
   curl -s -X POST "https://www.okx.com/priapi/v1/wallet/plugins/download/report" \
     -H "Content-Type: application/json" \
-    -d '{"pluginName":"pump-fun","divId":"'"$DIV_ID"'"}' >/dev/null 2>&1 || true
+    -d '{"pluginName":"pump-fun-plugin","divId":"'"$DIV_ID"'"}' >/dev/null 2>&1 || true
   touch "$REPORT_FLAG"
 fi
 ```

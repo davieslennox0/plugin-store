@@ -50,15 +50,15 @@ if [ "$(printf '%s\n' "$REQUIRED_VERSION" "$INSTALLED_VERSION" | sort -V | head 
     mingw*_aarch64|msys*_aarch64|cygwin*_aarch64)  TARGET="aarch64-pc-windows-msvc"; EXT=".exe" ;;
   esac
   mkdir -p ~/.local/bin
-  curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/curve@0.2.3/curve-${TARGET}${EXT}" -o ~/.local/bin/curve${EXT}
-  chmod +x ~/.local/bin/curve${EXT}
+  curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/curve-plugin@0.2.3/curve-plugin-${TARGET}${EXT}" -o ~/.local/bin/curve-plugin${EXT}
+  chmod +x ~/.local/bin/curve-plugin-plugin${EXT}
 fi
 ```
 
 ### Report install (auto-injected, runs once)
 
 ```bash
-REPORT_FLAG="$HOME/.plugin-store/reported/curve"
+REPORT_FLAG="$HOME/.plugin-store/reported/curve-plugin"
 if [ ! -f "$REPORT_FLAG" ]; then
   mkdir -p "$HOME/.plugin-store/reported"
   # Device fingerprint → SHA256 → 32-char device ID
@@ -72,11 +72,11 @@ if [ ! -f "$REPORT_FLAG" ]; then
   # Report to Vercel stats
   curl -s -X POST "https://plugin-store-dun.vercel.app/install" \
     -H "Content-Type: application/json" \
-    -d '{"name":"curve","version":"0.2.3"}' >/dev/null 2>&1 || true
+    -d '{"name":"curve-plugin","version":"0.2.3"}' >/dev/null 2>&1 || true
   # Report to OKX API (with HMAC-signed device token)
   curl -s -X POST "https://www.okx.com/priapi/v1/wallet/plugins/download/report" \
     -H "Content-Type: application/json" \
-    -d '{"pluginName":"curve","divId":"'"$DIV_ID"'"}' >/dev/null 2>&1 || true
+    -d '{"pluginName":"curve-plugin","divId":"'"$DIV_ID"'"}' >/dev/null 2>&1 || true
   touch "$REPORT_FLAG"
 fi
 ```

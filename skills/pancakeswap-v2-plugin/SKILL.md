@@ -54,32 +54,32 @@ if [ "$INSTALLED_VERSION" != "$REQUIRED_VERSION" ]; then
     mingw*_aarch64|msys*_aarch64|cygwin*_aarch64)  TARGET="aarch64-pc-windows-msvc"; EXT=".exe" ;;
     *) echo "Unsupported platform: ${OS}_${ARCH}"; exit 1 ;;
   esac
-  BASE_URL="https://github.com/okx/plugin-store/releases/download/plugins/pancakeswap-v2@${REQUIRED_VERSION}"
+  BASE_URL="https://github.com/okx/plugin-store/releases/download/plugins/pancakeswap-v2-plugin@${REQUIRED_VERSION}"
   mkdir -p ~/.local/bin
   curl -fsSL "${BASE_URL}/checksums.txt" -o /tmp/pancakeswap-v2-checksums.txt
-  curl -fsSL "${BASE_URL}/pancakeswap-v2-${TARGET}${EXT}" -o ~/.local/bin/pancakeswap-v2${EXT}
+  curl -fsSL "${BASE_URL}/pancakeswap-v2-plugin-${TARGET}${EXT}" -o ~/.local/bin/pancakeswap-v2-plugin${EXT}
   EXPECTED=$(grep "pancakeswap-v2-${TARGET}${EXT}" /tmp/pancakeswap-v2-checksums.txt | awk '{print $1}')
   if command -v sha256sum >/dev/null 2>&1; then
-    ACTUAL=$(sha256sum ~/.local/bin/pancakeswap-v2${EXT} | awk '{print $1}')
+    ACTUAL=$(sha256sum ~/.local/bin/pancakeswap-v2-plugin${EXT} | awk '{print $1}')
   elif command -v shasum >/dev/null 2>&1; then
-    ACTUAL=$(shasum -a 256 ~/.local/bin/pancakeswap-v2${EXT} | awk '{print $1}')
+    ACTUAL=$(shasum -a 256 ~/.local/bin/pancakeswap-v2-plugin${EXT} | awk '{print $1}')
   else
     echo "Warning: cannot verify checksum (no sha256sum or shasum found)" && ACTUAL="$EXPECTED"
   fi
   if [ "$ACTUAL" != "$EXPECTED" ]; then
     echo "Checksum mismatch for pancakeswap-v2-${TARGET}${EXT} — aborting install"
-    rm -f ~/.local/bin/pancakeswap-v2${EXT} /tmp/pancakeswap-v2-checksums.txt
+    rm -f ~/.local/bin/pancakeswap-v2-plugin${EXT} /tmp/pancakeswap-v2-checksums.txt
     exit 1
   fi
   rm -f /tmp/pancakeswap-v2-checksums.txt
-  chmod +x ~/.local/bin/pancakeswap-v2${EXT}
+  chmod +x ~/.local/bin/pancakeswap-v2-plugin-plugin${EXT}
 fi
 ```
 
 ### Report install (auto-injected, runs once)
 
 ```bash
-REPORT_FLAG="$HOME/.plugin-store/reported/pancakeswap-v2"
+REPORT_FLAG="$HOME/.plugin-store/reported/pancakeswap-v2-plugin"
 if [ ! -f "$REPORT_FLAG" ]; then
   mkdir -p "$HOME/.plugin-store/reported"
   DEV_RAW="$(hostname):$(uname -s):$(uname -m):$HOME"
@@ -90,10 +90,10 @@ if [ ! -f "$REPORT_FLAG" ]; then
   unset _K
   curl -s -X POST "https://plugin-store-dun.vercel.app/install" \
     -H "Content-Type: application/json" \
-    -d '{"name":"pancakeswap-v2","version":"0.2.3"}' >/dev/null 2>&1 || true
+    -d '{"name":"pancakeswap-v2-plugin","version":"0.2.3"}' >/dev/null 2>&1 || true
   curl -s -X POST "https://www.okx.com/priapi/v1/wallet/plugins/download/report" \
     -H "Content-Type: application/json" \
-    -d '{"pluginName":"pancakeswap-v2","divId":"'"$DIV_ID"'"}' >/dev/null 2>&1 || true
+    -d '{"pluginName":"pancakeswap-v2-plugin","divId":"'"$DIV_ID"'"}' >/dev/null 2>&1 || true
   touch "$REPORT_FLAG"
 fi
 ```
@@ -114,8 +114,8 @@ Before executing any write operation, verify the environment is ready:
 >   linux_x86_64)  TARGET="x86_64-unknown-linux-gnu" ;;
 >   linux_aarch64) TARGET="aarch64-unknown-linux-gnu" ;;
 > esac
-> curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/pancakeswap-v2@0.2.3/pancakeswap-v2-${TARGET}" \
->   -o ~/.local/bin/pancakeswap-v2 && chmod +x ~/.local/bin/pancakeswap-v2
+> curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/pancakeswap-v2-plugin@0.2.3/pancakeswap-v2-plugin-${TARGET}" \
+>   -o ~/.local/bin/pancakeswap-v2 && chmod +x ~/.local/bin/pancakeswap-v2-plugin
 > ```
 
 ```bash

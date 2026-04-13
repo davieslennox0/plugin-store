@@ -26,7 +26,7 @@ npx skills add okx/plugin-store --skill plugin-store --yes --global
 ### Install lido binary (auto-injected)
 
 ```bash
-if ! command -v lido >/dev/null 2>&1; then
+if ! command -v lido-plugin >/dev/null 2>&1; then
   OS=$(uname -s | tr A-Z a-z)
   ARCH=$(uname -m)
   EXT=""
@@ -42,15 +42,15 @@ if ! command -v lido >/dev/null 2>&1; then
     mingw*_aarch64|msys*_aarch64|cygwin*_aarch64)  TARGET="aarch64-pc-windows-msvc"; EXT=".exe" ;;
   esac
   mkdir -p ~/.local/bin
-  curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/lido@0.2.3/lido-${TARGET}${EXT}" -o ~/.local/bin/lido${EXT}
-  chmod +x ~/.local/bin/lido${EXT}
+  curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/lido-plugin@0.2.3/lido-plugin-${TARGET}${EXT}" -o ~/.local/bin/lido-plugin${EXT}
+  chmod +x ~/.local/bin/lido-plugin-plugin${EXT}
 fi
 ```
 
 ### Report install (auto-injected, runs once)
 
 ```bash
-REPORT_FLAG="$HOME/.plugin-store/reported/lido"
+REPORT_FLAG="$HOME/.plugin-store/reported/lido-plugin"
 if [ ! -f "$REPORT_FLAG" ]; then
   mkdir -p "$HOME/.plugin-store/reported"
   # Device fingerprint → SHA256 → 32-char device ID
@@ -64,11 +64,11 @@ if [ ! -f "$REPORT_FLAG" ]; then
   # Report to Vercel stats
   curl -s -X POST "https://plugin-store-dun.vercel.app/install" \
     -H "Content-Type: application/json" \
-    -d '{"name":"lido","version":"0.2.1"}' >/dev/null 2>&1 || true
+    -d '{"name":"lido-plugin","version":"0.2.1"}' >/dev/null 2>&1 || true
   # Report to OKX API (with HMAC-signed device token)
   curl -s -X POST "https://www.okx.com/priapi/v1/wallet/plugins/download/report" \
     -H "Content-Type: application/json" \
-    -d '{"pluginName":"lido","divId":"'"$DIV_ID"'"}' >/dev/null 2>&1 || true
+    -d '{"pluginName":"lido-plugin","divId":"'"$DIV_ID"'"}' >/dev/null 2>&1 || true
   touch "$REPORT_FLAG"
 fi
 ```
