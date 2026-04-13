@@ -321,10 +321,10 @@ jobs:
         target:
           - x86_64-apple-darwin
           - aarch64-apple-darwin
-          - x86_64-unknown-linux-gnu
-          - i686-unknown-linux-gnu
-          - aarch64-unknown-linux-gnu
-          - armv7-unknown-linux-gnueabihf
+          - x86_64-unknown-linux-musl
+          - i686-unknown-linux-musl
+          - aarch64-unknown-linux-musl
+          - armv7-unknown-linux-musleabihf
           - x86_64-pc-windows-msvc
           - i686-pc-windows-msvc
           - aarch64-pc-windows-msvc
@@ -333,17 +333,18 @@ jobs:
             os: macos-latest
           - target: aarch64-apple-darwin
             os: macos-latest
-          - target: x86_64-unknown-linux-gnu
+          - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
-          - target: i686-unknown-linux-gnu
+            zigbuild: true
+          - target: i686-unknown-linux-musl
             os: ubuntu-latest
-            cross: true
-          - target: aarch64-unknown-linux-gnu
+            zigbuild: true
+          - target: aarch64-unknown-linux-musl
             os: ubuntu-latest
-            cross: true
-          - target: armv7-unknown-linux-gnueabihf
+            zigbuild: true
+          - target: armv7-unknown-linux-musleabihf
             os: ubuntu-latest
-            cross: true
+            zigbuild: true
           - target: x86_64-pc-windows-msvc
             os: windows-latest
           - target: i686-pc-windows-msvc
@@ -356,6 +357,16 @@ jobs:
         with:
           go-version: 'stable'
           check-latest: true
+
+      - name: Set up Zig (for musl cross-compilation)
+        if: matrix.zigbuild
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.13.0
+
+      - name: Install cargo-zigbuild
+        if: matrix.zigbuild
+        run: cargo install cargo-zigbuild --locked
 
       - uses: actions/checkout@v4
 
@@ -426,9 +437,8 @@ jobs:
                   fi
                 fi
 
-                if [ "${{ matrix.cross }}" = "true" ]; then
-                  cargo install cross --git https://github.com/cross-rs/cross 2>/dev/null || true
-                  cross build --release --target ${{ matrix.target }}
+                if [ "${{ matrix.zigbuild }}" = "true" ]; then
+                  cargo zigbuild --release --target ${{ matrix.target }}
                 else
                   cargo build --release --target ${{ matrix.target }}
                 fi
@@ -440,10 +450,10 @@ jobs:
                 ;;
               go)
                 case "${{ matrix.target }}" in
-                  x86_64-unknown-linux-gnu)    GOOS=linux;   GOARCH=amd64 ;;
-                  i686-unknown-linux-gnu)      GOOS=linux;   GOARCH=386 ;;
-                  aarch64-unknown-linux-gnu)   GOOS=linux;   GOARCH=arm64 ;;
-                  armv7-unknown-linux-gnueabihf) GOOS=linux; GOARCH=arm; GOARM=7 ;;
+                  x86_64-unknown-linux-musl)    GOOS=linux;   GOARCH=amd64 ;;
+                  i686-unknown-linux-musl)      GOOS=linux;   GOARCH=386 ;;
+                  aarch64-unknown-linux-musl)   GOOS=linux;   GOARCH=arm64 ;;
+                  armv7-unknown-linux-musleabihf) GOOS=linux; GOARCH=arm; GOARM=7 ;;
                   aarch64-apple-darwin)        GOOS=darwin;  GOARCH=arm64 ;;
                   x86_64-apple-darwin)         GOOS=darwin;  GOARCH=amd64 ;;
                   x86_64-pc-windows-msvc)      GOOS=windows; GOARCH=amd64 ;;
@@ -527,7 +537,7 @@ jobs:
               stripped="${base%.exe}"
               target_part="${stripped#${BIN}-}"
               case "$target_part" in
-                aarch64-apple-darwin|x86_64-apple-darwin|x86_64-unknown-linux-gnu|i686-unknown-linux-gnu|aarch64-unknown-linux-gnu|armv7-unknown-linux-gnueabihf|x86_64-pc-windows-msvc|i686-pc-windows-msvc|aarch64-pc-windows-msvc)
+                aarch64-apple-darwin|x86_64-apple-darwin|x86_64-unknown-linux-musl|i686-unknown-linux-musl|aarch64-unknown-linux-musl|armv7-unknown-linux-musleabihf|x86_64-pc-windows-msvc|i686-pc-windows-msvc|aarch64-pc-windows-msvc)
                   cp "$f" "$RELEASE_DIR/"
                   ;;
               esac
@@ -561,7 +571,7 @@ jobs:
 
               # Verify binary version matches tag version before publishing.
               # This catches cases where Cargo.toml version != plugin.yaml version.
-              NATIVE_BIN="${BIN}-x86_64-unknown-linux-gnu"
+              NATIVE_BIN="${BIN}-x86_64-unknown-linux-musl"
               if [ -f "$NATIVE_BIN" ]; then
                 chmod +x "$NATIVE_BIN"
                 BIN_VERSION=$("./$NATIVE_BIN" --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
