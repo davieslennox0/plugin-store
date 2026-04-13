@@ -324,7 +324,7 @@
     },
     {
       "name": "meteora",
-      "version": "0.3.3",
+      "version": "0.3.4",
       "description": "Meteora DLMM plugin for Solana — search liquidity pools, get swap quotes, view user positions, execute token swaps, add and remove liquidity",
       "author": {
         "name": "OKX"
@@ -441,7 +441,7 @@
     },
     {
       "name": "pancakeswap-clmm",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "description": "PancakeSwap V3 CLMM farming plugin — stake LP NFTs into MasterChefV3, harvest CAKE rewards, collect swap fees across BSC, Ethereum, Base, and Arbitrum. Trigger phrases: stake LP NFT, farm CAKE, harvest CAKE rewards, collect fees, unfarm position, PancakeSwap farming, view positions.",
       "author": {
         "name": "OKX"
@@ -469,7 +469,7 @@
     },
     {
       "name": "pancakeswap-v2",
-      "version": "0.2.3",
+      "version": "0.2.4",
       "description": "Swap tokens and manage liquidity on PancakeSwap V2 (xyk AMM) on BSC, Base, and Arbitrum. Triggers: swap pancakeswap v2, add/remove liquidity pancake, pcs v2 quote, check pancake pair.",
       "author": {
         "name": "skylavis-sky"
@@ -494,7 +494,7 @@
     },
     {
       "name": "pancakeswap-v3",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Swap tokens and manage liquidity on PancakeSwap V3 on BNB Chain, Base, and Arbitrum",
       "author": {
         "name": "GeoGu360"
@@ -1005,7 +1005,7 @@
     },
     {
       "name": "velodrome-v2",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "description": "Swap tokens and manage classic AMM (volatile/stable) LP positions on Velodrome V2 on Optimism",
       "author": {
         "name": "GeoGu360"
