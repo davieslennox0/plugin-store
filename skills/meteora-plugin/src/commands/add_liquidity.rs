@@ -31,6 +31,11 @@ pub struct AddLiquidityArgs {
     pub wallet: Option<String>,
 }
 
+/// Bins of tolerance for Y-only deposits: liq_upper = active_id - 1 - Y_ONLY_SLIPPAGE
+/// so the Y range stays below active_id even if price drifts down by up to 5 bins between
+/// reading the pool state and executing the transaction.
+const Y_ONLY_SLIPPAGE: i32 = 5;
+
 pub async fn execute(args: &AddLiquidityArgs, dry_run: bool) -> anyhow::Result<()> {
     let client = Client::new();
 
@@ -78,49 +83,217 @@ pub async fn execute(args: &AddLiquidityArgs, dry_run: bool) -> anyhow::Result<(
     let amount_x_raw = (args.amount_x * 10f64.powi(decimals_x as i32)).round() as u64;
     let amount_y_raw = (args.amount_y * 10f64.powi(decimals_y as i32)).round() as u64;
 
-    // ── 5. Compute position range (fixed width=70) and liquidity range ────────
-    // DLMM positions always span MAX_BIN_PER_POSITION=70 bins.
-    // The position is centered at the active bin (active_id - 35 to active_id + 34).
-    // bin_range controls where liquidity is distributed within that window.
-    const MAX_BIN_PER_POSITION: i32 = 70;
-    let pos_lower = pool.active_id - MAX_BIN_PER_POSITION / 2; // active_id - 35
-    let width = MAX_BIN_PER_POSITION;                           // 70
-    let pos_upper = pos_lower + width - 1;                      // active_id + 34
-
-    // Liquidity range: user-controlled via --bin-range (must fit inside position)
     anyhow::ensure!(
-        args.bin_range <= 34,
-        "--bin-range {} exceeds max 34 for a 70-bin position (active_id ± 34)",
-        args.bin_range
+        amount_x_raw > 0 || amount_y_raw > 0,
+        "Both --amount-x and --amount-y are 0. Specify at least one non-zero amount."
     );
-    let liq_lower = pool.active_id - args.bin_range;
-    let liq_upper = pool.active_id + args.bin_range;
+
+    // ── 4.5 Balance pre-flight check ─────────────────────────────────────────
+    {
+        let min_sol = 0.01_f64; // gas only
+        let sol_balance = onchainos::get_sol_balance(&wallet_str);
+
+        // Token X check (skip if WSOL — SOL is checked separately)
+        if amount_x_raw > 0 && token_x_mint != WSOL_MINT {
+            let bal_x = onchainos::get_spl_token_balance(&mint_x_str);
+            if bal_x < args.amount_x {
+                let output = json!({
+                    "ok": false,
+                    "error": format!(
+                        "Insufficient token X balance. Required: {:.6}, available: {:.6}. Please top up token X ({}).",
+                        args.amount_x, bal_x, mint_x_str
+                    ),
+                    "required": args.amount_x,
+                    "available": bal_x,
+                    "token": mint_x_str,
+                });
+                println!("{}", serde_json::to_string_pretty(&output)?);
+                return Ok(());
+            }
+        }
+
+        // SOL check: covers gas + WSOL wrap if depositing SOL as X
+        let sol_needed = min_sol + if token_x_mint == WSOL_MINT { args.amount_x } else { 0.0 };
+        if sol_balance < sol_needed {
+            let output = json!({
+                "ok": false,
+                "error": format!(
+                    "Insufficient SOL balance. Required: ~{:.4} SOL (deposit: {} + gas: ~0.01), available: {:.6} SOL.",
+                    sol_needed,
+                    if token_x_mint == WSOL_MINT { format!("{}", args.amount_x) } else { "0".to_string() },
+                    sol_balance
+                ),
+                "required_sol": sol_needed,
+                "available_sol": sol_balance,
+                "wallet": wallet_str,
+            });
+            println!("{}", serde_json::to_string_pretty(&output)?);
+            return Ok(());
+        }
+
+        // Token Y check
+        if amount_y_raw > 0 {
+            let bal_y = if token_y_mint == WSOL_MINT {
+                sol_balance - sol_needed
+            } else {
+                onchainos::get_spl_token_balance(&mint_y_str)
+            };
+            if bal_y < args.amount_y {
+                let output = json!({
+                    "ok": false,
+                    "error": format!(
+                        "Insufficient token Y balance. Required: {:.6}, available: {:.6}. Please top up token Y ({}).",
+                        args.amount_y, bal_y, mint_y_str
+                    ),
+                    "required": args.amount_y,
+                    "available": bal_y,
+                    "token": mint_y_str,
+                });
+                println!("{}", serde_json::to_string_pretty(&output)?);
+                return Ok(());
+            }
+        }
+    }
+
+    // ── 5. Compute position range ────────────────────────────────────────────
+    // Meteora rejects creating a new position whose bin range overlaps with an
+    // existing position for the same (owner, lb_pair). Strategy:
+    //   1. Scan on-chain positions for this wallet + pool.
+    //   2. If one already spans the active_id, reuse it (deposit into it).
+    //   3. Otherwise pick a non-overlapping range.
+    const MAX_BIN_PER_POSITION: i32 = 70;
+
+    let y_only = amount_x_raw == 0 && amount_y_raw > 0;
+
+    // Compute desired liq range based on deposit type
+    let (liq_lower, liq_upper) = match (amount_x_raw > 0, amount_y_raw > 0) {
+        (true, false) => {
+            // X-only: bins above active_id
+            (pool.active_id, pool.active_id + args.bin_range)
+        }
+        (false, true) => {
+            // Y-only: bins below active_id, with slippage guard so all bins stay Y-side
+            // even if active_id drifts down by Y_ONLY_SLIPPAGE bins
+            let upper = pool.active_id - 1 - Y_ONLY_SLIPPAGE;
+            (upper - args.bin_range + 1, upper)
+        }
+        _ => {
+            // Two-sided
+            (pool.active_id - args.bin_range, pool.active_id + args.bin_range)
+        }
+    };
+
+    // Scan for existing positions: find one that spans active_id (can deposit into it)
+    // or determine a non-overlapping range for a new position.
+    let existing_positions = solana_rpc::get_dlmm_positions_by_owner(
+        &client,
+        &meteora_ix::DLMM_PROGRAM.to_string(),
+        &wallet_str,
+        Some(&args.pool),
+    ).await.unwrap_or_default();
+
+    // Try to find an existing position that spans the active_id (reusable)
+    let spanning_pos = existing_positions.iter().find(|p| {
+        p.lower_bin_id <= pool.active_id && p.upper_bin_id >= pool.active_id
+    });
+
+    let (pos_lower, width, pos_upper, position_exists) = if let Some(sp) = spanning_pos {
+        let w = sp.upper_bin_id - sp.lower_bin_id + 1;
+        (sp.lower_bin_id, w, sp.upper_bin_id, true)
+    } else {
+        // No spanning position — create a new one.
+        // Find a non-overlapping center. Start from standard center and adjust if needed.
+        let mut center = pool.active_id;
+
+        // Check if standard center would overlap existing positions
+        for ep in &existing_positions {
+            let trial_lower = center - MAX_BIN_PER_POSITION / 2;
+            let trial_upper = trial_lower + MAX_BIN_PER_POSITION - 1;
+            if trial_lower <= ep.upper_bin_id && trial_upper >= ep.lower_bin_id {
+                // Overlap: shift center past this position
+                center = ep.upper_bin_id + MAX_BIN_PER_POSITION / 2 + 1;
+            }
+        }
+
+        let pl = center - MAX_BIN_PER_POSITION / 2;
+        let w = MAX_BIN_PER_POSITION;
+        let pu = pl + w - 1;
+        (pl, w, pu, false)
+    };
+
+    // Clamp liq range to fit within position boundaries.
+    let (liq_lower, liq_upper) = if y_only {
+        let cl = liq_lower.max(pos_lower);
+        if cl != liq_lower {
+            eprintln!(
+                "[warn] Y-only bin_range {} clamped: position [{}, {}] only has {} bins below active_id {}; using {} bins",
+                args.bin_range, pos_lower, pos_upper, pool.active_id - 1 - pos_lower + 1, pool.active_id,
+                liq_upper - cl + 1
+            );
+        }
+        (cl, liq_upper)
+    } else if amount_x_raw > 0 && amount_y_raw == 0 {
+        let cu = liq_upper.min(pos_upper);
+        if cu != liq_upper {
+            eprintln!(
+                "[warn] X-only bin_range clamped to position upper; using {} bins",
+                cu - liq_lower + 1
+            );
+        }
+        (liq_lower, cu)
+    } else {
+        (liq_lower.max(pos_lower), liq_upper.min(pos_upper))
+    };
+
+    anyhow::ensure!(
+        liq_lower <= liq_upper,
+        "No bins available for deposit at active_id={}; position [{}, {}] is fully outside the liq zone. \
+         Wait for price to move into position range and retry.",
+        pool.active_id, pos_lower, pos_upper
+    );
 
     // ── 6. Derive PDAs ───────────────────────────────────────────────────────
     let position = meteora_ix::position_pda(&lb_pair, &wallet, pos_lower, width);
-    // Bin arrays cover the liquidity range.
-    // DLMM requires bin_array_lower != bin_array_upper (program can't borrow same
-    // account twice). If both bounds fall in the same bin array:
-    //   1. Try extending liq_lower into the previous bin array (clamped to pos_lower).
-    //   2. If pos_lower is in the same array, extend liq_upper into the next bin array
-    //      (clamped to pos_upper) instead.
+    // DLMM requires bin_array_lower.index < bin_array_upper.index (program cannot
+    // borrow the same account twice). Determine the two bin array indices:
+    //
+    // For X-only / Y-only: the range often falls within a single bin array.
+    // In those cases use the adjacent array on the OTHER side as a structurally
+    // required second account — the program simply won't access it for those bins.
+    //
+    // For two-sided: if both bounds are already in different arrays, use them directly;
+    // otherwise extend liq_lower into the previous array (or liq_upper into the next).
     let lower_idx_raw = meteora_ix::bin_array_index(liq_lower);
     let upper_idx_raw = meteora_ix::bin_array_index(liq_upper);
     let (lower_idx, upper_idx, effective_liq_lower, effective_liq_upper) =
         if lower_idx_raw == upper_idx_raw {
-            // Attempt 1: extend liq_lower into previous bin array
-            let prev_idx = upper_idx_raw - 1;
-            let prev_last_bin = (prev_idx * 70 + 69) as i32;
-            let adj_lower = prev_last_bin.max(pos_lower);
-            let new_lower_idx = meteora_ix::bin_array_index(adj_lower);
-            if new_lower_idx != upper_idx_raw {
-                (new_lower_idx, upper_idx_raw, adj_lower, liq_upper)
+            if amount_x_raw > 0 && amount_y_raw == 0 {
+                // X-only: all bins are >= active_id (upper side). Use the adjacent
+                // lower array as a structural placeholder; min_bin_id stays at active_id.
+                (lower_idx_raw - 1, lower_idx_raw, liq_lower, liq_upper)
+            } else if amount_y_raw > 0 && amount_x_raw == 0 {
+                // Y-only: all bins are in bin_array at upper_idx_raw.
+                // Use (upper_idx_raw - 1) as the structural lower placeholder.
+                // Key: DO NOT use upper_idx_raw + 1 as the placeholder because
+                // that bin array starts at higher bin IDs (above active_id), and
+                // the program might validate bins from it, failing the Y-only check.
+                // With lower=(actual-1), upper=(actual), bins are found in "upper".
+                (upper_idx_raw - 1, upper_idx_raw, liq_lower, liq_upper)
             } else {
-                // pos_lower is in the same bin array — extend liq_upper into next array
-                let next_idx = upper_idx_raw + 1;
-                let next_first_bin = (next_idx * 70) as i32;
-                let adj_upper = next_first_bin.min(pos_upper);
-                (lower_idx_raw, meteora_ix::bin_array_index(adj_upper), liq_lower, adj_upper)
+                // Two-sided: extend liq_lower into previous bin array (clamped to pos_lower),
+                // or liq_upper into the next bin array if that's the only option.
+                let prev_idx = upper_idx_raw - 1;
+                let prev_last_bin = (prev_idx * 70 + 69) as i32;
+                let adj_lower = prev_last_bin.max(pos_lower);
+                let new_lower_idx = meteora_ix::bin_array_index(adj_lower);
+                if new_lower_idx != upper_idx_raw {
+                    (new_lower_idx, upper_idx_raw, adj_lower, liq_upper)
+                } else {
+                    let next_idx = upper_idx_raw + 1;
+                    let next_first_bin = (next_idx * 70) as i32;
+                    let adj_upper = next_first_bin.min(pos_upper);
+                    (lower_idx_raw, meteora_ix::bin_array_index(adj_upper), liq_lower, adj_upper)
+                }
             }
         } else {
             (lower_idx_raw, upper_idx_raw, liq_lower, liq_upper)
@@ -137,12 +310,14 @@ pub async fn execute(args: &AddLiquidityArgs, dry_run: bool) -> anyhow::Result<(
     let pos_str = position.to_string();
     let mint_x_str2 = token_x_mint.to_string();
     let mint_y_str2 = token_y_mint.to_string();
-    let ((token_x_acct, ata_x_exists), (token_y_acct, ata_y_exists), position_exists) =
+    let ((token_x_acct, ata_x_exists), (token_y_acct, ata_y_exists), position_exists_onchain) =
         tokio::try_join!(
             solana_rpc::find_token_account(&client, &wallet_str, &mint_x_str2, &ata_x_str),
             solana_rpc::find_token_account(&client, &wallet_str, &mint_y_str2, &ata_y_str),
             solana_rpc::account_exists(&client, &pos_str),
         )?;
+    // Reconcile: if we found an existing spanning position above, trust on-chain state
+    let position_exists = position_exists || position_exists_onchain;
     let user_token_x: Pubkey = token_x_acct.parse()?;
     let user_token_y: Pubkey = token_y_acct.parse()?;
 
@@ -185,168 +360,162 @@ pub async fn execute(args: &AddLiquidityArgs, dry_run: bool) -> anyhow::Result<(
         return Ok(());
     }
 
-    // ATAs are created on-the-fly in the instruction list if missing.
-
-    // ── 10-13. Build + submit with one automatic retry ───────────────────────
-    // After closing a position, the Solana RPC may briefly return stale account
-    // states (e.g. position still exists, or a bin array incorrectly missing).
-    // If the first attempt fails with a simulation error, we wait 2 s, re-check
-    // all mutable account states, rebuild the instruction list, and retry once.
+    // ── 10-13. Two-phase submission ──────────────────────────────────────────
+    // onchainos runs Solana simulateTransaction before broadcast. Simulation
+    // fails with ProgramAccountNotFound when a tx both creates accounts (ATAs,
+    // position PDA) and reads them in the same transaction — the new accounts
+    // don't exist at simulation time.
+    //
+    // Fix: split into two transactions when setup is needed:
+    //   Tx 1 (setup): create ATAs + WSOL wrap + init bin arrays + init position
+    //   Tx 2 (liquidity): add_liquidity_by_strategy only
+    //
+    // When all accounts already exist (second deposit into same position), a
+    // single transaction is used instead.
     let bin_arr_lower_str = bin_array_lower.to_string();
     let bin_arr_upper_str = bin_array_upper.to_string();
 
-    let mut last_result = serde_json::Value::Null;
-    let mut last_ok = false;
+    let ba_lower_exists = solana_rpc::account_exists(&client, &bin_arr_lower_str).await?;
+    let ba_upper_exists = solana_rpc::account_exists(&client, &bin_arr_upper_str).await?;
 
-    for attempt in 0u32..2 {
-        if attempt > 0 {
-            eprintln!("[retry] Simulation failed — waiting 2 s then re-checking account states...");
-            tokio::time::sleep(std::time::Duration::from_millis(2_000)).await;
-        }
+    let needs_setup = !ata_x_exists || !ata_y_exists || !position_exists
+        || !ba_lower_exists || (lower_idx != upper_idx && !ba_upper_exists);
 
-        // Re-check mutable account states on every attempt so the instruction
-        // list always reflects the current on-chain reality.
-        let ba_lower_exists = solana_rpc::account_exists(&client, &bin_arr_lower_str).await?;
-        let ba_upper_exists = solana_rpc::account_exists(&client, &bin_arr_upper_str).await?;
-        let pos_exists_now = solana_rpc::account_exists(&client, &pos_str).await?;
+    let mut setup_tx_hash = String::new();
+
+    if needs_setup {
+        eprintln!("[setup] Creating missing accounts before adding liquidity...");
         let blockhash = solana_rpc::get_latest_blockhash(&client).await?;
+        let mut setup_ixs = vec![meteora_ix::ix_set_compute_unit_limit(400_000)];
 
-        eprintln!(
-            "[attempt {}] bin_array_lower_exists={} bin_array_upper_exists={} position_exists={}",
-            attempt + 1, ba_lower_exists, ba_upper_exists, pos_exists_now
-        );
-
-        let mut instructions = Vec::new();
-
-        // Request extra compute budget — add_liquidity_by_strategy with position
-        // init can exceed the default 200k CU limit.
-        instructions.push(meteora_ix::ix_set_compute_unit_limit(600_000));
-
-        // Create ATAs if missing (idempotent — safe to include even if they exist)
         if !ata_x_exists {
-            instructions.push(meteora_ix::ix_create_ata_idempotent(
+            setup_ixs.push(meteora_ix::ix_create_ata_idempotent(
                 &wallet, &user_token_x, &wallet, &token_x_mint,
             ));
         }
         if !ata_y_exists {
-            instructions.push(meteora_ix::ix_create_ata_idempotent(
+            setup_ixs.push(meteora_ix::ix_create_ata_idempotent(
                 &wallet, &user_token_y, &wallet, &token_y_mint,
             ));
         }
-
-        // Wrap SOL → WSOL if token_x is the native SOL mint and amount_x > 0.
-        // Transfers SOL to the WSOL ATA and syncs its token balance, ensuring
-        // add_liquidity_by_strategy can debit the correct token amount.
         if token_x_mint == WSOL_MINT && amount_x_raw > 0 {
-            instructions.push(meteora_ix::ix_sol_transfer(&wallet, &user_token_x, amount_x_raw));
-            instructions.push(meteora_ix::ix_sync_native(&user_token_x));
+            setup_ixs.push(meteora_ix::ix_sol_transfer(&wallet, &user_token_x, amount_x_raw));
+            setup_ixs.push(meteora_ix::ix_sync_native(&user_token_x));
         }
         if token_y_mint == WSOL_MINT && amount_y_raw > 0 {
-            instructions.push(meteora_ix::ix_sol_transfer(&wallet, &user_token_y, amount_y_raw));
-            instructions.push(meteora_ix::ix_sync_native(&user_token_y));
+            setup_ixs.push(meteora_ix::ix_sol_transfer(&wallet, &user_token_y, amount_y_raw));
+            setup_ixs.push(meteora_ix::ix_sync_native(&user_token_y));
         }
-
-        // Initialize bin arrays only if they genuinely don't exist.
         if !ba_lower_exists {
-            instructions.push(meteora_ix::ix_initialize_bin_array(
-                &lb_pair,
-                &bin_array_lower,
-                &wallet,
-                lower_idx,
+            setup_ixs.push(meteora_ix::ix_initialize_bin_array(
+                &lb_pair, &bin_array_lower, &wallet, lower_idx,
             ));
         }
         if lower_idx != upper_idx && !ba_upper_exists {
-            instructions.push(meteora_ix::ix_initialize_bin_array(
-                &lb_pair,
-                &bin_array_upper,
-                &wallet,
-                upper_idx,
+            setup_ixs.push(meteora_ix::ix_initialize_bin_array(
+                &lb_pair, &bin_array_upper, &wallet, upper_idx,
+            ));
+        }
+        if !position_exists {
+            setup_ixs.push(meteora_ix::ix_initialize_position_pda(
+                &wallet, &lb_pair, &position, pos_lower, width,
             ));
         }
 
-        if !pos_exists_now {
-            instructions.push(meteora_ix::ix_initialize_position_pda(
-                &wallet,
-                &lb_pair,
-                &position,
-                pos_lower,
-                width,
-            ));
-        }
-
-        instructions.push(meteora_ix::ix_add_liquidity_by_strategy(
-            &position,
-            &lb_pair,
-            &user_token_x,
-            &user_token_y,
-            &reserve_x,
-            &reserve_y,
-            &token_x_mint,
-            &token_y_mint,
-            &bin_array_lower,
-            &bin_array_upper,
-            &wallet,
-            amount_x_raw,
-            amount_y_raw,
-            pool.active_id,
-            args.bin_range, // max_active_bin_slippage
-            effective_liq_lower,
-            effective_liq_upper,
-        ));
-
-        let tx_b58 = meteora_ix::build_tx_b58(&instructions, &wallet, blockhash)?;
-        eprintln!("[debug] unsigned_tx_b58={}", &tx_b58[..32]);
-        eprintln!("[debug] num_instructions={}", instructions.len());
-
-        let result = onchainos::contract_call_solana(&tx_b58, &meteora_ix::DLMM_PROGRAM.to_string())?;
-        let ok = result["ok"].as_bool().unwrap_or(false)
-            || result["data"]["ok"].as_bool().unwrap_or(false);
-
-        if ok {
-            last_result = result;
-            last_ok = true;
-            break;
-        }
-
-        // Check if this is a simulation/transient error worth retrying.
-        let err_str = result
-            .get("error")
-            .or_else(|| result["data"].get("error"))
-            .and_then(|v| v.as_str())
+        let setup_b58 = meteora_ix::build_tx_b58(&setup_ixs, &wallet, blockhash)?;
+        eprintln!("[setup] Submitting setup tx ({} instructions)...", setup_ixs.len());
+        let setup_result = onchainos::contract_call_solana(&setup_b58, &meteora_ix::DLMM_PROGRAM.to_string())?;
+        let setup_ok = setup_result["ok"].as_bool().unwrap_or(false)
+            || setup_result["data"]["ok"].as_bool().unwrap_or(false);
+        setup_tx_hash = setup_result["data"]["txHash"]
+            .as_str()
+            .or_else(|| setup_result["txHash"].as_str())
             .unwrap_or("")
             .to_string();
-        let is_retryable = err_str.contains("simulation")
-            || err_str.contains("ProgramAccountNotFound")
-            || err_str.contains("BlockhashNotFound")
-            || err_str.contains("stale");
 
-        last_result = result;
-        if !is_retryable || attempt >= 1 {
-            break;
+        if !setup_ok {
+            let err = setup_result.get("error")
+                .or_else(|| setup_result["data"].get("error"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown error");
+            anyhow::bail!("Setup transaction failed: {err}\nsetup_result: {setup_result}");
         }
-        eprintln!("[retry] Retryable error detected: {err_str}");
+        eprintln!("[setup] Setup tx submitted: {setup_tx_hash}");
+        eprintln!("[setup] Waiting 8 s for setup tx to confirm on-chain...");
+        tokio::time::sleep(std::time::Duration::from_secs(8)).await;
     }
 
-    let tx_hash = last_result["data"]["txHash"]
+    // ── Tx 2 (or single tx): add_liquidity instruction ───────────────────────
+    //
+    // For one-sided deposits (X-only or Y-only), use addLiquidityByStrategyOneSide
+    // which accepts a single token/reserve account and validates the range on just
+    // one side of the active bin. addLiquidityByStrategy (two-sided) will silently
+    // deposit 0 when one amount is zero (SpotBalanced) or reject the range
+    // (SpotImBalanced), so it is only used when both amounts are non-zero.
+    let blockhash = solana_rpc::get_latest_blockhash(&client).await?;
+    let liquidity_ix = if amount_x_raw > 0 && amount_y_raw == 0 {
+        meteora_ix::ix_add_liquidity_by_strategy_one_side(
+            &position, &lb_pair,
+            &user_token_x, &reserve_x, &token_x_mint,
+            &bin_array_lower, &bin_array_upper, &wallet,
+            amount_x_raw,
+            pool.active_id,
+            100,   // max_active_bin_slippage — 100 bins tolerance for active_id drift
+            effective_liq_lower,
+            effective_liq_upper,
+        )
+    } else if amount_y_raw > 0 && amount_x_raw == 0 {
+        meteora_ix::ix_add_liquidity_by_strategy_one_side(
+            &position, &lb_pair,
+            &user_token_y, &reserve_y, &token_y_mint,
+            &bin_array_lower, &bin_array_upper, &wallet,
+            amount_y_raw,
+            pool.active_id,
+            Y_ONLY_SLIPPAGE, // matches the guard in liq_upper: liq_upper = active_id-1-S
+                              // so all Y bins stay Y-side even with S-bin downward drift
+            effective_liq_lower,
+            effective_liq_upper,
+        )
+    } else {
+        meteora_ix::ix_add_liquidity_by_strategy(
+            &position, &lb_pair,
+            &user_token_x, &user_token_y,
+            &reserve_x, &reserve_y,
+            &token_x_mint, &token_y_mint,
+            &bin_array_lower, &bin_array_upper, &wallet,
+            amount_x_raw, amount_y_raw,
+            pool.active_id, args.bin_range,
+            effective_liq_lower, effective_liq_upper,
+        )
+    };
+    let liq_ixs = vec![meteora_ix::ix_set_compute_unit_limit(400_000), liquidity_ix];
+
+    let liq_b58 = meteora_ix::build_tx_b58(&liq_ixs, &wallet, blockhash)?;
+    eprintln!("[liquidity] Submitting add_liquidity tx...");
+    let liq_result = onchainos::contract_call_solana(&liq_b58, &meteora_ix::DLMM_PROGRAM.to_string())?;
+    let liq_ok = liq_result["ok"].as_bool().unwrap_or(false)
+        || liq_result["data"]["ok"].as_bool().unwrap_or(false);
+    let liq_tx_hash = liq_result["data"]["txHash"]
         .as_str()
-        .or_else(|| last_result["txHash"].as_str())
+        .or_else(|| liq_result["txHash"].as_str())
         .unwrap_or("pending")
         .to_string();
 
     let output = json!({
-        "ok": last_ok,
+        "ok": liq_ok,
         "pool": args.pool,
         "wallet": wallet_str,
         "position": position.to_string(),
         "amount_x": args.amount_x,
         "amount_y": args.amount_y,
-        "tx_hash": tx_hash,
-        "explorer_url": if !tx_hash.is_empty() && tx_hash != "pending" {
-            format!("https://solscan.io/tx/{}", tx_hash)
+        "setup_tx_hash": if setup_tx_hash.is_empty() { serde_json::Value::Null } else { setup_tx_hash.clone().into() },
+        "tx_hash": liq_tx_hash,
+        "explorer_url": if !liq_tx_hash.is_empty() && liq_tx_hash != "pending" {
+            format!("https://solscan.io/tx/{}", liq_tx_hash)
         } else {
             String::new()
         },
-        "raw_result": last_result,
+        "raw_result": liq_result,
     });
     println!("{}", serde_json::to_string_pretty(&output)?);
     Ok(())

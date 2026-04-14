@@ -44,6 +44,9 @@ enum Commands {
 
     /// Remove liquidity from a Meteora DLMM position
     RemoveLiquidity(commands::remove_liquidity::RemoveLiquidityArgs),
+
+    /// Check wallet balances and get a recommended deposit command for a pool
+    Quickstart(commands::quickstart::QuickstartArgs),
 }
 
 #[tokio::main]
@@ -58,6 +61,7 @@ async fn main() -> anyhow::Result<()> {
         Commands::Swap(args) => commands::swap::execute(args, cli.dry_run).await?,
         Commands::AddLiquidity(args) => commands::add_liquidity::execute(args, cli.dry_run).await?,
         Commands::RemoveLiquidity(args) => commands::remove_liquidity::execute(args, cli.dry_run).await?,
+        Commands::Quickstart(args) => commands::quickstart::execute(args).await?,
     }
 
     Ok(())

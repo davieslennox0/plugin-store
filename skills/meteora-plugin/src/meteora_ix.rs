@@ -18,7 +18,7 @@ const RENT_SYSVAR: Pubkey =
     solana_pubkey::pubkey!("SysvarRent111111111111111111111111111111111");
 
 const ATA_PROGRAM: Pubkey =
-    solana_pubkey::pubkey!("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJe8bXh");
+    solana_pubkey::pubkey!("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
 
 // ── PDA helpers ──────────────────────────────────────────────────────────────
 
@@ -150,7 +150,15 @@ pub fn ix_initialize_position_pda(
     }
 }
 
-/// Borsh-serialize `LiquidityParameterByStrategy` with `SpotBalanced` strategy.
+/// Borsh-serialize `LiquidityParameterByStrategy` for `add_liquidity_by_strategy`.
+///
+/// Strategy types for the two-sided instruction:
+///   Spot      = 3  — proportional two-sided deposit (SpotBalanced-ish)
+///   Curve     = 4  — curve-shaped distribution
+///   BidAsk    = 5  — bid/ask distribution
+///
+/// NOTE: type 0 (SpotOneSide) is only valid for the one_side instruction variant;
+/// passing it to `add_liquidity_by_strategy` raises error 6054 (InvalidStrategyParameters).
 ///
 /// Layout (all LE):
 ///   amount_x          u64   8 bytes
@@ -160,7 +168,7 @@ pub fn ix_initialize_position_pda(
 ///   StrategyParameters:
 ///     min_bin_id      i32   4 bytes
 ///     max_bin_id      i32   4 bytes
-///     strategy_type   u8    1 byte  (SpotBalanced = 3)
+///     strategy_type   u8    1 byte  (Spot = 3)
 ///     parameteres     [u8;64] 64 bytes (zeroed)
 fn serialize_liquidity_params(
     amount_x: u64,
@@ -177,8 +185,8 @@ fn serialize_liquidity_params(
     data.extend_from_slice(&max_active_bin_slippage.to_le_bytes());
     data.extend_from_slice(&min_bin_id.to_le_bytes());
     data.extend_from_slice(&max_bin_id.to_le_bytes());
-    data.push(3u8); // StrategyType::SpotBalanced
-    data.extend_from_slice(&[0u8; 64]); // parameteres (unused for SpotBalanced)
+    data.push(3u8); // StrategyType::Spot (3) — required for add_liquidity_by_strategy (two-sided)
+    data.extend_from_slice(&[0u8; 64]); // parameteres (zeroed for Spot)
     data
 }
 
@@ -237,6 +245,68 @@ pub fn ix_add_liquidity_by_strategy(
             AccountMeta::new_readonly(TOKEN_PROGRAM, false), // token_y_program
             AccountMeta::new_readonly(ev_auth, false),
             AccountMeta::new_readonly(DLMM_PROGRAM, false), // program self-ref
+        ],
+        data,
+    }
+}
+
+/// Build `add_liquidity_by_strategy_one_side` instruction.
+///
+/// Purpose-built for one-sided (X-only or Y-only) deposits.
+/// For X-only: pass user_token_x / reserve_x / token_x_mint, range = [active_id, max_bin_id].
+/// For Y-only: pass user_token_y / reserve_y / token_y_mint, range = [min_bin_id, active_id-1].
+///
+/// `bin_array_lower` and `bin_array_upper` must satisfy lower.index < upper.index.
+/// When both range bounds fall in the same bin array, pass the adjacent array as the
+/// "other" account — it will not be accessed for out-of-range bins.
+///
+/// Y-only bin array ordering rule: pass (actual_array - 1, actual_array) so that the
+/// real Y bins are in the "upper" account. Using (actual_array, actual_array + 1) fails
+/// because array+1 starts at bins above active_id, causing the program to reject the range.
+#[allow(clippy::too_many_arguments)]
+pub fn ix_add_liquidity_by_strategy_one_side(
+    position: &Pubkey,
+    lb_pair: &Pubkey,
+    user_token: &Pubkey,
+    reserve: &Pubkey,
+    token_mint: &Pubkey,
+    bin_array_lower: &Pubkey,
+    bin_array_upper: &Pubkey,
+    sender: &Pubkey,
+    amount: u64,
+    active_id: i32,
+    max_active_bin_slippage: i32,
+    min_bin_id: i32,
+    max_bin_id: i32,
+) -> Instruction {
+    // sha256("global:add_liquidity_by_strategy_one_side")[:8]
+    let discriminator: [u8; 8] = [41, 5, 238, 175, 100, 225, 6, 205];
+    let mut data = discriminator.to_vec();
+    data.extend_from_slice(&amount.to_le_bytes());
+    data.extend_from_slice(&active_id.to_le_bytes());
+    data.extend_from_slice(&max_active_bin_slippage.to_le_bytes());
+    data.extend_from_slice(&min_bin_id.to_le_bytes());
+    data.extend_from_slice(&max_bin_id.to_le_bytes());
+    data.push(0u8);            // StrategyType::Spot (one-sided variant)
+    data.extend_from_slice(&[0u8; 64]); // parameteres (zeroed)
+
+    let ev_auth = event_authority();
+
+    Instruction {
+        program_id: DLMM_PROGRAM,
+        accounts: vec![
+            AccountMeta::new(*position, false),
+            AccountMeta::new(*lb_pair, false),
+            AccountMeta::new_readonly(DLMM_PROGRAM, false), // bin_array_bitmap_extension sentinel
+            AccountMeta::new(*user_token, false),
+            AccountMeta::new(*reserve, false),
+            AccountMeta::new_readonly(*token_mint, false),
+            AccountMeta::new(*bin_array_lower, false),
+            AccountMeta::new(*bin_array_upper, false),
+            AccountMeta::new_readonly(*sender, true),
+            AccountMeta::new_readonly(TOKEN_PROGRAM, false),
+            AccountMeta::new_readonly(ev_auth, false),
+            AccountMeta::new_readonly(DLMM_PROGRAM, false),
         ],
         data,
     }

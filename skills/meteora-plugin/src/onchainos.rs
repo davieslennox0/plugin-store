@@ -3,30 +3,20 @@ use serde_json::Value;
 
 /// Resolve the current Solana wallet address via onchainos
 pub fn resolve_wallet_solana() -> anyhow::Result<String> {
+    // Use `wallet addresses` — always returns the address regardless of balance.
+    // `wallet balance --chain 501` is unreliable: tokenAssets is empty when SOL balance is 0.
     let output = Command::new("onchainos")
-        .args(["wallet", "balance", "--chain", "501"])
+        .args(["wallet", "addresses"])
         .output()?;
     let stdout = String::from_utf8_lossy(&output.stdout);
     let json: Value = serde_json::from_str(&stdout).unwrap_or(serde_json::json!({}));
 
-    // Try data.details[0].tokenAssets[0].address path
-    if let Some(addr) = json["data"]["details"]
+    // data.solana[0].address
+    if let Some(addr) = json["data"]["solana"]
         .as_array()
         .and_then(|a| a.first())
-        .and_then(|d| d["tokenAssets"].as_array())
-        .and_then(|a| a.first())
-        .and_then(|t| t["address"].as_str())
+        .and_then(|s| s["address"].as_str())
     {
-        return Ok(addr.to_string());
-    }
-
-    // Try data.address path
-    if let Some(addr) = json["data"]["address"].as_str() {
-        return Ok(addr.to_string());
-    }
-
-    // Try top-level address
-    if let Some(addr) = json["address"].as_str() {
         return Ok(addr.to_string());
     }
 
@@ -34,6 +24,53 @@ pub fn resolve_wallet_solana() -> anyhow::Result<String> {
         "Cannot resolve Solana wallet address. Make sure onchainos is logged in.\nRaw output: {}",
         stdout
     )
+}
+
+/// Get the native SOL balance (lamports → SOL) for a Solana address.
+pub fn get_sol_balance(wallet: &str) -> f64 {
+    let output = std::process::Command::new("onchainos")
+        .args(["wallet", "balance", "--chain", "501"])
+        .output()
+        .ok();
+    let stdout = output.map(|o| String::from_utf8_lossy(&o.stdout).to_string()).unwrap_or_default();
+    let json: Value = serde_json::from_str(&stdout).unwrap_or(serde_json::json!({}));
+    // Find native SOL entry (tokenAddress == "" or == "11111111111111111111111111111111")
+    if let Some(assets) = json["data"]["details"]
+        .as_array()
+        .and_then(|a| a.first())
+        .and_then(|d| d["tokenAssets"].as_array())
+    {
+        for asset in assets {
+            let addr = asset["tokenAddress"].as_str().unwrap_or("");
+            if addr.is_empty() || addr == "11111111111111111111111111111111" {
+                let _ = wallet; // wallet is implicit (logged-in account)
+                return asset["balance"]
+                    .as_str()
+                    .and_then(|s| s.parse::<f64>().ok())
+                    .unwrap_or(0.0);
+            }
+        }
+    }
+    0.0
+}
+
+/// Get the SPL token balance (human-readable) for a given mint on Solana.
+/// Returns 0.0 if the ATA doesn't exist or has zero balance.
+pub fn get_spl_token_balance(token_mint: &str) -> f64 {
+    let output = std::process::Command::new("onchainos")
+        .args(["wallet", "balance", "--chain", "501", "--token-address", token_mint])
+        .output()
+        .ok();
+    let stdout = output.map(|o| String::from_utf8_lossy(&o.stdout).to_string()).unwrap_or_default();
+    let json: Value = serde_json::from_str(&stdout).unwrap_or(serde_json::json!({}));
+    json["data"]["details"]
+        .as_array()
+        .and_then(|a| a.first())
+        .and_then(|d| d["tokenAssets"].as_array())
+        .and_then(|a| a.first())
+        .and_then(|t| t["balance"].as_str())
+        .and_then(|s| s.parse::<f64>().ok())
+        .unwrap_or(0.0)
 }
 
 /// Execute onchainos swap quote for Solana (dry run path for swap)
@@ -96,6 +133,7 @@ pub fn contract_call_solana(unsigned_tx_b58: &str, program_id: &str) -> anyhow::
             "--chain", "501",
             "--to", program_id,
             "--unsigned-tx", unsigned_tx_b58,
+            "--force", // required — without this onchainos simulates first; new accounts don't exist yet → ProgramAccountNotFound
         ])
         .output()?;
     let stdout = String::from_utf8_lossy(&output.stdout);

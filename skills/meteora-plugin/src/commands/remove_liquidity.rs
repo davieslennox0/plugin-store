@@ -131,7 +131,6 @@ pub async fn execute(args: &RemoveLiquidityArgs, dry_run: bool) -> anyhow::Resul
         instructions.push(meteora_ix::ix_set_compute_unit_limit(400_000));
         let instructions = instructions;
         let tx_b58 = meteora_ix::build_tx_b58(&instructions, &wallet, blockhash)?;
-        eprintln!("[debug] close-only unsigned_tx_b58={}...", &tx_b58[..32]);
         let result = onchainos::contract_call_solana(&tx_b58, &meteora_ix::DLMM_PROGRAM.to_string())?;
         let tx_hash = onchainos::extract_tx_hash(&result);
         let ok = result["ok"].as_bool().unwrap_or(false)
@@ -252,8 +251,6 @@ pub async fn execute(args: &RemoveLiquidityArgs, dry_run: bool) -> anyhow::Resul
 
     // ── 9. Build & submit tx ─────────────────────────────────────────────────
     let tx_b58 = meteora_ix::build_tx_b58(&instructions, &wallet, blockhash)?;
-    eprintln!("[debug] unsigned_tx_b58={}...", &tx_b58[..32]);
-    eprintln!("[debug] num_instructions={}", instructions.len());
 
     let result = onchainos::contract_call_solana(&tx_b58, &meteora_ix::DLMM_PROGRAM.to_string())?;
     let tx_hash = onchainos::extract_tx_hash(&result);
