@@ -75,6 +75,57 @@ pub async fn run(args: AddLiquidityArgs) -> Result<()> {
         _ => anyhow::bail!("Provide both --tick-lower and --tick-upper, or omit both for auto ±10% range."),
     };
 
+    // Fetch wallet address early — needed for balance check and as mint recipient
+    let wallet_address = if args.dry_run {
+        "0x0000000000000000000000000000000000000001".to_string()
+    } else {
+        crate::onchainos::get_wallet_address().await?
+    };
+
+    // Pre-flight balance check — cap desired amounts to actual wallet balance.
+    // V3 math uses at most amount0_desired / amount1_desired, so if the wallet
+    // holds slightly less (e.g. dust gap from a prior tx), we cap down and proceed
+    // rather than bailing. If the shortfall is large (> 1%), we bail clearly.
+    let (amount0_desired, amount1_desired) = if args.dry_run {
+        (amount0_desired, amount1_desired)
+    } else {
+        let bal0 = crate::rpc::get_balance(token0, &wallet_address, cfg.rpc_url).await?;
+        let bal1 = crate::rpc::get_balance(token1, &wallet_address, cfg.rpc_url).await?;
+
+        let cap = |bal: u128, desired: u128, sym: &str, dec: u8| -> anyhow::Result<u128> {
+            if bal >= desired {
+                return Ok(desired);
+            }
+            let shortfall_pct = (desired - bal) as f64 / desired as f64 * 100.0;
+            if shortfall_pct > 1.0 {
+                anyhow::bail!(
+                    "Insufficient {} balance: need {:.6}, have {:.6}. Add funds before adding liquidity.",
+                    sym,
+                    desired as f64 / 10f64.powi(dec as i32),
+                    bal as f64 / 10f64.powi(dec as i32),
+                );
+            }
+            eprintln!(
+                "[pancakeswap-v3] NOTE: Requested {:.6} {} but wallet holds {:.6}. \
+                 Adjusting down to available balance ({:.4}% gap).",
+                desired as f64 / 10f64.powi(dec as i32),
+                sym,
+                bal as f64 / 10f64.powi(dec as i32),
+                shortfall_pct,
+            );
+            Ok(bal)
+        };
+
+        let d0 = cap(bal0, amount0_desired, &sym0, decimals0)?;
+        let d1 = cap(bal1, amount1_desired, &sym1, decimals1)?;
+        println!(
+            "Balance check OK: {:.6} {} available, {:.6} {} available",
+            bal0 as f64 / 10f64.powi(decimals0 as i32), sym0,
+            bal1 as f64 / 10f64.powi(decimals1 as i32), sym1,
+        );
+        (d0, d1)
+    };
+
     // Compute actual deposit amounts using V3 math, then apply slippage to those.
     // V3 deposits the optimal ratio for current price — applying slippage to the
     // desired amounts produces incorrect (too-tight) minimums and causes reverts.
@@ -85,40 +136,20 @@ pub async fn run(args: AddLiquidityArgs) -> Result<()> {
     let slippage_bps = (args.slippage * 100.0) as u128;
     let amount0_min = actual0.saturating_mul(10000 - slippage_bps) / 10000;
     let amount1_min = actual1.saturating_mul(10000 - slippage_bps) / 10000;
-    println!("Expected deposit: {} {} / {} {} → min: {} / {} ({}% slippage)",
-        actual0, sym0, actual1, sym1, amount0_min, amount1_min, args.slippage);
+    println!(
+        "Expected deposit: {:.6} {} / {:.6} {} → min: {:.6} / {:.6} ({}% slippage)",
+        actual0 as f64 / 10f64.powi(decimals0 as i32), sym0,
+        actual1 as f64 / 10f64.powi(decimals1 as i32), sym1,
+        amount0_min as f64 / 10f64.powi(decimals0 as i32),
+        amount1_min as f64 / 10f64.powi(decimals1 as i32),
+        args.slippage,
+    );
 
     // Deadline: 20 minutes from now
     let deadline = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() + 1200)
         .unwrap_or(9_999_999_999);
-
-    // Fetch wallet address early — needed for balance check and as mint recipient
-    let wallet_address = if args.dry_run {
-        "0x0000000000000000000000000000000000000001".to_string()
-    } else {
-        crate::onchainos::get_wallet_address().await?
-    };
-
-    // Bug 1 fix: pre-flight balance check — bail before wasting gas on approve
-    if !args.dry_run {
-        let bal0 = crate::rpc::get_balance(token0, &wallet_address, cfg.rpc_url).await?;
-        let bal1 = crate::rpc::get_balance(token1, &wallet_address, cfg.rpc_url).await?;
-        if bal0 < amount0_desired {
-            anyhow::bail!(
-                "Insufficient {} balance: wallet has {} but {} required (minimal units). Deposit more {} before adding liquidity.",
-                sym0, bal0, amount0_desired, sym0
-            );
-        }
-        if bal1 < amount1_desired {
-            anyhow::bail!(
-                "Insufficient {} balance: wallet has {} but {} required (minimal units). Deposit more {} before adding liquidity.",
-                sym1, bal1, amount1_desired, sym1
-            );
-        }
-        println!("Balance check OK: {} {} available, {} {} available", bal0, sym0, bal1, sym1);
-    }
 
     println!("Add Liquidity (chain {}):", args.chain);
     println!("  Token0 (token0 < token1): {} {}", amount_a_str, sym0);

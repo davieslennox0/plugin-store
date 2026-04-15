@@ -30,6 +30,8 @@ pub async fn run(args: RemoveLiquidityArgs) -> Result<()> {
 
     let sym0 = crate::rpc::get_symbol(&pos.token0, cfg.rpc_url).await.unwrap_or_else(|_| pos.token0.clone());
     let sym1 = crate::rpc::get_symbol(&pos.token1, cfg.rpc_url).await.unwrap_or_else(|_| pos.token1.clone());
+    let dec0 = crate::rpc::get_decimals(&pos.token0, cfg.rpc_url).await.unwrap_or(18);
+    let dec1 = crate::rpc::get_decimals(&pos.token1, cfg.rpc_url).await.unwrap_or(18);
 
     // Use integer arithmetic for 100% to avoid f64 precision loss on large u128 values
     // (f64 has 53-bit mantissa; a 18-digit liquidity value would round up, causing
@@ -66,9 +68,16 @@ pub async fn run(args: RemoveLiquidityArgs) -> Result<()> {
     println!("  Total liq:    {}{}", effective_liquidity, if pos.liquidity == 0 && args.dry_run { " [synthetic for dry-run]" } else { "" });
     println!("  Remove:       {}% = {}", args.liquidity_pct, liquidity_to_remove);
     println!("  Tick range:   {} to {}", pos.tick_lower, pos.tick_upper);
-    println!("  Expected out: {} {} / {} {} (before slippage)", amount0_out, sym0, amount1_out, sym1);
-    println!("  Min out:      {} {} / {} {} ({}% slippage)", amount0_min, sym0, amount1_min, sym1, args.slippage);
-    println!("  Owed fees:    {} {} / {} {}", pos.tokens_owed0, sym0, pos.tokens_owed1, sym1);
+    println!("  Expected out: {:.6} {} / {:.6} {} (before slippage)",
+        amount0_out as f64 / 10f64.powi(dec0 as i32), sym0,
+        amount1_out as f64 / 10f64.powi(dec1 as i32), sym1);
+    println!("  Min out:      {:.6} {} / {:.6} {} ({}% slippage)",
+        amount0_min as f64 / 10f64.powi(dec0 as i32), sym0,
+        amount1_min as f64 / 10f64.powi(dec1 as i32), sym1,
+        args.slippage);
+    println!("  Owed fees:    {:.6} {} / {:.6} {}",
+        pos.tokens_owed0 as f64 / 10f64.powi(dec0 as i32), sym0,
+        pos.tokens_owed1 as f64 / 10f64.powi(dec1 as i32), sym1);
     println!("  NPM:          {}", cfg.npm);
 
     // Deadline: 20 minutes from now
@@ -86,8 +95,8 @@ pub async fn run(args: RemoveLiquidityArgs) -> Result<()> {
 
     // Step 1: decreaseLiquidity
     println!("\nStep 1: Calling decreaseLiquidity...");
-    println!("  amount0Min: {} (slippage {}%)", amount0_min, args.slippage);
-    println!("  amount1Min: {} (slippage {}%)", amount1_min, args.slippage);
+    println!("  amount0Min: {:.6} {} (slippage {}%)", amount0_min as f64 / 10f64.powi(dec0 as i32), sym0, args.slippage);
+    println!("  amount1Min: {:.6} {} (slippage {}%)", amount1_min as f64 / 10f64.powi(dec1 as i32), sym1, args.slippage);
     let decrease_calldata = crate::calldata::encode_decrease_liquidity(
         args.token_id,
         liquidity_to_remove,

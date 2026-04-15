@@ -89,13 +89,17 @@ async fn query_onchain(
             Ok(pos) => {
                 let sym0 = crate::rpc::get_symbol(&pos.token0, cfg.rpc_url).await.unwrap_or_else(|_| pos.token0.clone());
                 let sym1 = crate::rpc::get_symbol(&pos.token1, cfg.rpc_url).await.unwrap_or_else(|_| pos.token1.clone());
+                let dec0 = crate::rpc::get_decimals(&pos.token0, cfg.rpc_url).await.unwrap_or(18);
+                let dec1 = crate::rpc::get_decimals(&pos.token1, cfg.rpc_url).await.unwrap_or(18);
 
                 println!("  Position #{}", token_id);
                 println!("    Pair:         {}/{}", sym0, sym1);
                 println!("    Fee tier:     {}%", pos.fee as f64 / 10000.0);
                 println!("    Tick range:   {} to {}", pos.tick_lower, pos.tick_upper);
                 println!("    Liquidity:    {}", pos.liquidity);
-                println!("    Owed fees:    {} {} / {} {}", pos.tokens_owed0, sym0, pos.tokens_owed1, sym1);
+                println!("    Owed fees:    {:.6} {} / {:.6} {}",
+                    pos.tokens_owed0 as f64 / 10f64.powi(dec0 as i32), sym0,
+                    pos.tokens_owed1 as f64 / 10f64.powi(dec1 as i32), sym1);
                 println!();
             }
             Err(e) => {
