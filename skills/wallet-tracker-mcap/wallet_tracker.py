@@ -1265,6 +1265,14 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             super().do_GET()
 
     def do_POST(self):
+        # Reject non-localhost connections for bot control endpoints
+        client_ip = self.client_address[0]
+        if client_ip not in ("127.0.0.1", "::1"):
+            self.send_response(403)
+            self.end_headers()
+            self.wfile.write(b'{"error":"forbidden"}')
+            return
+
         length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(length) if length else b""
         try:
@@ -1343,7 +1351,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
 def start_dashboard():
     try:
-        server = HTTPServer(("0.0.0.0", C.DASHBOARD_PORT), DashboardHandler)
+        server = HTTPServer(("127.0.0.1", C.DASHBOARD_PORT), DashboardHandler)
         log(f"🌐 Dashboard: http://localhost:{C.DASHBOARD_PORT}")
         server.serve_forever()
     except Exception as e:
