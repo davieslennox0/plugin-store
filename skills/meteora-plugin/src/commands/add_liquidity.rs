@@ -316,8 +316,13 @@ pub async fn execute(args: &AddLiquidityArgs, dry_run: bool) -> anyhow::Result<(
             solana_rpc::find_token_account(&client, &wallet_str, &mint_y_str2, &ata_y_str),
             solana_rpc::account_exists(&client, &pos_str),
         )?;
-    // Reconcile: if we found an existing spanning position above, trust on-chain state
-    let position_exists = position_exists || position_exists_onchain;
+    // Use on-chain account_exists as the authoritative source.
+    // get_dlmm_positions_by_owner (getProgramAccounts) can return stale data — e.g. a
+    // recently-closed position may still appear in the index for a few seconds after
+    // close_position_if_empty confirms. If we trust stale data we skip ix_initialize_position_pda,
+    // then the DLMM instruction fails with "account owned by a different program" because the
+    // closed account reverts to System Program ownership.
+    let position_exists = position_exists_onchain;
     let user_token_x: Pubkey = token_x_acct.parse()?;
     let user_token_y: Pubkey = token_y_acct.parse()?;
 
