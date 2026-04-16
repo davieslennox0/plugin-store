@@ -407,9 +407,9 @@ pendle --chain <CHAIN_ID> [--dry-run] [--confirm] sell-pt \
 6. Binary calls `onchainos wallet contract-call` to submit the swap transaction
 7. Return `tx_hash`
 
-**Preview output fields:** `ok`, `preview:true`, `operation`, `chain_id`, `pt_address`, `amount_in`, `token_out`, `expected_token_out`, `router`, `calldata`, `wallet`, `required_approvals`, `price_impact_pct`, `warning` (if impact >1%)
+**Preview output fields:** `ok`, `preview:true`, `operation`, `chain_id`, `pt_address`, `amount_in`, `token_out`, `expected_token_out`, `router`, `calldata`, `wallet`, `required_approvals`, `price_impact_pct`, `warning` (if impact >5%)
 
-**Execution output fields:** `ok`, `operation`, `chain_id`, `pt_address`, `amount_in`, `token_out`, `min_token_out`, `expected_token_out`, `router`, `calldata`, `wallet`, `approve_txs`, `tx_hash`, `dry_run`, `price_impact_pct`, `warning` (if impact >1%)
+**Execution output fields:** `ok`, `operation`, `chain_id`, `pt_address`, `amount_in`, `token_out`, `min_token_out`, `expected_token_out`, `router`, `calldata`, `wallet`, `approve_txs`, `tx_hash`, `dry_run`, `price_impact_pct`, `warning` (if impact >5%)
 
 ---
 
@@ -466,9 +466,9 @@ pendle --chain <CHAIN_ID> [--dry-run] [--confirm] sell-yt \
 6. Binary calls `onchainos wallet contract-call` to submit the swap transaction
 7. Return `tx_hash`
 
-**Preview output fields:** `ok`, `preview:true`, `operation`, `chain_id`, `yt_address`, `amount_in`, `token_out`, `expected_token_out`, `router`, `calldata`, `wallet`, `required_approvals`, `price_impact_pct`, `warning` (if impact >1%)
+**Preview output fields:** `ok`, `preview:true`, `operation`, `chain_id`, `yt_address`, `amount_in`, `token_out`, `expected_token_out`, `router`, `calldata`, `wallet`, `required_approvals`, `price_impact_pct`, `warning` (if impact >5%)
 
-**Execution output fields:** `ok`, `operation`, `chain_id`, `yt_address`, `amount_in`, `token_out`, `min_token_out`, `expected_token_out`, `router`, `calldata`, `wallet`, `approve_txs`, `tx_hash`, `dry_run`, `price_impact_pct`, `warning` (if impact >1%)
+**Execution output fields:** `ok`, `operation`, `chain_id`, `yt_address`, `amount_in`, `token_out`, `min_token_out`, `expected_token_out`, `router`, `calldata`, `wallet`, `approve_txs`, `tx_hash`, `dry_run`, `price_impact_pct`, `warning` (if impact >5%)
 
 ---
 
@@ -673,6 +673,8 @@ pendle --chain 42161 --confirm sell-pt \
 | LP Token | Pendle AMM liquidity position token |
 | Implied APY | The current fixed yield rate locked in when buying PT |
 | Market expiry | Date after which PT can be redeemed 1:1 without slippage |
+| `price_impact_pct` | A percentage value (e.g. `"0.01"` = 0.01%). Represents relative deviation vs pool's theoretical rate — not a USD loss. Can be elevated on cross-asset routes even for profitable trades. Warning fires if > 5%. |
+| `expected_*_out` | Amount in wei (token atoms). Divide by token decimals for human-readable value (e.g. weETH: 18 decimals → divide by 1e18; USDC: 6 decimals → divide by 1e6). |
 
 ## Do NOT use for
 
@@ -689,8 +691,8 @@ pendle --chain 42161 --confirm sell-pt \
 |-------|-------------|-----|
 | "Cannot resolve wallet address" | Not logged into onchainos | Run `onchainos wallet login` or pass `--from <address>` |
 | "Insufficient balance: wallet … holds … wei" | Pre-flight check: wallet doesn't hold enough input token | Acquire more of the input token; check balance with `onchainos wallet balance --chain <id>` |
-| "Insufficient PT balance: wallet … holds … wei" | Pre-flight check: wallet doesn't hold enough PT | Verify PT balance; use `get-positions` to confirm holdings |
-| "Insufficient YT balance: wallet … holds … wei" | Pre-flight check: wallet doesn't hold enough YT | Verify YT balance; use `get-positions` to confirm holdings |
+| "Insufficient PT balance: wallet … holds … wei … To preview pricing without holding PT, use --dry-run" | Pre-flight check: wallet doesn't hold enough PT | Acquire PT first, or use `--dry-run` to get a pricing preview without a balance check |
+| "Insufficient YT balance: wallet … holds … wei … To preview pricing without holding YT, use --dry-run" | Pre-flight check: wallet doesn't hold enough YT | Acquire YT first, or use `--dry-run` to get a pricing preview without a balance check |
 | "Insufficient LP balance: wallet … holds … wei" | Pre-flight check: wallet doesn't hold enough LP | Verify LP balance with `get-positions` |
 | `warning: "High price impact: X.XX%"` | Price deviation > 5% vs pool's theoretical rate; may be elevated for cross-asset routes on small amounts | Check `expected_token_out` to verify actual output; if trade is still favourable proceed; otherwise reduce size or choose a more liquid pool |
 | "No routes in SDK response" | Invalid token/market address, or YT near expiry | Verify addresses using `list-markets`; for YT/buy-yt use a market with ≥ 3 months to expiry |

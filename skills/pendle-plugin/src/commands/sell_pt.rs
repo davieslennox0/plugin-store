@@ -35,7 +35,8 @@ pub async fn run(
         if balance < required {
             anyhow::bail!(
                 "Insufficient PT balance: wallet {} holds {} wei of PT {} but {} wei is required. \
-                 Acquire more before retrying.",
+                 Acquire more before retrying. \
+                 To preview pricing without holding PT, use --dry-run (skips balance check).",
                 wallet, balance, pt_address, required
             );
         }

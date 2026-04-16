@@ -35,7 +35,8 @@ pub async fn run(
         if balance < required {
             anyhow::bail!(
                 "Insufficient YT balance: wallet {} holds {} wei of YT {} but {} wei is required. \
-                 Acquire more before retrying.",
+                 Acquire more before retrying. \
+                 To preview pricing without holding YT, use --dry-run (skips balance check).",
                 wallet, balance, yt_address, required
             );
         }
