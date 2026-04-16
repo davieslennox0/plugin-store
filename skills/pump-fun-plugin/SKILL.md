@@ -151,10 +151,18 @@ Solana mainnet (chain 501). Program: `6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6
 
 ## Execution Flow for Write Operations
 
-1. Run with `--dry-run` first to preview the operation
-2. **Ask user to confirm** before executing on-chain
-3. Execute only after explicit user approval
-4. Report transaction hash (Solana signature) and outcome
+**Three execution modes:**
+
+| Mode | How to invoke | What happens |
+|------|--------------|--------------|
+| Preview | No `--confirm`, no `--dry-run` (default) | Returns `"preview":true`, no on-chain action |
+| Dry-run | `--dry-run` (global flag before subcommand) | Returns stub output, no SDK call or transaction |
+| Live | `--confirm` | Executes swap on-chain via onchainos |
+
+1. Run **without any flags** to preview — returns `"preview":true`, no transaction submitted
+2. **Show preview to user and ask for confirmation**
+3. Re-run with `--confirm` to execute on-chain
+4. Report transaction signature (`tx_hash`)
 
 ---
 
@@ -200,44 +208,47 @@ pump-fun get-price --mint <MINT_ADDRESS> --direction sell --amount 5000000
 
 ### buy — Buy tokens on bonding curve
 
-Purchases tokens on a pump.fun bonding curve via `onchainos swap execute`. Works for both bonding curve tokens and graduated tokens. Run `--dry-run` to preview, then **ask user to confirm** before proceeding.
+Purchases tokens on a pump.fun bonding curve via `onchainos swap execute`. Works for both bonding curve tokens and graduated tokens. Run without flags to preview, then **ask user to confirm** before proceeding.
 
 ```bash
-# Preview
-pump-fun buy --mint <MINT> --sol-amount 0.01 --dry-run
+# Preview (no --confirm — safe, returns "preview":true)
+pump-fun buy --mint <MINT> --sol-amount 0.01
 
 # Execute after user confirms
-pump-fun buy --mint <MINT> --sol-amount 0.01 --slippage-bps 200
+pump-fun buy --mint <MINT> --sol-amount 0.01 --confirm
+
+# Dry-run (stub only, fastest preview)
+pump-fun --dry-run buy --mint <MINT> --sol-amount 0.01
 ```
 
 **Parameters:**
 - `--mint` (required): Token mint address (base58)
 - `--sol-amount` (required): SOL amount in readable units (e.g. `0.01` = 0.01 SOL)
 - `--slippage-bps` (optional): Slippage tolerance in bps (default: 100)
-- `--dry-run` (optional): Preview without broadcasting
+- `--confirm` (required to execute): Without this flag, returns preview with no on-chain action
 
 ---
 
 ### sell — Sell tokens back to bonding curve
 
-Sells tokens back to a pump.fun bonding curve (or DEX if graduated) for SOL via `onchainos swap execute`. Run `--dry-run` to preview, then **ask user to confirm** before proceeding.
+Sells tokens back to a pump.fun bonding curve (or DEX if graduated) for SOL via `onchainos swap execute`. Run without flags to preview, then **ask user to confirm** before proceeding.
 
 ```bash
-# Preview
-pump-fun sell --mint <MINT> --token-amount 1000000 --dry-run
-
-# Sell a specific amount after user confirms
+# Preview (no --confirm — safe, returns "preview":true)
 pump-fun sell --mint <MINT> --token-amount 1000000
 
-# Sell ALL tokens after user confirms
-pump-fun sell --mint <MINT>
+# Sell a specific amount after user confirms
+pump-fun sell --mint <MINT> --token-amount 1000000 --confirm
+
+# Sell ALL tokens after user confirms (fetches balance at execution time)
+pump-fun sell --mint <MINT> --confirm
 ```
 
 **Parameters:**
 - `--mint` (required): Token mint address (base58)
 - `--token-amount` (optional): Readable token amount to sell (e.g. `1000000`); omit to sell entire balance
 - `--slippage-bps` (optional): Slippage tolerance in bps (default: 100)
-- `--dry-run` (optional): Preview without broadcasting
+- `--confirm` (required to execute): Without this flag, returns preview with no on-chain action
 
 ---
 
