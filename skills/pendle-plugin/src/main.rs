@@ -20,6 +20,10 @@ struct Cli {
     #[arg(long)]
     dry_run: bool,
 
+    /// Confirm and broadcast the transaction (required for live execution)
+    #[arg(long)]
+    confirm: bool,
+
     /// Optional Pendle API Bearer token (increases rate limit)
     #[arg(long)]
     api_key: Option<String>,
@@ -47,6 +51,11 @@ enum Commands {
         /// Max results to return (max 100)
         #[arg(long, default_value = "20")]
         limit: u64,
+
+        /// Filter markets by name or token symbol (e.g. weETH, USDC, wstETH).
+        /// Note: ETH pools use liquid staking derivatives — try weETH, wstETH, rETH instead of ETH/WETH.
+        #[arg(long)]
+        search: Option<String>,
     },
 
     /// Get detailed market data for a specific Pendle market
@@ -55,7 +64,7 @@ enum Commands {
         #[arg(long)]
         market: String,
 
-        /// Time frame: 1D, 1W, 1M
+        /// Time frame for historical data: 1D (1 day), 1W (1 week), 1M (1 month)
         #[arg(long)]
         time_frame: Option<String>,
     },
@@ -314,18 +323,25 @@ async fn main() {
     let dry_run = cli.dry_run;
     let api_key = cli.api_key.as_deref();
 
+    let confirm = cli.confirm;
+
     let result = match cli.command {
         Commands::ListMarkets {
             chain_id,
             active_only,
             skip,
             limit,
+            search,
         } => {
+            // If --chain-id not explicitly passed, default to the global --chain value
+            // so `pendle --chain 42161 list-markets` correctly filters by Arbitrum.
+            let effective_chain_id = Some(chain_id.unwrap_or(chain));
             commands::list_markets::run(
-                chain_id,
+                effective_chain_id,
                 if active_only { Some(true) } else { None },
                 skip,
                 limit,
+                search.as_deref(),
                 api_key,
             )
             .await
@@ -365,6 +381,7 @@ async fn main() {
                 from.as_deref(),
                 slippage,
                 dry_run,
+                confirm,
                 api_key,
             )
             .await
@@ -387,6 +404,7 @@ async fn main() {
                 from.as_deref(),
                 slippage,
                 dry_run,
+                confirm,
                 api_key,
             )
             .await
@@ -409,6 +427,7 @@ async fn main() {
                 from.as_deref(),
                 slippage,
                 dry_run,
+                confirm,
                 api_key,
             )
             .await
@@ -431,6 +450,7 @@ async fn main() {
                 from.as_deref(),
                 slippage,
                 dry_run,
+                confirm,
                 api_key,
             )
             .await
@@ -453,6 +473,7 @@ async fn main() {
                 from.as_deref(),
                 slippage,
                 dry_run,
+                confirm,
                 api_key,
             )
             .await
@@ -475,6 +496,7 @@ async fn main() {
                 from.as_deref(),
                 slippage,
                 dry_run,
+                confirm,
                 api_key,
             )
             .await
@@ -497,6 +519,7 @@ async fn main() {
                 from.as_deref(),
                 slippage,
                 dry_run,
+                confirm,
                 api_key,
             )
             .await
@@ -521,6 +544,7 @@ async fn main() {
                 from.as_deref(),
                 slippage,
                 dry_run,
+                confirm,
                 api_key,
             )
             .await

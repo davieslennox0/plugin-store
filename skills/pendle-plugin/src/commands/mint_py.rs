@@ -13,6 +13,7 @@ pub async fn run(
     from: Option<&str>,
     slippage: f64,
     dry_run: bool,
+    confirm: bool,
     api_key: Option<&str>,
 ) -> Result<Value> {
     // Validate inputs
@@ -26,6 +27,19 @@ pub async fn run(
         .unwrap_or_else(|| onchainos::resolve_wallet(chain_id).unwrap_or_default());
     if wallet.is_empty() {
         anyhow::bail!("Cannot resolve wallet address. Pass --from or ensure onchainos is logged in.");
+    }
+
+    // Pre-flight balance check: verify wallet holds enough token_in before calling the SDK
+    if !dry_run {
+        let balance = onchainos::erc20_balance_of(chain_id, token_in, &wallet).await.unwrap_or(0);
+        let required: u128 = amount_in.parse().unwrap_or(0);
+        if balance < required {
+            anyhow::bail!(
+                "Insufficient balance: wallet {} holds {} wei of token {} but {} wei is required. \
+                 Acquire more before retrying.",
+                wallet, balance, token_in, required
+            );
+        }
     }
 
     // Both PT and YT as outputs; Hosted SDK routes to mintPyFromToken
@@ -53,6 +67,28 @@ pub async fn run(
 
     let (calldata, router_to) = api::extract_sdk_calldata(&sdk_resp)?;
     let approvals = api::extract_required_approvals(&sdk_resp);
+    let expected_py_out = api::extract_amount_out(&sdk_resp);
+
+    // Preview gate: show SDK quote without executing
+    if !confirm && !dry_run {
+        return Ok(serde_json::json!({
+            "ok": true,
+            "preview": true,
+            "note": "Preview — add --confirm to execute on-chain.",
+            "operation": "mint-py",
+            "chain_id": chain_id,
+            "token_in": token_in,
+            "amount_in": amount_in,
+            "pt_address": pt_address,
+            "yt_address": yt_address,
+            "expected_py_out": expected_py_out,
+            "router": router_to,
+            "calldata": calldata,
+            "wallet": wallet,
+            "required_approvals": approvals.len(),
+        }));
+    }
+
     let amount_in_wei: u128 = amount_in.parse().map_err(|_| anyhow::anyhow!("Failed to parse amount-in: '{}'", amount_in))?;
 
     let mut approve_hashes: Vec<String> = Vec::new();
@@ -66,7 +102,9 @@ pub async fn run(
             dry_run,
         )
         .await?;
-        approve_hashes.push(onchainos::extract_tx_hash(&approve_result)?);
+        let approve_hash = onchainos::extract_tx_hash(&approve_result)?;
+        if !dry_run { onchainos::wait_for_tx(&approve_hash, onchainos::default_rpc_url(chain_id)).await; }
+        approve_hashes.push(approve_hash);
     }
 
     let result = onchainos::wallet_contract_call(
@@ -89,6 +127,7 @@ pub async fn run(
         "amount_in": amount_in,
         "pt_address": pt_address,
         "yt_address": yt_address,
+        "expected_py_out": expected_py_out,
         "router": router_to,
         "calldata": calldata,
         "wallet": wallet,

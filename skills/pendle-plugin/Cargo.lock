@@ -816,8 +816,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "pendle"
-version = "0.2.1"
+name = "pendle-plugin"
+version = "0.2.3"
 dependencies = [
  "anyhow",
  "clap",
