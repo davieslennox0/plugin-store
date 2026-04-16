@@ -50,6 +50,9 @@ pub async fn run(chain_id: u64, rpc_url: Option<String>) -> anyhow::Result<()> {
     // Sort by alloc_point descending so highest-reward pools appear first
     active_pools.sort_by(|a, b| b.alloc_point.cmp(&a.alloc_point));
 
+    // Compute total alloc points for reward share percentage
+    let total_alloc: u128 = active_pools.iter().map(|p| p.alloc_point).sum();
+
     let note = if failed > 0 {
         format!(
             "{} of {} pools have active CAKE incentives ({} fetch errors)",
@@ -59,11 +62,31 @@ pub async fn run(chain_id: u64, rpc_url: Option<String>) -> anyhow::Result<()> {
         )
     } else {
         format!(
-            "{} of {} pools have active CAKE incentives (alloc_point > 0), sorted by reward share",
+            "{} of {} pools have active CAKE incentives (alloc_point > 0), sorted by alloc_point descending",
             active_pools.len(),
             length
         )
     };
+
+    // Annotate each pool with reward_share_pct = alloc_point / total_alloc * 100
+    let pools_with_share: Vec<serde_json::Value> = active_pools
+        .iter()
+        .map(|p| {
+            let share = if total_alloc > 0 {
+                (p.alloc_point as f64 / total_alloc as f64) * 100.0
+            } else {
+                0.0
+            };
+            let mut v = serde_json::to_value(p).unwrap_or_default();
+            if let Some(obj) = v.as_object_mut() {
+                obj.insert(
+                    "reward_share_pct".to_string(),
+                    serde_json::json!(format!("{:.2}", share)),
+                );
+            }
+            v
+        })
+        .collect();
 
     println!(
         "{}",
@@ -74,7 +97,7 @@ pub async fn run(chain_id: u64, rpc_url: Option<String>) -> anyhow::Result<()> {
             "total_pool_count": length,
             "active_pool_count": active_pools.len(),
             "note": note,
-            "pools": active_pools
+            "pools": pools_with_share
         }))?
     );
     Ok(())

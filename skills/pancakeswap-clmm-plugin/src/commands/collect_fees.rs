@@ -69,6 +69,7 @@ pub async fn run(
             "{}",
             serde_json::to_string_pretty(&serde_json::json!({
                 "ok": true,
+                "early_exit": true,
                 "chain_id": chain_id,
                 "token_id": token_id,
                 "message": "No accrued fees to collect.",

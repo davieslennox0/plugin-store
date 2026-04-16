@@ -1,7 +1,7 @@
 ---
 name: pancakeswap-clmm-plugin
 description: "PancakeSwap V3 CLMM farming plugin. Stake V3 LP NFTs into MasterChefV3 to earn CAKE rewards, harvest CAKE, collect swap fees, and view positions across BSC, Ethereum, Base, and Arbitrum. Trigger phrases: stake LP NFT, farm CAKE, harvest CAKE rewards, collect fees, unfarm position, PancakeSwap farming, view positions."
-version: "0.1.2"
+version: "0.1.3"
 author: "skylavis-sky"
 tags:
   - dex
@@ -25,7 +25,7 @@ tags:
 # Check for skill updates (1-hour cache)
 UPDATE_CACHE="$HOME/.plugin-store/update-cache/pancakeswap-clmm-plugin"
 CACHE_MAX=3600
-LOCAL_VER="0.1.2"
+LOCAL_VER="0.1.3"
 DO_CHECK=true
 
 if [ -f "$UPDATE_CACHE" ]; then
@@ -98,7 +98,7 @@ case "${OS}_${ARCH}" in
   mingw*_aarch64|msys*_aarch64|cygwin*_aarch64)  TARGET="aarch64-pc-windows-msvc"; EXT=".exe" ;;
 esac
 mkdir -p ~/.local/bin
-curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/pancakeswap-clmm-plugin@0.1.2/pancakeswap-clmm-plugin-${TARGET}${EXT}" -o ~/.local/bin/.pancakeswap-clmm-plugin-core${EXT}
+curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/pancakeswap-clmm-plugin@0.1.3/pancakeswap-clmm-plugin-${TARGET}${EXT}" -o ~/.local/bin/.pancakeswap-clmm-plugin-core${EXT}
 chmod +x ~/.local/bin/.pancakeswap-clmm-plugin-core${EXT}
 
 # Symlink CLI name to universal launcher
@@ -126,7 +126,7 @@ if [ ! -f "$REPORT_FLAG" ]; then
   # Report to Vercel stats
   curl -s -X POST "https://plugin-store-dun.vercel.app/install" \
     -H "Content-Type: application/json" \
-    -d '{"name":"pancakeswap-clmm-plugin","version":"0.1.2"}' >/dev/null 2>&1 || true
+    -d '{"name":"pancakeswap-clmm-plugin","version":"0.1.3"}' >/dev/null 2>&1 || true
   # Report to OKX API (with HMAC-signed device token)
   curl -s -X POST "https://www.okx.com/priapi/v1/wallet/plugins/download/report" \
     -H "Content-Type: application/json" \
@@ -163,19 +163,35 @@ Do NOT use for: PancakeSwap V3 simple swaps without farming (use pancakeswap ski
 | `--dry-run` | Show calldata and parameters without broadcasting or prompting | false |
 | `--rpc-url <url>` | Override the default public RPC endpoint (use when the default is rate-limited or unavailable) | see config |
 
-## Relationship with `pancakeswap` Plugin
+## Relationship with `pancakeswap-v3` Plugin
 
-This plugin focuses on **MasterChefV3 farming** and is complementary to the `pancakeswap` plugin (PR #82):
+This plugin focuses on **MasterChefV3 farming** and is complementary to the `pancakeswap-v3` plugin:
 
-- Use `pancakeswap add-liquidity` to create a V3 LP position and get a token ID
+- Use `pancakeswap-v3 add-liquidity` to create a V3 LP position and get a token ID
 - Use `pancakeswap-clmm farm --token-id <ID>` to stake that NFT and earn CAKE
 - Use `pancakeswap-clmm unfarm --token-id <ID>` to withdraw and stop farming
-- Swap and liquidity management remain in the `pancakeswap` plugin
+- Swap and liquidity management remain in the `pancakeswap-v3` plugin
 
 ## Note on Staked NFT Discovery
 
-NFTs staked in MasterChefV3 leave your wallet. The `positions` command shows unstaked positions by default.
-To also view staked positions, use `--include-staked <tokenId1,tokenId2>` to query specific token IDs.
+When a V3 LP NFT is staked (farmed), it is transferred to the MasterChefV3 contract. The NFT leaves the user's wallet, so a plain `balanceOf` scan would miss it.
+
+The `positions` command automatically discovers staked positions by scanning ERC-721 `Transfer` events on the NonfungiblePositionManager (wallet → MasterChefV3) and verifying each candidate on-chain via `userPositionInfos(tokenId)`. This finds all currently staked positions without requiring the user to know their token IDs in advance.
+
+The output includes a `staked_discovery` field:
+- `"auto"` — staked positions were discovered via Transfer log scan
+- `"manual"` — user supplied `--include-staked <tokenId1,tokenId2>` explicitly
+
+If the RPC node does not support `eth_getLogs` with a large block range, the plugin falls back to a chunked scan of the most recent available blocks (newest-first, stopping at pruned history). It reports the block coverage in `staked_discovery_note`.
+
+**For full historical discovery** (positions staked weeks or months ago), pass an archive-capable RPC via `--rpc-url` (e.g. Ankr, QuickNode, or Alchemy BSC endpoints):
+```bash
+pancakeswap-clmm --chain 56 --rpc-url <your-archive-rpc-url> positions
+```
+Or specify token IDs directly if you know them:
+```bash
+pancakeswap-clmm --chain 56 positions --include-staked 12345,67890
+```
 
 ## Commands
 
@@ -198,7 +214,7 @@ pancakeswap-clmm --chain 56 --confirm farm --token-id 12345
 1. Run without flags to preview the action (verifies ownership, shows contract details, exits)
 2. Verify the target pool has active CAKE incentives via `farm-pools`
 3. Run with `--confirm` to execute — NFT is transferred to MasterChefV3
-4. Verify staking via `positions --include-staked <tokenId>`
+4. Verify staking via `positions` (auto-discovers staked positions)
 
 **Parameters:**
 - `--token-id` — LP NFT token ID (required)
@@ -292,24 +308,35 @@ pancakeswap-clmm --chain 56 pending-rewards --token-id 12345
 
 ### farm-pools — List Active Farming Pools
 
-List all MasterChefV3 farming pools that have active CAKE incentives (`alloc_point > 0`), sorted by reward share descending (read-only). Pools with `alloc_point = 0` are inactive and excluded.
+List all MasterChefV3 farming pools that have active CAKE incentives (`alloc_point > 0`), sorted by `alloc_point` descending. Each pool includes `reward_share_pct` (= alloc_point / total_active_alloc × 100) showing its share of CAKE emissions. Pools with `alloc_point = 0` are inactive and excluded.
 
 ```
 pancakeswap-clmm --chain 56 farm-pools
 pancakeswap-clmm --chain 8453 farm-pools
 ```
 
+> **Note on addresses**: The `farm-pools` output includes `token0` and `token1` as raw contract addresses (e.g. `0x55d398...`). To look up the symbol and decimals for an address, use `pancakeswap-v3 pools` or resolve via a block explorer. Common BSC/Base/Arbitrum addresses are listed in the Token Symbols tables in the `pancakeswap-v3` SKILL.md.
+
 ---
 
 ### positions — View All LP Positions
 
-View unstaked V3 LP positions in your wallet. Optionally include staked positions by specifying their token IDs.
+View all V3 LP positions — both unstaked (in wallet) and staked (in MasterChefV3). Staked positions are auto-discovered via Transfer log scan; no token IDs needed.
 
 ```
+# Auto-discovers both unstaked and staked positions
 pancakeswap-clmm --chain 56 positions
 pancakeswap-clmm --chain 56 positions --owner 0xYourWallet
+
+# Manual override: specify staked token IDs directly (use if auto-discovery fails)
 pancakeswap-clmm --chain 56 positions --include-staked 12345,67890
 ```
+
+**Output fields:**
+- `unstaked_positions` — NFTs currently in the wallet
+- `staked_positions` — NFTs staked in MasterChefV3 (includes `pending_cake`, `pid`, `liquidity`)
+- `staked_discovery` — `"auto"` or `"manual"`
+- `staked_discovery_note` — explains how many candidates were found and verified
 
 ---
 

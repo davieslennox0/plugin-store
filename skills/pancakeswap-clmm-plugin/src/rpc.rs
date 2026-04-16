@@ -1,5 +1,13 @@
 use anyhow::Context;
 use serde_json::json;
+use std::time::Duration;
+
+fn rpc_client() -> reqwest::Client {
+    reqwest::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .build()
+        .expect("failed to build HTTP client")
+}
 
 fn serialize_u128_as_string<S: serde::Serializer>(v: &u128, s: S) -> Result<S::Ok, S::Error> {
     s.serialize_str(&v.to_string())
@@ -7,7 +15,7 @@ fn serialize_u128_as_string<S: serde::Serializer>(v: &u128, s: S) -> Result<S::O
 
 /// Low-level eth_call via JSON-RPC. Returns the raw hex result string (may include "0x" prefix).
 pub async fn eth_call(to: &str, data: &str, rpc_url: &str) -> anyhow::Result<String> {
-    let client = reqwest::Client::new();
+    let client = rpc_client();
     let body = json!({
         "jsonrpc": "2.0",
         "method": "eth_call",
@@ -296,6 +304,284 @@ pub async fn pool_info(
     let calldata = format!("0x1526fe27{}", pad_u256_dec(pid));
     let result = eth_call(masterchef, &calldata, rpc_url).await?;
     parse_pool_info(&result, pid)
+}
+
+/// Scan ERC-721 Transfer events to discover token IDs currently staked by `wallet` in `masterchef`.
+///
+/// Strategy:
+///   1. Try a single `eth_getLogs` call spanning the full history from `from_block`.
+///   2. If the RPC rejects with a "block range" error, fall back to chunked scanning of the most
+///      recent MAX_SCAN_BLOCKS blocks in CHUNK_SIZE windows.
+///   3. Candidates = deposited_set − withdrawn_set (net staked by log history).
+///
+/// Returns `(token_ids, discovery_note)`.
+/// On unrecoverable failure, returns `(vec![], warning_message)` so the caller can surface it.
+pub async fn scan_staked_token_ids(
+    nft_contract: &str,
+    masterchef: &str,
+    wallet: &str,
+    from_block: u64,
+    rpc_url: &str,
+) -> (Vec<u64>, String) {
+    // ERC-721 Transfer(address indexed from, address indexed to, uint256 indexed tokenId)
+    const TRANSFER_SIG: &str =
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+    // Max blocks per chunk for RPCs with strict range limits (just under common 50k cap)
+    const CHUNK_SIZE: u64 = 49_999;
+    // Max total blocks to scan in chunked fallback (~60 days on BSC, ~41 chunks)
+    const MAX_SCAN_BLOCKS: u64 = 2_000_000;
+
+    let wallet_padded = format!(
+        "0x{:0>64}",
+        wallet.trim_start_matches("0x").to_lowercase()
+    );
+    let masterchef_padded = format!(
+        "0x{:0>64}",
+        masterchef.trim_start_matches("0x").to_lowercase()
+    );
+
+    // Try full-range scan first — works on Alchemy, QuickNode, and some public nodes
+    let from_hex = format!("0x{:x}", from_block);
+    let full_result = scan_direction(
+        nft_contract, TRANSFER_SIG, &wallet_padded, &masterchef_padded, &from_hex, "latest", rpc_url,
+    ).await;
+
+    let (deposited, withdrawn, scan_note) = match full_result {
+        Ok(deposits) => {
+            let withdrawals = scan_direction(
+                nft_contract, TRANSFER_SIG, &masterchef_padded, &wallet_padded, &from_hex, "latest", rpc_url,
+            ).await.unwrap_or_default();
+            (deposits, withdrawals, "full history".to_string())
+        }
+        Err(e) if is_block_range_error(&e) => {
+            // RPC has block range limit — fall back to chunked scan of recent history
+            let latest = match eth_block_number(rpc_url).await {
+                Ok(b) => b,
+                Err(fetch_err) => {
+                    return (
+                        vec![],
+                        format!(
+                            "Staked position auto-discovery unavailable: could not get block number ({}). \
+                             Use --include-staked <token_ids> to view staked positions manually.",
+                            fetch_err
+                        ),
+                    );
+                }
+            };
+            let scan_from = latest.saturating_sub(MAX_SCAN_BLOCKS).max(from_block);
+            let truncated = scan_from > from_block;
+
+            let (deposits, earliest_dep) = match scan_chunked(
+                nft_contract, TRANSFER_SIG, &wallet_padded, &masterchef_padded,
+                scan_from, latest, CHUNK_SIZE, rpc_url,
+            ).await {
+                Ok(result) => result,
+                Err(chunk_err) => {
+                    return (
+                        vec![],
+                        format!(
+                            "Staked position auto-discovery unavailable: chunked eth_getLogs failed ({}). \
+                             Use --include-staked <token_ids> to view staked positions manually.",
+                            chunk_err
+                        ),
+                    );
+                }
+            };
+            let (withdrawals, _) = scan_chunked(
+                nft_contract, TRANSFER_SIG, &masterchef_padded, &wallet_padded,
+                scan_from, latest, CHUNK_SIZE, rpc_url,
+            ).await.unwrap_or((vec![], scan_from));
+
+            let blocks_scanned = latest.saturating_sub(earliest_dep);
+            let note = if earliest_dep > from_block {
+                format!(
+                    "recent {} blocks from block {} (RPC only has partial log history; \
+                     for full discovery use --rpc-url <archive-node> or --include-staked <token_ids>)",
+                    blocks_scanned, earliest_dep
+                )
+            } else if truncated {
+                format!(
+                    "recent {} blocks (large history capped; positions staked before block {} \
+                     may need --include-staked or --rpc-url <archive-node>)",
+                    MAX_SCAN_BLOCKS, scan_from
+                )
+            } else {
+                "full history (chunked scan)".to_string()
+            };
+            (deposits, withdrawals, note)
+        }
+        Err(e) => {
+            return (
+                vec![],
+                format!(
+                    "Staked position auto-discovery unavailable: eth_getLogs failed ({}). \
+                     Use --include-staked <token_ids> to view staked positions manually.",
+                    e
+                ),
+            );
+        }
+    };
+
+    let withdrawn_set: std::collections::HashSet<u64> = withdrawn.into_iter().collect();
+    let candidates: Vec<u64> = {
+        let mut seen = std::collections::HashSet::new();
+        deposited
+            .into_iter()
+            .filter(|id| !withdrawn_set.contains(id) && seen.insert(*id))
+            .collect()
+    };
+
+    let note = format!(
+        "Auto-discovered {} candidate token ID(s) from Transfer logs ({}); verifying on-chain.",
+        candidates.len(),
+        scan_note
+    );
+    (candidates, note)
+}
+
+fn is_block_range_error(err: &anyhow::Error) -> bool {
+    let msg = err.to_string().to_lowercase();
+    msg.contains("block range") || msg.contains("exceed") || msg.contains("-32701")
+        || msg.contains("too large") || msg.contains("limit exceeded")
+}
+
+fn is_pruned_error(err: &anyhow::Error) -> bool {
+    let msg = err.to_string().to_lowercase();
+    msg.contains("pruned") || msg.contains("not available") || msg.contains("missing trie node")
+        || msg.contains("historical")
+}
+
+pub async fn eth_block_number(rpc_url: &str) -> anyhow::Result<u64> {
+    let client = rpc_client();
+    let body = json!({
+        "jsonrpc": "2.0",
+        "method": "eth_blockNumber",
+        "params": [],
+        "id": 1
+    });
+    let resp: serde_json::Value = client
+        .post(rpc_url)
+        .json(&body)
+        .send()
+        .await
+        .context("eth_blockNumber HTTP request failed")?
+        .json()
+        .await
+        .context("eth_blockNumber JSON parse failed")?;
+    let hex = resp["result"]
+        .as_str()
+        .ok_or_else(|| anyhow::anyhow!("eth_blockNumber: missing result"))?;
+    Ok(u64::from_str_radix(hex.trim_start_matches("0x"), 16).unwrap_or(0))
+}
+
+async fn scan_direction(
+    contract: &str,
+    event_sig: &str,
+    topic1: &str,
+    topic2: &str,
+    from_block: &str,
+    to_block: &str,
+    rpc_url: &str,
+) -> anyhow::Result<Vec<u64>> {
+    get_transfer_logs(contract, event_sig, topic1, topic2, from_block, to_block, rpc_url).await
+}
+
+/// Chunked scan, newest-first. Stops gracefully when it hits a pruned block range.
+/// Returns (token_ids, earliest_block_scanned) so the caller can report coverage.
+async fn scan_chunked(
+    contract: &str,
+    event_sig: &str,
+    topic1: &str,
+    topic2: &str,
+    from_block: u64,
+    to_block: u64,
+    chunk_size: u64,
+    rpc_url: &str,
+) -> anyhow::Result<(Vec<u64>, u64)> {
+    let mut all_ids = Vec::new();
+    let mut earliest_scanned = to_block;
+
+    // Build chunk boundaries oldest→newest, then reverse to scan newest first
+    let mut chunks: Vec<(u64, u64)> = Vec::new();
+    let mut start = from_block;
+    while start <= to_block {
+        let end = (start + chunk_size - 1).min(to_block);
+        chunks.push((start, end));
+        start = end + 1;
+    }
+
+    for (chunk_start, chunk_end) in chunks.into_iter().rev() {
+        let from_hex = format!("0x{:x}", chunk_start);
+        let to_hex = format!("0x{:x}", chunk_end);
+        match get_transfer_logs(contract, event_sig, topic1, topic2, &from_hex, &to_hex, rpc_url).await {
+            Ok(ids) => {
+                all_ids.extend(ids);
+                earliest_scanned = chunk_start;
+            }
+            Err(e) if is_pruned_error(&e) => {
+                // Older chunks pruned — stop here, keep what we have
+                break;
+            }
+            Err(e) => return Err(e),
+        }
+    }
+
+    Ok((all_ids, earliest_scanned))
+}
+
+async fn get_transfer_logs(
+    contract: &str,
+    event_sig: &str,
+    topic1: &str,
+    topic2: &str,
+    from_block: &str,
+    to_block: &str,
+    rpc_url: &str,
+) -> anyhow::Result<Vec<u64>> {
+    let client = rpc_client();
+    let body = json!({
+        "jsonrpc": "2.0",
+        "method": "eth_getLogs",
+        "params": [{
+            "address": contract,
+            "topics": [event_sig, topic1, topic2, null],
+            "fromBlock": from_block,
+            "toBlock": to_block
+        }],
+        "id": 1
+    });
+
+    let resp: serde_json::Value = client
+        .post(rpc_url)
+        .json(&body)
+        .send()
+        .await
+        .context("eth_getLogs HTTP request failed")?
+        .json()
+        .await
+        .context("eth_getLogs JSON parse failed")?;
+
+    if let Some(err) = resp.get("error") {
+        anyhow::bail!("{}", err);
+    }
+
+    let logs = resp["result"]
+        .as_array()
+        .ok_or_else(|| anyhow::anyhow!("eth_getLogs: missing result array"))?;
+
+    // topic[3] = indexed tokenId (all 3 Transfer params are indexed in ERC-721)
+    let token_ids = logs
+        .iter()
+        .filter_map(|log| {
+            log["topics"]
+                .as_array()?
+                .get(3)?
+                .as_str()
+                .map(decode_u64)
+        })
+        .collect();
+
+    Ok(token_ids)
 }
 
 fn parse_pool_info(hex: &str, pid: u64) -> anyhow::Result<PoolInfo> {
