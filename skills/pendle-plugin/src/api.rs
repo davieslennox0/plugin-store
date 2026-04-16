@@ -197,6 +197,53 @@ pub async fn get_asset_prices(
     Ok(body)
 }
 
+/// GET /v2/sdk/{chainId}/convert — Pendle Hosted SDK v2 endpoint.
+///
+/// Used for multi-token operations where the v3 POST endpoint cannot classify the action:
+///   - mintPyFromToken:  tokensIn = underlying, tokensOut = "pt_addr,yt_addr"
+///   - redeemPyToToken:  tokensIn = "pt_addr,yt_addr", amountsIn = "pt_amt,yt_amt", tokensOut = underlying
+///
+/// Per the official Pendle hosted-SDK examples (pendle-finance/pendle-examples-public),
+/// the v2 GET endpoint is the correct path for mint/redeem PY. The response schema is
+/// identical to v3 POST (routes[].tx.data / routes[].tx.to) so all existing extractors work.
+pub async fn sdk_convert_v2_get(
+    chain_id: u64,
+    receiver: &str,
+    tokens_in: &str,   // comma-separated for multi-input (e.g. "pt_addr,yt_addr")
+    amounts_in: &str,  // comma-separated for multi-input (e.g. "pt_wei,yt_wei")
+    tokens_out: &str,  // comma-separated for multi-output (e.g. "pt_addr,yt_addr")
+    slippage: f64,
+    api_key: Option<&str>,
+) -> anyhow::Result<Value> {
+    let client = build_client(api_key)?;
+    let url = format!(
+        "{}/v2/sdk/{}/convert?tokensIn={}&amountsIn={}&tokensOut={}&receiver={}&slippage={}&enableAggregator=true",
+        PENDLE_API_BASE, chain_id,
+        tokens_in, amounts_in, tokens_out, receiver, slippage
+    );
+
+    let resp = client
+        .get(&url)
+        .send()
+        .await
+        .context("Failed to call Pendle SDK v2 convert API")?;
+
+    let status = resp.status();
+    let body_text = resp.text().await.context("Failed to read SDK v2 convert response body")?;
+
+    if !status.is_success() {
+        anyhow::bail!(
+            "Pendle SDK v2 convert returned HTTP {}: {}",
+            status.as_u16(),
+            body_text.trim()
+        );
+    }
+
+    let response: Value = serde_json::from_str(&body_text)
+        .context("Failed to parse SDK v2 convert response")?;
+    Ok(response)
+}
+
 /// POST /v3/sdk/{chainId}/convert — generate transaction calldata via Pendle Hosted SDK
 pub async fn sdk_convert(
     chain_id: u64,
@@ -381,6 +428,34 @@ pub fn extract_price_impact(response: &Value) -> Option<f64> {
         .as_f64()
         .or_else(|| route["data"]["price_impact"].as_f64())?;
     Some(impact.abs() * 100.0)
+}
+
+/// Client-side minimum-output guard.
+///
+/// After getting a quote from the SDK, compare the expected output against the
+/// user-supplied minimum.  Values of "0" or "" are treated as "no minimum" and
+/// always pass.  If the quote is below the minimum the command aborts before any
+/// approval or on-chain call, saving gas and preventing a worse-than-expected fill.
+///
+/// `label` is the human-readable token name used in the error message ("pt", "yt",
+/// "lp", "token").
+pub fn check_min_out(expected: &Option<String>, min_out: &str, label: &str) -> anyhow::Result<()> {
+    let min: u128 = min_out.parse().unwrap_or(0);
+    if min == 0 {
+        return Ok(());
+    }
+    if let Some(expected_str) = expected {
+        let got: u128 = expected_str.parse().unwrap_or(0);
+        if got < min {
+            anyhow::bail!(
+                "SDK quote {} wei {} is below your --min-{}-out {} wei. \
+                 Slippage may be too tight or the market moved. \
+                 Lower --min-{}-out or increase --slippage before retrying.",
+                got, label, label, min, label
+            );
+        }
+    }
+    Ok(())
 }
 
 /// Extract required approvals from SDK convert response

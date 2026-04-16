@@ -1,5 +1,6 @@
 pub mod list_markets;
 pub mod get_market;
+pub mod get_market_info;
 pub mod get_positions;
 pub mod get_asset_price;
 pub mod buy_pt;

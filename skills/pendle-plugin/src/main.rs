@@ -13,19 +13,19 @@ use clap::{Parser, Subcommand};
 )]
 struct Cli {
     /// Chain ID (default: 42161 Arbitrum — Pendle's highest TVL chain)
-    #[arg(long, default_value = "42161")]
+    #[arg(long, default_value = "42161", global = true)]
     chain: u64,
 
     /// Simulate without broadcasting any transaction
-    #[arg(long)]
+    #[arg(long, global = true)]
     dry_run: bool,
 
     /// Confirm and broadcast the transaction (required for live execution)
-    #[arg(long)]
+    #[arg(long, global = true)]
     confirm: bool,
 
     /// Optional Pendle API Bearer token (increases rate limit)
-    #[arg(long)]
+    #[arg(long, global = true)]
     api_key: Option<String>,
 
     #[command(subcommand)]
@@ -60,13 +60,20 @@ enum Commands {
 
     /// Get detailed market data for a specific Pendle market
     GetMarket {
-        /// Market contract address
-        #[arg(long)]
+        /// Market contract address (also accepted as --market-id)
+        #[arg(long, alias = "market-id")]
         market: String,
 
         /// Time frame for historical data: 1D (1 day), 1W (1 week), 1M (1 month)
         #[arg(long)]
         time_frame: Option<String>,
+    },
+
+    /// Get a clean summary of token addresses for a specific Pendle market (PT, YT, SY, LP, underlying)
+    GetMarketInfo {
+        /// Market contract address (also accepted as --market-id)
+        #[arg(long, alias = "market-id")]
+        market: String,
     },
 
     /// Get user positions (PT, YT, LP holdings) across all chains
@@ -349,6 +356,10 @@ async fn main() {
 
         Commands::GetMarket { market, time_frame } => {
             commands::get_market::run(chain, &market, time_frame.as_deref(), api_key).await
+        }
+
+        Commands::GetMarketInfo { market } => {
+            commands::get_market_info::run(chain, &market, api_key).await
         }
 
         Commands::GetPositions { user, filter_usd } => {

@@ -4,7 +4,7 @@ description: "Pendle Finance yield tokenization plugin. Buy or sell fixed-yield 
 license: MIT
 metadata:
   author: skylavis-sky
-  version: "0.2.3"
+  version: "0.2.4"
 ---
 
 
@@ -20,7 +20,7 @@ metadata:
 # Check for skill updates (1-hour cache)
 UPDATE_CACHE="$HOME/.plugin-store/update-cache/pendle-plugin"
 CACHE_MAX=3600
-LOCAL_VER="0.2.3"
+LOCAL_VER="0.2.4"
 DO_CHECK=true
 
 if [ -f "$UPDATE_CACHE" ]; then
@@ -93,7 +93,7 @@ case "${OS}_${ARCH}" in
   mingw*_aarch64|msys*_aarch64|cygwin*_aarch64)  TARGET="aarch64-pc-windows-msvc"; EXT=".exe" ;;
 esac
 mkdir -p ~/.local/bin
-curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/pendle-plugin@0.2.3/pendle-plugin-${TARGET}${EXT}" -o ~/.local/bin/.pendle-plugin-core${EXT}
+curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/pendle-plugin@0.2.4/pendle-plugin-${TARGET}${EXT}" -o ~/.local/bin/.pendle-plugin-core${EXT}
 chmod +x ~/.local/bin/.pendle-plugin-core${EXT}
 
 # Symlink CLI name to universal launcher
@@ -101,7 +101,7 @@ ln -sf "$LAUNCHER" ~/.local/bin/pendle-plugin
 
 # Register version
 mkdir -p "$HOME/.plugin-store/managed"
-echo "0.2.3" > "$HOME/.plugin-store/managed/pendle-plugin"
+echo "0.2.4" > "$HOME/.plugin-store/managed/pendle-plugin"
 ```
 
 ### Report install (auto-injected, runs once)
@@ -121,7 +121,7 @@ if [ ! -f "$REPORT_FLAG" ]; then
   # Report to Vercel stats
   curl -s -X POST "https://plugin-store-dun.vercel.app/install" \
     -H "Content-Type: application/json" \
-    -d '{"name":"pendle-plugin","version":"0.2.3"}' >/dev/null 2>&1 || true
+    -d '{"name":"pendle-plugin","version":"0.2.4"}' >/dev/null 2>&1 || true
   # Report to OKX API (with HMAC-signed device token)
   curl -s -X POST "https://www.okx.com/priapi/v1/wallet/plugins/download/report" \
     -H "Content-Type: application/json" \
@@ -156,10 +156,10 @@ fi
 | Dry-run | `--dry-run` (global flag) | Same as preview but returns stub zero-hash placeholders in `approve_txs` and `tx_hash` instead of real calldata. Fastest; use when you only need to inspect the route. |
 | Live execution | `--confirm` (global flag) | Submits ERC-20 approvals and the Pendle router tx on-chain. |
 
-**`--dry-run` placement**: must be a **global flag**, not after the subcommand:
+**Global flags** (`--chain`, `--dry-run`, `--confirm`) can appear **before or after** the subcommand — both are valid:
 ```bash
-pendle --chain 42161 --dry-run buy-pt ...   # ✅ correct
-pendle --chain 42161 buy-pt --dry-run ...   # ❌ error: unexpected argument
+pendle --chain 42161 --dry-run buy-pt ...   # ✅ flags before subcommand
+pendle buy-pt --chain 42161 --dry-run ...   # ✅ flags after subcommand (v0.2.4+)
 ```
 
 **Live execution internals**: All `onchainos wallet contract-call` invocations include `--force`. This is required to broadcast transactions; it is not user-facing.
@@ -202,6 +202,7 @@ onchainos wallet status
 |-------------|---------|
 | List Pendle markets / what markets exist | `list-markets` |
 | Market details / APY for a specific pool | `get-market` |
+| Get PT/YT/SY addresses for a market | `get-market-info` |
 | My Pendle positions / what do I hold | `get-positions` |
 | PT or YT price | `get-asset-price` |
 | Buy PT / lock fixed yield | `buy-pt` |
@@ -292,13 +293,37 @@ pendle --chain <CHAIN_ID> get-market --market <MARKET_ADDRESS> [--time-frame <ho
 ```
 
 **Parameters:**
-- `--market` — market contract address (required)
+- `--market` / `--market-id` — market contract address (required)
 - `--time-frame` — historical data window: `hour`, `day`, or `week`
 
 **Example:**
 ```bash
 pendle --chain 42161 get-market --market 0xd1D7D99764f8a52Aff0BC88ab0b1B4B9c9A18Ef4 --time-frame day
 ```
+
+---
+
+### get-market-info — Address Summary
+
+**When to use:** An AI agent should call this **before** any trade command when it only has the market address. It returns the PT, YT, SY, and underlying token addresses, plus pre-filled example commands for each operation.
+
+**Trigger phrases:** "what are the addresses for this Pendle market", "show me the PT address", "I have a market address and want to trade"
+
+```bash
+pendle --chain <CHAIN_ID> get-market-info --market <MARKET_ADDRESS>
+```
+
+**Parameters:**
+- `--market` / `--market-id` — market contract address (required)
+
+**Example:**
+```bash
+pendle --chain 42161 get-market-info --market 0x0934e592cee932b04b3967162b3cd6c85748c470
+```
+
+**Output includes:**
+- `addresses` — `market_lp`, `pt`, `yt`, `sy`, `underlying` addresses
+- `usage` — pre-filled commands for `buy-pt`, `sell-pt`, `buy-yt`, `sell-yt`, `add-liquidity`, `remove-liquidity`, `mint-py`
 
 ---
 
@@ -706,6 +731,7 @@ pendle --chain 42161 --confirm sell-pt \
 | HTTP 403 from `mint-py` or `redeem-py` | Pendle SDK may not support multi-token operations for this market | Try `mint-py` on Arbitrum (chainId 42161); if 403 persists, this market does not support SDK minting |
 | "Pendle SDK convert returned HTTP 403" | API rate limit, geographic restriction, or unsupported market | Wait and retry; verify market addresses are correct for the target chain |
 | `get-asset-price` returns empty priceMap | IDs not chain-prefixed | Use format `42161-0x...` not bare `0x...` |
+| Approval or main tx times out after ~40 seconds | Network congestion; the binary polls for confirmation every 2s for up to 20 retries (40s hard limit) | The tx may still confirm on-chain. Check the returned `tx_hash` on a block explorer; if confirmed, safe to proceed. If still pending, wait for the next block and retry the command (the approval is idempotent). |
 
 
 

@@ -1,10 +1,10 @@
 [package]
 name = "pendle-plugin"
-version = "0.2.3"
+version = "0.2.4"
 edition = "2021"
 
 [[bin]]
-name = "pendle-plugin"
+name = "pendle"
 path = "src/main.rs"
 
 [dependencies]

@@ -104,6 +104,10 @@ pub async fn wallet_contract_call(
         to.to_string(),
         "--input-data".to_string(),
         input_data.to_string(),
+        // --force bypasses onchainos's interactive confirmation prompt.
+        // This is intentional: the plugin implements its own preview/confirm gate.
+        // dry_run=true returns early above, so --force is only present on the live
+        // execution path (confirm=true), never on preview or dry-run paths.
         "--force".to_string(),
     ];
 

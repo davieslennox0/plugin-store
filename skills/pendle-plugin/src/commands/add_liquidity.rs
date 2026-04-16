@@ -61,6 +61,7 @@ pub async fn run(
     let (calldata, router_to) = api::extract_sdk_calldata(&sdk_resp)?;
     let approvals = api::extract_required_approvals(&sdk_resp);
     let expected_lp_out = api::extract_amount_out(&sdk_resp);
+    api::check_min_out(&expected_lp_out, min_lp_out, "lp")?;
 
     // Preview gate: show SDK quote without executing
     if !confirm && !dry_run {
