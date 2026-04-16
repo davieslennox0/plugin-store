@@ -4,7 +4,7 @@ description: "Interact with pump.fun bonding curves on Solana: buy tokens, sell 
 license: MIT
 metadata:
   author: skylavis-sky
-  version: "0.1.3"
+  version: "0.1.4"
 ---
 
 
@@ -20,7 +20,7 @@ metadata:
 # Check for skill updates (1-hour cache)
 UPDATE_CACHE="$HOME/.plugin-store/update-cache/pump-fun-plugin"
 CACHE_MAX=3600
-LOCAL_VER="0.1.3"
+LOCAL_VER="0.1.4"
 DO_CHECK=true
 
 if [ -f "$UPDATE_CACHE" ]; then
@@ -93,7 +93,7 @@ case "${OS}_${ARCH}" in
   mingw*_aarch64|msys*_aarch64|cygwin*_aarch64)  TARGET="aarch64-pc-windows-msvc"; EXT=".exe" ;;
 esac
 mkdir -p ~/.local/bin
-curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/pump-fun-plugin@0.1.3/pump-fun-plugin-${TARGET}${EXT}" -o ~/.local/bin/.pump-fun-plugin-core${EXT}
+curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/pump-fun-plugin@0.1.4/pump-fun-plugin-${TARGET}${EXT}" -o ~/.local/bin/.pump-fun-plugin-core${EXT}
 chmod +x ~/.local/bin/.pump-fun-plugin-core${EXT}
 
 # Symlink CLI name to universal launcher
@@ -101,7 +101,7 @@ ln -sf "$LAUNCHER" ~/.local/bin/pump-fun-plugin
 
 # Register version
 mkdir -p "$HOME/.plugin-store/managed"
-echo "0.1.3" > "$HOME/.plugin-store/managed/pump-fun-plugin"
+echo "0.1.4" > "$HOME/.plugin-store/managed/pump-fun-plugin"
 ```
 
 ### Report install (auto-injected, runs once)
@@ -121,7 +121,7 @@ if [ ! -f "$REPORT_FLAG" ]; then
   # Report to Vercel stats
   curl -s -X POST "https://plugin-store-dun.vercel.app/install" \
     -H "Content-Type: application/json" \
-    -d '{"name":"pump-fun-plugin","version":"0.1.3"}' >/dev/null 2>&1 || true
+    -d '{"name":"pump-fun-plugin","version":"0.1.4"}' >/dev/null 2>&1 || true
   # Report to OKX API (with HMAC-signed device token)
   curl -s -X POST "https://www.okx.com/priapi/v1/wallet/plugins/download/report" \
     -H "Content-Type: application/json" \
@@ -151,10 +151,18 @@ Solana mainnet (chain 501). Program: `6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6
 
 ## Execution Flow for Write Operations
 
-1. Run with `--dry-run` first to preview the operation
-2. **Ask user to confirm** before executing on-chain
-3. Execute only after explicit user approval
-4. Report transaction hash (Solana signature) and outcome
+**Three execution modes:**
+
+| Mode | How to invoke | What happens |
+|------|--------------|--------------|
+| Preview | No `--confirm`, no `--dry-run` (default) | Returns `"preview":true`, no on-chain action |
+| Dry-run | `--dry-run` (global flag before subcommand) | Returns stub output, no SDK call or transaction |
+| Live | `--confirm` | Executes swap on-chain via onchainos |
+
+1. Run **without any flags** to preview — returns `"preview":true`, no transaction submitted
+2. **Show preview to user and ask for confirmation**
+3. Re-run with `--confirm` to execute on-chain
+4. Report transaction signature (`tx_hash`)
 
 ---
 
@@ -192,52 +200,119 @@ pump-fun get-price --mint <MINT_ADDRESS> --direction sell --amount 5000000
 **Parameters:**
 - `--mint` (required): Token mint address (base58)
 - `--direction` (required): `buy` or `sell`
-- `--amount` (required): SOL lamports for buy; token units for sell
+- `--amount` (required): SOL lamports for buy; token atoms (6 decimals) for sell
 - `--fee-bps` (optional): Fee basis points for sell calculation (default: 100)
 - `--rpc-url` (optional): Solana RPC URL
+
+> **Unit note**: `get-price` uses raw units — unlike `buy` (`--sol-amount` in readable SOL) and `sell` (`--token-amount` in readable tokens). For buy: `100000000` = 0.1 SOL. For sell: `1000000` = 1 token (6 decimals). Passing a small sell `--amount` (e.g. `1000000` = 1 token) on a low-price token will produce a near-zero `amount_out_ui` — use at least 1000 tokens (`1000000000`) for a meaningful sell quote.
+
+**Output fields:**
+- `amount_in` — input amount (lamports for buy; token atoms for sell)
+- `amount_out` — raw output amount (token atoms for buy; lamports for sell)
+- `amount_out_ui` — human-readable: tokens received (buy) or SOL received (sell)
+- `price_sol_per_token` — raw bonding curve price ratio (lamports / token atom)
+- `market_cap_sol` — current market cap in **SOL** (converted from lamports)
+- `bonding_complete` — `true` if graduated to PumpSwap/Raydium; check `graduated_warning`
+- `graduated_warning` — present when `bonding_complete: true`; directs to onchainos DEX swap
 
 ---
 
 ### buy — Buy tokens on bonding curve
 
-Purchases tokens on a pump.fun bonding curve via `onchainos swap execute`. Works for both bonding curve tokens and graduated tokens. Run `--dry-run` to preview, then **ask user to confirm** before proceeding.
+Purchases tokens on a pump.fun bonding curve via `onchainos swap execute`. Works for both bonding curve tokens and graduated tokens. Run without flags to preview, then **ask user to confirm** before proceeding.
 
 ```bash
-# Preview
-pump-fun buy --mint <MINT> --sol-amount 0.01 --dry-run
+# Preview (no --confirm — safe, returns "preview":true)
+pump-fun buy --mint <MINT> --sol-amount 0.01
 
 # Execute after user confirms
-pump-fun buy --mint <MINT> --sol-amount 0.01 --slippage-bps 200
+pump-fun buy --mint <MINT> --sol-amount 0.01 --confirm
+
+# Dry-run (stub only, fastest preview)
+pump-fun --dry-run buy --mint <MINT> --sol-amount 0.01
 ```
 
 **Parameters:**
 - `--mint` (required): Token mint address (base58)
 - `--sol-amount` (required): SOL amount in readable units (e.g. `0.01` = 0.01 SOL)
 - `--slippage-bps` (optional): Slippage tolerance in bps (default: 100)
-- `--dry-run` (optional): Preview without broadcasting
+- `--confirm` (required to execute): Without this flag, returns preview with no on-chain action
 
 ---
 
 ### sell — Sell tokens back to bonding curve
 
-Sells tokens back to a pump.fun bonding curve (or DEX if graduated) for SOL via `onchainos swap execute`. Run `--dry-run` to preview, then **ask user to confirm** before proceeding.
+Sells tokens back to a pump.fun bonding curve (or DEX if graduated) for SOL via `onchainos swap execute`. Run without flags to preview, then **ask user to confirm** before proceeding.
 
 ```bash
-# Preview
-pump-fun sell --mint <MINT> --token-amount 1000000 --dry-run
-
-# Sell a specific amount after user confirms
+# Preview (no --confirm — safe, returns "preview":true)
 pump-fun sell --mint <MINT> --token-amount 1000000
 
-# Sell ALL tokens after user confirms
-pump-fun sell --mint <MINT>
+# Sell a specific amount after user confirms
+pump-fun sell --mint <MINT> --token-amount 1000000 --confirm
+
+# Sell ALL tokens after user confirms (fetches balance at execution time)
+pump-fun sell --mint <MINT> --confirm
 ```
 
 **Parameters:**
 - `--mint` (required): Token mint address (base58)
-- `--token-amount` (optional): Readable token amount to sell (e.g. `1000000`); omit to sell entire balance
+- `--token-amount` (optional): Token amount to sell in readable units, decimals accepted (e.g. `1000000` or `153450.77`); omit to sell entire balance
 - `--slippage-bps` (optional): Slippage tolerance in bps (default: 100)
-- `--dry-run` (optional): Preview without broadcasting
+- `--confirm` (required to execute): Without this flag, returns preview with no on-chain action
+
+---
+
+## Quickstart
+
+New to pump-fun-plugin? Follow these steps for your first buy and sell.
+
+### Step 1 — Connect your wallet
+
+```bash
+onchainos wallet login your@email.com
+onchainos wallet addresses --chain 501
+onchainos wallet balance --chain 501
+```
+
+You need a Solana wallet with at least 0.01 SOL (covers a small buy plus fees).
+
+### Step 2 — Research a token
+
+```bash
+# Check bonding curve state (reserves, graduation progress, price)
+pump-fun get-token-info --mint <MINT_ADDRESS>
+
+# Estimate tokens you'd receive for 0.005 SOL (5000000 lamports)
+pump-fun get-price --mint <MINT_ADDRESS> --direction buy --amount 5000000
+```
+
+Key fields: `graduation_progress_pct` (0–100%), `amount_out_ui` (tokens you'd receive), `market_cap_sol` (in SOL).
+
+### Step 3 — Preview, then buy
+
+```bash
+# Preview (no --confirm — safe, no tx):
+pump-fun buy --mint <MINT_ADDRESS> --sol-amount 0.005
+
+# Execute after confirming the preview:
+pump-fun buy --mint <MINT_ADDRESS> --sol-amount 0.005 --confirm
+```
+
+Success output includes `wallet` (address that executed), `tx_hash`, and `explorer_url` (Solscan link).
+
+### Step 4 — Sell tokens
+
+```bash
+# Check balance first:
+onchainos wallet balance --chain 501
+
+# Preview sell:
+pump-fun sell --mint <MINT_ADDRESS> --token-amount 153450.77
+
+# Execute sell:
+pump-fun sell --mint <MINT_ADDRESS> --token-amount 153450.77 --confirm
+```
 
 ---
 

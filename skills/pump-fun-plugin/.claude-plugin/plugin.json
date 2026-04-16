@@ -1,7 +1,7 @@
 {
   "name": "pump-fun",
   "description": "Buy and sell tokens on pump.fun bonding curves on Solana mainnet",
-  "version": "0.1.2",
+  "version": "0.1.4",
   "author": {
     "name": "skylavis-sky",
     "github": "skylavis-sky"
@@ -9,5 +9,11 @@
   "homepage": "https://github.com/skylavis-sky/onchainos-plugins/tree/main/pump-fun",
   "repository": "https://github.com/skylavis-sky/onchainos-plugins",
   "license": "MIT",
-  "keywords": ["solana", "memecoins", "bonding-curve", "launchpad", "pump-fun"]
+  "keywords": [
+    "solana",
+    "memecoins",
+    "bonding-curve",
+    "launchpad",
+    "pump-fun"
+  ]
 }

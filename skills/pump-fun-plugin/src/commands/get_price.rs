@@ -43,7 +43,8 @@ struct GetPriceOutput {
     amount_out: u64,
     amount_out_ui: f64,
     price_sol_per_token: f64,
-    market_cap_sol: u64,
+    /// SOL (not lamports). Divide the raw on-chain lamport value by 1e9.
+    market_cap_sol: f64,
     bonding_complete: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     graduated_warning: Option<String>,
@@ -97,7 +98,11 @@ pub async fn execute(args: &GetPriceArgs) -> Result<()> {
         0.0
     };
 
-    let (amount_out, amount_out_ui) = if direction == "buy" {
+    let (amount_out, amount_out_ui) = if direction == "buy" && curve.complete {
+        // Graduated token — bonding curve is closed, get_buy_price would error.
+        // Return ok:true with amount_out=0 and a graduated_warning instead.
+        (0u64, 0.0f64)
+    } else if direction == "buy" {
         let tokens = curve
             .get_buy_price(args.amount)
             .map_err(|e| anyhow::anyhow!("get_buy_price failed: {e}"))?;
@@ -131,7 +136,7 @@ pub async fn execute(args: &GetPriceArgs) -> Result<()> {
         amount_out,
         amount_out_ui,
         price_sol_per_token,
-        market_cap_sol: curve.get_market_cap_sol(),
+        market_cap_sol: curve.get_market_cap_sol() as f64 / 1_000_000_000.0,
         bonding_complete: curve.complete,
         graduated_warning,
     };

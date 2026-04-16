@@ -5,7 +5,7 @@ use serde_json::Value;
 pub const SOL_MINT: &str = "11111111111111111111111111111111";
 
 /// Resolve the current Solana wallet address (base58) via onchainos.
-fn resolve_wallet_solana() -> anyhow::Result<String> {
+pub fn resolve_wallet_solana() -> anyhow::Result<String> {
     let output = Command::new("onchainos")
         .args(["wallet", "addresses", "--chain", "501"])
         .output()?;
@@ -87,12 +87,24 @@ pub fn get_token_balance(mint: &str) -> anyhow::Result<Option<String>> {
     for detail in details {
         if let Some(assets) = detail["tokenAssets"].as_array() {
             for asset in assets {
-                let addr = asset["tokenContractAddress"].as_str().unwrap_or("");
+                // onchainos wallet balance --chain 501 structure:
+                //   asset["address"]      = wallet address (always present — do NOT use for mint matching)
+                //   asset["tokenAddress"] = token mint address (correct field to match against)
+                //   asset["mint"]         = fallback for alternative response shapes
+                let addr = asset["tokenAddress"].as_str()
+                    .or_else(|| asset["mint"].as_str())
+                    .unwrap_or("");
                 if addr.eq_ignore_ascii_case(mint) {
                     if let Some(bal) = asset["balance"].as_str()
                         .or_else(|| asset["readableBalance"].as_str())
+                        .or_else(|| asset["uiAmount"].as_str())
                     {
                         return Ok(Some(bal.to_string()));
+                    }
+                    if let Some(n) = asset["balance"].as_f64()
+                        .or_else(|| asset["uiAmount"].as_f64())
+                    {
+                        return Ok(Some(n.to_string()));
                     }
                 }
             }

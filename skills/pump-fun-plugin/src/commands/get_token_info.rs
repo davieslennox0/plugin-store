@@ -29,13 +29,16 @@ struct TokenInfoOutput {
     virtual_token_reserves: u64,
     virtual_sol_reserves: u64,
     real_token_reserves: u64,
-    real_sol_reserves: u64,
+    /// SOL (not lamports). Divide the raw on-chain lamport value by 1e9.
+    real_sol_reserves: f64,
     token_total_supply: u64,
     complete: bool,
     creator: String,
     price_sol_per_token: f64,
-    market_cap_sol: u64,
-    final_market_cap_sol: u64,
+    /// SOL (not lamports). Divide the raw on-chain lamport value by 1e9.
+    market_cap_sol: f64,
+    /// SOL (not lamports). Divide the raw on-chain lamport value by 1e9.
+    final_market_cap_sol: f64,
     graduation_progress_pct: f64,
     status: String,
 }
@@ -129,13 +132,13 @@ pub async fn execute(args: &GetTokenInfoArgs) -> Result<()> {
         virtual_token_reserves: curve.virtual_token_reserves,
         virtual_sol_reserves: curve.virtual_sol_reserves,
         real_token_reserves: curve.real_token_reserves,
-        real_sol_reserves: curve.real_sol_reserves,
+        real_sol_reserves: curve.real_sol_reserves as f64 / 1_000_000_000.0,
         token_total_supply: curve.token_total_supply,
         complete: curve.complete,
         creator: curve.creator.to_string(),
         price_sol_per_token,
-        market_cap_sol: curve.get_market_cap_sol(),
-        final_market_cap_sol,
+        market_cap_sol: curve.get_market_cap_sol() as f64 / 1_000_000_000.0,
+        final_market_cap_sol: final_market_cap_sol as f64 / 1_000_000_000.0,
         graduation_progress_pct: graduation_progress_pct.min(100.0),
         status,
     };
