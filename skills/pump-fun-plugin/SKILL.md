@@ -200,12 +200,14 @@ pump-fun get-price --mint <MINT_ADDRESS> --direction sell --amount 5000000
 **Parameters:**
 - `--mint` (required): Token mint address (base58)
 - `--direction` (required): `buy` or `sell`
-- `--amount` (required): SOL lamports for buy; token units for sell
+- `--amount` (required): SOL lamports for buy; token atoms (6 decimals) for sell
 - `--fee-bps` (optional): Fee basis points for sell calculation (default: 100)
 - `--rpc-url` (optional): Solana RPC URL
 
+> **Unit note**: `get-price` uses raw units — unlike `buy` (`--sol-amount` in readable SOL) and `sell` (`--token-amount` in readable tokens). For buy: `100000000` = 0.1 SOL. For sell: `1000000` = 1 token (6 decimals). Passing a small sell `--amount` (e.g. `1000000` = 1 token) on a low-price token will produce a near-zero `amount_out_ui` — use at least 1000 tokens (`1000000000`) for a meaningful sell quote.
+
 **Output fields:**
-- `amount_in` — input amount (lamports for buy; token units for sell)
+- `amount_in` — input amount (lamports for buy; token atoms for sell)
 - `amount_out` — raw output amount (token atoms for buy; lamports for sell)
 - `amount_out_ui` — human-readable: tokens received (buy) or SOL received (sell)
 - `price_sol_per_token` — raw bonding curve price ratio (lamports / token atom)
