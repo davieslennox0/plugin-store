@@ -13,7 +13,26 @@ pub async fn run(
 ) -> Result<Value> {
     // When searching, fetch a larger batch for client-side filtering
     let fetch_limit = if search.is_some() { 100 } else { limit };
-    let data = api::list_markets(chain_id, is_active, skip, fetch_limit, api_key).await?;
+    let mut data = api::list_markets(chain_id, is_active, skip, fetch_limit, api_key).await?;
+
+    // Pendle API moved impliedApy and liquidity into a nested `details` sub-object.
+    // Lift them back to the top level for backwards-compatible output.
+    if let Some(arr) = data.get_mut("results").and_then(|v| v.as_array_mut()) {
+        for item in arr.iter_mut() {
+            if item["impliedApy"].is_null() {
+                let v = item["details"]["impliedApy"].clone();
+                if !v.is_null() {
+                    item["impliedApy"] = v;
+                }
+            }
+            if item["liquidity"].is_null() {
+                let v = item["details"]["liquidity"].clone();
+                if !v.is_null() {
+                    item["liquidity"] = v;
+                }
+            }
+        }
+    }
 
     let Some(term) = search else {
         return Ok(data);

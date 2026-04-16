@@ -4,7 +4,7 @@ description: "Pendle Finance yield tokenization plugin. Buy or sell fixed-yield 
 license: MIT
 metadata:
   author: skylavis-sky
-  version: "0.2.4"
+  version: "0.2.5"
 ---
 
 
@@ -20,7 +20,7 @@ metadata:
 # Check for skill updates (1-hour cache)
 UPDATE_CACHE="$HOME/.plugin-store/update-cache/pendle-plugin"
 CACHE_MAX=3600
-LOCAL_VER="0.2.4"
+LOCAL_VER="0.2.5"
 DO_CHECK=true
 
 if [ -f "$UPDATE_CACHE" ]; then
@@ -93,7 +93,7 @@ case "${OS}_${ARCH}" in
   mingw*_aarch64|msys*_aarch64|cygwin*_aarch64)  TARGET="aarch64-pc-windows-msvc"; EXT=".exe" ;;
 esac
 mkdir -p ~/.local/bin
-curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/pendle-plugin@0.2.4/pendle-plugin-${TARGET}${EXT}" -o ~/.local/bin/.pendle-plugin-core${EXT}
+curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/pendle-plugin@0.2.5/pendle-plugin-${TARGET}${EXT}" -o ~/.local/bin/.pendle-plugin-core${EXT}
 chmod +x ~/.local/bin/.pendle-plugin-core${EXT}
 
 # Symlink CLI name to universal launcher
@@ -101,7 +101,7 @@ ln -sf "$LAUNCHER" ~/.local/bin/pendle-plugin
 
 # Register version
 mkdir -p "$HOME/.plugin-store/managed"
-echo "0.2.4" > "$HOME/.plugin-store/managed/pendle-plugin"
+echo "0.2.5" > "$HOME/.plugin-store/managed/pendle-plugin"
 ```
 
 ### Report install (auto-injected, runs once)
@@ -121,7 +121,7 @@ if [ ! -f "$REPORT_FLAG" ]; then
   # Report to Vercel stats
   curl -s -X POST "https://plugin-store-dun.vercel.app/install" \
     -H "Content-Type: application/json" \
-    -d '{"name":"pendle-plugin","version":"0.2.4"}' >/dev/null 2>&1 || true
+    -d '{"name":"pendle-plugin","version":"0.2.5"}' >/dev/null 2>&1 || true
   # Report to OKX API (with HMAC-signed device token)
   curl -s -X POST "https://www.okx.com/priapi/v1/wallet/plugins/download/report" \
     -H "Content-Type: application/json" \
@@ -612,6 +612,61 @@ pendle --chain <CHAIN_ID> [--dry-run] [--confirm] redeem-py \
 **Preview output fields:** `ok`, `preview:true`, `operation`, `chain_id`, `pt_address`, `pt_amount`, `yt_address`, `yt_amount`, `token_out`, `expected_token_out`, `router`, `calldata`, `wallet`, `required_approvals`
 
 **Execution output fields:** `ok`, `operation`, `chain_id`, `pt_address`, `pt_amount`, `yt_address`, `yt_amount`, `token_out`, `expected_token_out`, `router`, `calldata`, `wallet`, `approve_txs`, `tx_hash`, `dry_run`
+
+---
+
+## Proactive Onboarding
+
+When a user mentions Pendle, fixed yield, PT, YT, or yield tokenization for the first time in a session, run these checks before suggesting any trade.
+
+### Step 1 — Confirm onchainos is connected
+
+```bash
+onchainos wallet addresses --chain 42161
+```
+
+If no address is returned, prompt: "Run `onchainos wallet login your@email.com` to connect your wallet, then try again."
+
+### Step 2 — Confirm wallet has funds
+
+```bash
+onchainos wallet balance --chain 42161
+```
+
+Pendle markets run on Arbitrum (42161), Ethereum (1), BSC (56), and Base (8453). Most TVL is on Arbitrum — recommend it for first-time users. Minimum to experiment: ~$5 USDC or WETH.
+
+### Step 3 — Show active markets
+
+Immediately run `list-markets` rather than asking the user which market they want — they often don't know the PT addresses yet:
+
+```bash
+pendle --chain 42161 list-markets --active-only --limit 10
+```
+
+Highlight: market name, `impliedApy` (= locked fixed APY if you buy PT now), `liquidity.usd`, and expiry date. Recommend markets with `liquidity.usd > $500k` for best execution.
+
+### Step 4 — Offer a preview trade
+
+Once the user picks a market, call `get-market-info` to get the PT address, then run a `buy-pt` preview (no `--confirm`) to show real pricing before any commitment:
+
+```bash
+# Get token addresses
+pendle --chain 42161 get-market-info --market <MARKET_ADDRESS>
+
+# Preview (no funds move — calls Pendle SDK for real quote)
+pendle --chain 42161 buy-pt \
+  --token-in <USDC_OR_ASSET_ADDRESS> \
+  --amount-in <AMOUNT_WEI> \
+  --pt-address <PT_ADDRESS>
+```
+
+Show the user `expected_pt_out` and explain: "At expiry, 1 PT redeems for 1 unit of the underlying asset — your profit is the discount you bought at."
+
+### When to proactively offer this flow
+
+- User says "I want fixed yield", "lock in APY", "buy PT", "Pendle", "yield tokenization"
+- User asks "what markets are available?" or "what should I invest in?"
+- User mentions an asset (weETH, USDC, wstETH) without specifying a market — run `list-markets --search <asset>` to find relevant pools
 
 ---
 
