@@ -139,6 +139,45 @@ fi
 ---
 
 
+## Quickstart
+
+**New to Velodrome V2?** Run these steps in order:
+
+1. **Get a swap quote** (read-only, no wallet needed)
+   ```bash
+   velodrome-v2 quote --token-in WETH --token-out USDC --amount-in 0.01
+   ```
+
+2. **Preview a swap** (no transaction sent)
+   ```bash
+   velodrome-v2 swap --token-in WETH --token-out USDC --amount-in 0.01 --slippage 0.5
+   ```
+   Review the output — add `--confirm` only after checking the amounts.
+
+3. **Execute the swap**
+   ```bash
+   velodrome-v2 swap --token-in WETH --token-out USDC --amount-in 0.01 --slippage 0.5 --confirm
+   ```
+
+**Liquidity flow:**
+```bash
+# Check existing LP positions
+velodrome-v2 positions
+
+# Preview adding liquidity (volatile pool)
+velodrome-v2 add-liquidity --token-a WETH --token-b USDC --amount-a 0.01 --slippage 0.5
+
+# Add liquidity
+velodrome-v2 add-liquidity --token-a WETH --token-b USDC --amount-a 0.01 --slippage 0.5 --confirm
+
+# Claim VELO gauge rewards
+velodrome-v2 claim-rewards --pool <POOL_ADDRESS> --confirm
+```
+
+> Velodrome V2 is Optimism only (chain ID 10). Use `--stable true` for stable pairs (USDC/DAI, USDC/USDT).
+
+---
+
 ## Pool Types
 
 | Type | stable flag | Formula | Best for |
