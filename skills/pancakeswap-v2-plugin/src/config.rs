@@ -35,9 +35,11 @@ pub fn chain_config(chain_id: u64) -> anyhow::Result<ChainConfig> {
     }
 }
 
-/// Resolve common token symbols to addresses. Returns the symbol as-is if already an address.
-pub fn resolve_token_address(symbol: &str, chain_id: u64) -> String {
-    match (symbol.to_uppercase().as_str(), chain_id) {
+/// Resolve common token symbols to addresses.
+/// Returns Ok(address) for known symbols or valid hex addresses.
+/// Returns Err if the symbol is not recognised on this chain and is not a hex address.
+pub fn resolve_token_address(symbol: &str, chain_id: u64) -> anyhow::Result<String> {
+    let resolved = match (symbol.to_uppercase().as_str(), chain_id) {
         // BSC (56)
         ("WBNB", 56) | ("BNB", 56) => "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c".to_string(),
         ("CAKE", 56) => "0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82".to_string(),
@@ -53,7 +55,19 @@ pub fn resolve_token_address(symbol: &str, chain_id: u64) -> String {
         ("WETH", 42161) | ("ETH", 42161) => "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1".to_string(),
         ("USDC", 42161) => "0xaf88d065e77c8cC2239327C5EDb3A432268e5831".to_string(),
         ("USDT", 42161) => "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9".to_string(),
-        _ => symbol.to_string(), // assume it's already a hex address
+        _ => symbol.to_string(), // pass through — may be a raw hex address
+    };
+    // Validate the resolved value is a hex address
+    if resolved.starts_with("0x") && resolved.len() >= 40 {
+        Ok(resolved)
+    } else {
+        anyhow::bail!(
+            "Token '{}' is not supported on chain {}. \
+            Use a hex address (0x...) or a supported symbol \
+            (BSC: USDT, USDC, CAKE, BNB/WBNB, BUSD, ETH, BTCB; \
+             Base: ETH/WETH, USDC; Arbitrum: ETH/WETH, USDC, USDT).",
+            symbol, chain_id
+        )
     }
 }
 

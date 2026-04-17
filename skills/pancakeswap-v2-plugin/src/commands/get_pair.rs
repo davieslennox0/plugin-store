@@ -19,12 +19,12 @@ pub async fn run(args: GetPairArgs) -> Result<serde_json::Value> {
     let token_a_addr = if is_native(&args.token_a) {
         cfg.weth.to_string()
     } else {
-        resolve_token_address(&args.token_a, args.chain_id)
+        resolve_token_address(&args.token_a, args.chain_id)?
     };
     let token_b_addr = if is_native(&args.token_b) {
         cfg.weth.to_string()
     } else {
-        resolve_token_address(&args.token_b, args.chain_id)
+        resolve_token_address(&args.token_b, args.chain_id)?
     };
 
     let pair_addr = rpc::factory_get_pair(cfg.factory, &token_a_addr, &token_b_addr, rpc).await?;

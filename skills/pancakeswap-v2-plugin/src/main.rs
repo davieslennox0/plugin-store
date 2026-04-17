@@ -6,18 +6,18 @@ mod rpc;
 
 use clap::{Parser, Subcommand};
 use commands::{
-    quote, swap, add_liquidity, remove_liquidity, get_pair, get_reserves, lp_balance,
+    add_liquidity, get_pair, get_reserves, lp_balance, quickstart, quote, remove_liquidity, swap,
 };
 
 #[derive(Parser)]
 #[command(name = "pancakeswap-v2", version, about = "PancakeSwap V2 AMM plugin — swap tokens and manage liquidity on BSC/Base")]
 struct Cli {
-    /// Chain ID (56 = BSC default, 8453 = Base)
+    /// Chain ID (56 = BSC default, 8453 = Base, 42161 = Arbitrum)
     #[arg(long, default_value = "56")]
     chain: u64,
 
-    /// Slippage tolerance in basis points (default 50 = 0.5%)
-    #[arg(long, default_value = "50")]
+    /// Slippage tolerance in basis points (default 100 = 1%)
+    #[arg(long, default_value = "100")]
     slippage_bps: u64,
 
     /// Swap/LP deadline in seconds from now (default 300 = 5 min)
@@ -27,6 +27,10 @@ struct Cli {
     /// Simulate without broadcasting (no onchainos call made)
     #[arg(long)]
     dry_run: bool,
+
+    /// Confirm and broadcast the transaction (without this flag, write commands print a preview only)
+    #[arg(long)]
+    confirm: bool,
 
     /// Override RPC endpoint
     #[arg(long)]
@@ -129,6 +133,9 @@ enum Commands {
         #[arg(long)]
         wallet: Option<String>,
     },
+
+    /// Check wallet state and get personalised onboarding steps
+    Quickstart,
 }
 
 #[tokio::main]
@@ -158,6 +165,7 @@ async fn main() {
                 from: cli.from,
                 rpc_url: cli.rpc_url,
                 dry_run: cli.dry_run,
+                confirm: cli.confirm,
             })
             .await
         }
@@ -174,6 +182,7 @@ async fn main() {
                 from: cli.from,
                 rpc_url: cli.rpc_url,
                 dry_run: cli.dry_run,
+                confirm: cli.confirm,
             })
             .await
         }
@@ -189,6 +198,7 @@ async fn main() {
                 from: cli.from,
                 rpc_url: cli.rpc_url,
                 dry_run: cli.dry_run,
+                confirm: cli.confirm,
             })
             .await
         }
@@ -222,6 +232,10 @@ async fn main() {
                 rpc_url: cli.rpc_url,
             })
             .await
+        }
+
+        Commands::Quickstart => {
+            quickstart::run(cli.chain).await
         }
     };
 

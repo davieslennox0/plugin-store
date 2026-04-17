@@ -18,6 +18,7 @@ pub struct SwapArgs {
     pub from: Option<String>,
     pub rpc_url: Option<String>,
     pub dry_run: bool,
+    pub confirm: bool,
 }
 
 pub async fn run(args: SwapArgs) -> Result<serde_json::Value> {
@@ -32,12 +33,12 @@ pub async fn run(args: SwapArgs) -> Result<serde_json::Value> {
     let token_in_addr = if native_in {
         cfg.weth.to_string()
     } else {
-        resolve_token_address(&token_in_sym, args.chain_id)
+        resolve_token_address(&token_in_sym, args.chain_id)?
     };
     let token_out_addr = if native_out {
         cfg.weth.to_string()
     } else {
-        resolve_token_address(&token_out_sym, args.chain_id)
+        resolve_token_address(&token_out_sym, args.chain_id)?
     };
 
     if token_in_addr == token_out_addr {
@@ -53,7 +54,7 @@ pub async fn run(args: SwapArgs) -> Result<serde_json::Value> {
 
     // Resolve wallet
     let wallet = if args.dry_run {
-        "0x0000000000000000000000000000000000000000".to_string()
+        args.from.clone().unwrap_or_else(|| "0xDRYRUN0000000000000000000000000000000000".to_string())
     } else {
         let w = args.from.clone()
             .unwrap_or_else(|| onchainos::resolve_wallet(args.chain_id).unwrap_or_default());
@@ -70,6 +71,9 @@ pub async fn run(args: SwapArgs) -> Result<serde_json::Value> {
     let path_refs: Vec<&str> = path.iter().map(|s| s.as_str()).collect();
     let amounts = rpc::router_get_amounts_out(cfg.router02, amount_in, &path_refs, rpc).await?;
     let amount_out_expected = *amounts.last().unwrap_or(&0);
+    if amount_out_expected == 0 {
+        anyhow::bail!("Swap would yield 0 output tokens — input amount is too small or no liquidity for this pair.");
+    }
     let amount_out_min = amount_out_expected * (10000 - args.slippage_bps) as u128 / 10000;
 
     // Deadline
@@ -102,6 +106,7 @@ pub async fn run(args: SwapArgs) -> Result<serde_json::Value> {
             args.from.as_deref(),
             Some(amount_in),
             args.dry_run,
+            args.confirm,
         )
         .await?;
         let tx_hash = onchainos::extract_tx_hash(&result).to_string();
@@ -125,13 +130,14 @@ pub async fn run(args: SwapArgs) -> Result<serde_json::Value> {
                 amount_in,
                 args.from.as_deref(),
                 args.dry_run,
+                args.confirm,
             )
             .await?;
             steps.push(json!({
                 "step": "approve",
                 "txHash": onchainos::extract_tx_hash(&approve_result)
             }));
-            if !args.dry_run {
+            if !args.dry_run && args.confirm {
                 sleep(Duration::from_secs(3)).await;
             }
         }
@@ -150,10 +156,11 @@ pub async fn run(args: SwapArgs) -> Result<serde_json::Value> {
             args.from.as_deref(),
             None,
             args.dry_run,
+            args.confirm,
         )
         .await?;
         let tx_hash = onchainos::extract_tx_hash(&result).to_string();
-        if !args.dry_run {
+        if !args.dry_run && args.confirm {
             onchainos::wait_and_check_receipt(&tx_hash, rpc).await?;
         }
         steps.push(json!({
@@ -173,13 +180,14 @@ pub async fn run(args: SwapArgs) -> Result<serde_json::Value> {
                 amount_in,
                 args.from.as_deref(),
                 args.dry_run,
+                args.confirm,
             )
             .await?;
             steps.push(json!({
                 "step": "approve",
                 "txHash": onchainos::extract_tx_hash(&approve_result)
             }));
-            if !args.dry_run {
+            if !args.dry_run && args.confirm {
                 sleep(Duration::from_secs(3)).await;
             }
         }
@@ -198,10 +206,11 @@ pub async fn run(args: SwapArgs) -> Result<serde_json::Value> {
             args.from.as_deref(),
             None,
             args.dry_run,
+            args.confirm,
         )
         .await?;
         let tx_hash = onchainos::extract_tx_hash(&result).to_string();
-        if !args.dry_run {
+        if !args.dry_run && args.confirm {
             onchainos::wait_and_check_receipt(&tx_hash, rpc).await?;
         }
         steps.push(json!({
@@ -214,6 +223,8 @@ pub async fn run(args: SwapArgs) -> Result<serde_json::Value> {
     results["data"] = json!({
         "tokenIn": token_in_addr,
         "tokenOut": token_out_addr,
+        "symbolIn": args.token_in,
+        "symbolOut": args.token_out,
         "amountIn": amount_in.to_string(),
         "amountOutMin": amount_out_min.to_string(),
         "amountOutExpected": amount_out_expected.to_string(),

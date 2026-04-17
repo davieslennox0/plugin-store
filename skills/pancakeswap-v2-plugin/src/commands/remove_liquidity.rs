@@ -17,6 +17,7 @@ pub struct RemoveLiquidityArgs {
     pub from: Option<String>,
     pub rpc_url: Option<String>,
     pub dry_run: bool,
+    pub confirm: bool,
 }
 
 pub async fn run(args: RemoveLiquidityArgs) -> Result<serde_json::Value> {
@@ -48,13 +49,16 @@ pub async fn run(args: RemoveLiquidityArgs) -> Result<serde_json::Value> {
     let token_a_addr = if native_a {
         cfg.weth.to_string()
     } else {
-        resolve_token_address(&args.token_a, args.chain_id)
+        resolve_token_address(&args.token_a, args.chain_id)?
     };
     let token_b_addr = if native_b {
         cfg.weth.to_string()
     } else {
-        resolve_token_address(&args.token_b, args.chain_id)
+        resolve_token_address(&args.token_b, args.chain_id)?
     };
+
+    let decimals_a = rpc::erc20_decimals(&token_a_addr, rpc).await.unwrap_or(18);
+    let decimals_b = rpc::erc20_decimals(&token_b_addr, rpc).await.unwrap_or(18);
 
     // Look up pair
     let pair_addr = rpc::factory_get_pair(cfg.factory, &token_a_addr, &token_b_addr, rpc).await?;
@@ -111,10 +115,10 @@ pub async fn run(args: RemoveLiquidityArgs) -> Result<serde_json::Value> {
     if lp_allowance < liquidity {
         let r = erc20_approve(
             args.chain_id, &pair_addr, cfg.router02, liquidity,
-            args.from.as_deref(), args.dry_run,
+            args.from.as_deref(), args.dry_run, args.confirm,
         ).await?;
         steps.push(json!({"step":"approve_lp","txHash": onchainos::extract_tx_hash(&r)}));
-        if !args.dry_run { sleep(Duration::from_secs(5)).await; }
+        if !args.dry_run && args.confirm { sleep(Duration::from_secs(5)).await; }
     }
 
     if native_a || native_b {
@@ -129,10 +133,10 @@ pub async fn run(args: RemoveLiquidityArgs) -> Result<serde_json::Value> {
         );
         let result = onchainos::wallet_contract_call(
             args.chain_id, cfg.router02, &calldata,
-            args.from.as_deref(), None, args.dry_run,
+            args.from.as_deref(), None, args.dry_run, args.confirm,
         ).await?;
         let tx_hash = onchainos::extract_tx_hash(&result).to_string();
-        if !args.dry_run {
+        if !args.dry_run && args.confirm {
             onchainos::wait_and_check_receipt(&tx_hash, rpc).await?;
         }
         steps.push(json!({
@@ -149,10 +153,10 @@ pub async fn run(args: RemoveLiquidityArgs) -> Result<serde_json::Value> {
         );
         let result = onchainos::wallet_contract_call(
             args.chain_id, cfg.router02, &calldata,
-            args.from.as_deref(), None, args.dry_run,
+            args.from.as_deref(), None, args.dry_run, args.confirm,
         ).await?;
         let tx_hash = onchainos::extract_tx_hash(&result).to_string();
-        if !args.dry_run {
+        if !args.dry_run && args.confirm {
             onchainos::wait_and_check_receipt(&tx_hash, rpc).await?;
         }
         steps.push(json!({
@@ -171,6 +175,8 @@ pub async fn run(args: RemoveLiquidityArgs) -> Result<serde_json::Value> {
             "lpBalance": lp_balance.to_string(),
             "expectedTokenA": amount_a_expected.to_string(),
             "expectedTokenB": amount_b_expected.to_string(),
+            "expectedTokenAHuman": format!("{:.6}", amount_a_expected as f64 / 10f64.powi(decimals_a as i32)),
+            "expectedTokenBHuman": format!("{:.6}", amount_b_expected as f64 / 10f64.powi(decimals_b as i32)),
             "tokenA": token_a_addr,
             "tokenB": token_b_addr,
             "chain": args.chain_id

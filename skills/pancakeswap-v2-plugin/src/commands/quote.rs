@@ -17,8 +17,8 @@ pub async fn run(args: QuoteArgs) -> Result<serde_json::Value> {
     let cfg = chain_config(args.chain_id)?;
     let rpc = args.rpc_url.as_deref().unwrap_or(cfg.rpc_url);
 
-    let token_in = resolve_token_address(&args.token_in, args.chain_id);
-    let token_out = resolve_token_address(&args.token_out, args.chain_id);
+    let token_in = resolve_token_address(&args.token_in, args.chain_id)?;
+    let token_out = resolve_token_address(&args.token_out, args.chain_id)?;
 
     if token_in == token_out {
         anyhow::bail!("tokenIn and tokenOut must be different tokens.");
