@@ -2,6 +2,9 @@
 pub const SOLANA_CHAIN_ID: &str = "501";
 #[allow(dead_code)]
 pub const SOL_NATIVE_MINT: &str = "So11111111111111111111111111111111111111112";
+/// Native SOL system program address — treated as SOL with 9 decimals; rewritten to WSOL for API calls.
+#[allow(dead_code)]
+pub const SOL_SYSTEM_PROGRAM: &str = "11111111111111111111111111111111";
 #[allow(dead_code)]
 pub const USDC_SOLANA: &str = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 

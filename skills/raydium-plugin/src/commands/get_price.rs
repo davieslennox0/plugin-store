@@ -5,8 +5,8 @@ use clap::Args;
 use serde_json::Value;
 
 use crate::config::{
-    parse_human_amount, DEFAULT_SLIPPAGE_BPS, DEFAULT_TX_VERSION, SOL_NATIVE_MINT, USDC_SOLANA,
-    TX_API_BASE,
+    parse_human_amount, DEFAULT_SLIPPAGE_BPS, DEFAULT_TX_VERSION, SOL_NATIVE_MINT,
+    SOL_SYSTEM_PROGRAM, USDC_SOLANA, TX_API_BASE,
 };
 
 #[derive(Args, Debug)]
@@ -34,7 +34,7 @@ pub struct GetPriceArgs {
 
 /// Resolve decimals for well-known Solana mints, falling back to Raydium mint API.
 async fn resolve_decimals(mint: &str, client: &reqwest::Client) -> anyhow::Result<u8> {
-    if mint == SOL_NATIVE_MINT {
+    if mint == SOL_NATIVE_MINT || mint == SOL_SYSTEM_PROGRAM {
         return Ok(9);
     }
     if mint == USDC_SOLANA {
@@ -57,15 +57,28 @@ async fn resolve_decimals(mint: &str, client: &reqwest::Client) -> anyhow::Resul
 pub async fn execute(args: &GetPriceArgs) -> Result<()> {
     let client = reqwest::Client::new();
 
-    let input_decimals = resolve_decimals(&args.input_mint, &client).await?;
+    // Rewrite native SOL system program address to WSOL — Raydium routes use WSOL
+    let input_mint = if args.input_mint == SOL_SYSTEM_PROGRAM {
+        SOL_NATIVE_MINT.to_string()
+    } else {
+        args.input_mint.clone()
+    };
+    let output_mint = if args.output_mint == SOL_SYSTEM_PROGRAM {
+        SOL_NATIVE_MINT.to_string()
+    } else {
+        args.output_mint.clone()
+    };
+
+    let input_decimals = resolve_decimals(&input_mint, &client).await?;
+    let output_decimals = resolve_decimals(&output_mint, &client).await?;
     let raw_amount = parse_human_amount(&args.amount, input_decimals)?;
 
     let url = format!("{}/compute/swap-base-in", TX_API_BASE);
     let resp: Value = client
         .get(&url)
         .query(&[
-            ("inputMint", args.input_mint.as_str()),
-            ("outputMint", args.output_mint.as_str()),
+            ("inputMint", input_mint.as_str()),
+            ("outputMint", output_mint.as_str()),
             ("amount", &raw_amount.to_string()),
             ("slippageBps", &args.slippage_bps.to_string()),
             ("txVersion", args.tx_version.as_str()),
@@ -75,29 +88,34 @@ pub async fn execute(args: &GetPriceArgs) -> Result<()> {
         .json()
         .await?;
 
-    // Compute price ratio from quote data
+    // Compute price ratio from quote data, normalizing raw amounts by token decimals
     let price_info = if let Some(data) = resp.get("data") {
-        let input_amount: f64 = data["inputAmount"]
+        let raw_input: f64 = data["inputAmount"]
             .as_str()
             .and_then(|s| s.parse().ok())
             .unwrap_or(raw_amount as f64);
-        let output_amount: f64 = data["outputAmount"]
+        let raw_output: f64 = data["outputAmount"]
             .as_str()
             .and_then(|s| s.parse().ok())
             .unwrap_or(0.0);
         let price_impact_pct = data["priceImpactPct"].as_f64().unwrap_or(0.0);
-        let price = if input_amount > 0.0 {
-            output_amount / input_amount
+
+        // Convert raw amounts to human-readable by dividing by 10^decimals
+        let input_human = raw_input / 10f64.powi(input_decimals as i32);
+        let output_human = raw_output / 10f64.powi(output_decimals as i32);
+
+        let price = if input_human > 0.0 {
+            output_human / input_human
         } else {
             0.0
         };
         serde_json::json!({
-            "inputMint": args.input_mint,
-            "outputMint": args.output_mint,
+            "inputMint": input_mint,
+            "outputMint": output_mint,
             "price": price,
             "priceImpactPct": price_impact_pct,
-            "inputAmount": input_amount,
-            "outputAmount": output_amount,
+            "inputAmount": input_human,
+            "outputAmount": output_human,
             "quote": data,
         })
     } else {
