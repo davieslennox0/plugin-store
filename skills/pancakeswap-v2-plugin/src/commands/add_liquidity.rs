@@ -228,7 +228,7 @@ pub async fn run(args: AddLiquidityArgs) -> Result<serde_json::Value> {
         if pair_addr.len() > 2 && pair_addr != "0x0000000000000000000000000000000000000000" {
             estimate_lp_received(&pair_addr, &token_a_addr_for_lp, &token_b_addr_for_lp, amount_a, amount_b, rpc).await
         } else {
-            "N/A".to_string()
+            "unknown (pair not yet created or lookup failed)".to_string()
         }
     };
 
