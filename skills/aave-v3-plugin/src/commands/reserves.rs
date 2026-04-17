@@ -59,7 +59,16 @@ pub async fn run(
 
     for addr in &reserve_addresses {
         // Fetch symbol first so we can filter by it
-        let symbol = rpc::get_erc20_symbol(addr, cfg.rpc_url).await.unwrap_or_default();
+        let raw_symbol = rpc::get_erc20_symbol(addr, cfg.rpc_url).await.unwrap_or_default();
+        // Arbitrum has two USDC tokens: native USDC and bridged USDC.e (0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8).
+        // Both return "USDC" from the contract, so we disambiguate by address.
+        let symbol = if chain_id == 42161
+            && addr.eq_ignore_ascii_case("0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8")
+        {
+            "USDC.e".to_string()
+        } else {
+            raw_symbol
+        };
 
         // Apply filter: match by address (0x...) or symbol (case-insensitive)
         if let Some(filter) = asset_filter {

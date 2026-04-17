@@ -28,8 +28,18 @@ pub async fn run(chain_id: u64, from: Option<&str>) -> anyhow::Result<Value> {
         .await
         .context("Failed to fetch user account data")?;
 
-    let hf = data.health_factor_f64();
-    let status = data.health_factor_status();
+    // When a wallet has no Aave position, the contract returns uint256.max as the health factor.
+    // Detect this sentinel and replace with a human-readable label instead of a huge number.
+    let hf_display = if data.health_factor >= u128::MAX / 2 {
+        "no_debt".to_string()
+    } else {
+        format!("{:.2}", data.health_factor_f64())
+    };
+    let status = if data.health_factor >= u128::MAX / 2 {
+        "no_debt"
+    } else {
+        data.health_factor_status()
+    };
 
     // Liquidation threshold as percentage
     let liq_threshold_pct = data.current_liquidation_threshold as f64 / 100.0;
@@ -41,7 +51,7 @@ pub async fn run(chain_id: u64, from: Option<&str>) -> anyhow::Result<Value> {
         "chainId": chain_id,
         "userAddress": user_addr,
         "poolAddress": pool_addr,
-        "healthFactor": format!("{:.2}", hf),
+        "healthFactor": hf_display,
         "healthFactorStatus": status,
         "totalCollateralUSD": format!("{:.2}", data.total_collateral_usd()),
         "totalDebtUSD": format!("{:.2}", data.total_debt_usd()),

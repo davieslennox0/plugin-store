@@ -67,7 +67,7 @@ enum Commands {
         /// Human-readable amount to repay (omit if using --all)
         #[arg(long)]
         amount: Option<f64>,
-        /// Repay the full outstanding balance (uses uint256.max)
+        /// Repay the full outstanding balance
         #[arg(long, default_value = "false")]
         all: bool,
     },
@@ -83,7 +83,7 @@ enum Commands {
     },
     /// Enable or disable an asset as collateral
     SetCollateral {
-        /// Asset ERC-20 address
+        /// Asset ERC-20 address or symbol (e.g. USDC, WETH)
         #[arg(long)]
         asset: String,
         /// true to enable as collateral, false to disable
@@ -98,6 +98,8 @@ enum Commands {
     },
     /// Claim accrued AAVE/GHO/token rewards
     ClaimRewards {},
+    /// Check wallet assets and get a personalised next step for Aave V3
+    Quickstart {},
 }
 
 #[tokio::main]
@@ -159,6 +161,9 @@ async fn main() {
         }
         Commands::ClaimRewards {} => {
             commands::claim_rewards::run(cli.chain, cli.from.as_deref(), !cli.confirm).await
+        }
+        Commands::Quickstart {} => {
+            commands::quickstart::run(cli.chain, cli.from.as_deref()).await
         }
     };
 

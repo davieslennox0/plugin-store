@@ -149,7 +149,11 @@ pub async fn run(
         "repayAmountDisplay": amount_display_fmt,
         "poolAddress": pool_addr,
         "totalDebtBefore": format!("{:.2}", account_data.total_debt_usd()),
-        "healthFactorBefore": format!("{:.4}", account_data.health_factor_f64()),
+        "healthFactorBefore": if account_data.health_factor >= u128::MAX / 2 {
+            "no_debt".to_string()
+        } else {
+            format!("{:.4}", account_data.health_factor_f64())
+        },
         "approvalExecuted": approval_result.is_some(),
         "approvalResult": approval_result,
         "dryRun": dry_run,

@@ -44,12 +44,13 @@ pub async fn run(
         .await
         .context("Failed to fetch user account data")?;
 
-    if account_data.total_debt_base > 0 && !all {
+    // Only warn when debt is meaningful (> $0.005) — avoids confusing "$0.00" warning for dust
+    if account_data.total_debt_usd() >= 0.005 {
         // Warn but don't block — let Aave enforce HF constraints on-chain
         eprintln!(
-            "[aave-v3] WARNING: You have outstanding debt (${:.2}). Withdrawing collateral reduces \
+            "[aave-v3] WARNING: You have outstanding debt (${:.4}). Withdrawing collateral reduces \
              your health factor (currently {:.2}). If HF drops below 1.0, the transaction will revert. \
-             Use --all to withdraw the maximum safe amount, or repay debt first.",
+             Repay debt first, or withdraw a smaller amount to keep HF above 1.0.",
             account_data.total_debt_usd(),
             account_data.health_factor_f64(),
         );

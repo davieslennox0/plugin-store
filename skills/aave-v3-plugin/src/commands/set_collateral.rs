@@ -33,6 +33,11 @@ pub async fn run(
         .await
         .context("Failed to fetch user account data")?;
 
+    let hf_display = if account_data.health_factor >= u128::MAX / 2 {
+        "no_debt".to_string()
+    } else {
+        format!("{:.4}", account_data.health_factor_f64())
+    };
     let hf = account_data.health_factor_f64();
     let mut warnings: Vec<String> = vec![];
 
@@ -72,7 +77,7 @@ pub async fn run(
         "asset": asset,
         "useAsCollateral": enable,
         "poolAddress": pool_addr,
-        "healthFactorBefore": format!("{:.4}", hf),
+        "healthFactorBefore": hf_display,
         "warnings": warnings,
         "dryRun": dry_run,
         "raw": result

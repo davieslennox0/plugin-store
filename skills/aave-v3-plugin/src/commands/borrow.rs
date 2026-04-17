@@ -35,6 +35,16 @@ pub async fn run(
         .await
         .context("Failed to fetch user account data")?;
 
+    let hf_display = if account_data.health_factor >= u128::MAX / 2 {
+        "no_debt".to_string()
+    } else {
+        format!("{:.4}", account_data.health_factor_f64())
+    };
+    let hf_status = if account_data.health_factor >= u128::MAX / 2 {
+        "no_debt"
+    } else {
+        account_data.health_factor_status()
+    };
     let hf = account_data.health_factor_f64();
 
     // Warn if health factor is already below warning threshold
@@ -96,8 +106,8 @@ pub async fn run(
         "borrowAmount": amount,
         "borrowAmountMinimal": amount_minimal.to_string(),
         "poolAddress": pool_addr,
-        "currentHealthFactor": format!("{:.4}", hf),
-        "healthFactorStatus": account_data.health_factor_status(),
+        "currentHealthFactor": hf_display,
+        "healthFactorStatus": hf_status,
         "availableBorrowsUSD": format!("{:.2}", available_usd),
         "warnings": warnings,
         "dryRun": dry_run,

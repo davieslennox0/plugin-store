@@ -35,19 +35,43 @@ pub async fn run(chain_id: u64, from: Option<&str>) -> anyhow::Result<Value> {
     // Fetch per-asset SUPPLY / BORROW breakdown via onchainos
     let per_asset = fetch_per_asset_positions(chain_id, &user_addr);
 
+    // When a wallet has no Aave position, the contract returns uint256.max as the health factor.
+    // Detect this sentinel and replace with a human-readable label instead of a huge number.
+    let hf_display = if account_data.health_factor >= u128::MAX / 2 {
+        "no_debt".to_string()
+    } else {
+        format!("{:.4}", account_data.health_factor_f64())
+    };
+    let hf_status = if account_data.health_factor >= u128::MAX / 2 {
+        "no_debt"
+    } else {
+        account_data.health_factor_status()
+    };
+
+    // When there is no collateral, LTV and liquidation threshold are category defaults
+    // returned by Aave even for empty positions — zero them out to avoid confusion.
+    let (liq_threshold_display, ltv_display) = if account_data.total_collateral_base == 0 {
+        ("0.00%".to_string(), "0.00%".to_string())
+    } else {
+        (
+            format!("{:.2}%", account_data.current_liquidation_threshold as f64 / 100.0),
+            format!("{:.2}%", account_data.ltv as f64 / 100.0),
+        )
+    };
+
     Ok(json!({
         "ok": true,
         "chain": cfg.name,
         "chainId": chain_id,
         "userAddress": user_addr,
         "poolAddress": pool_addr,
-        "healthFactor": format!("{:.4}", account_data.health_factor_f64()),
-        "healthFactorStatus": account_data.health_factor_status(),
+        "healthFactor": hf_display,
+        "healthFactorStatus": hf_status,
         "totalCollateralUSD": format!("{:.2}", account_data.total_collateral_usd()),
         "totalDebtUSD": format!("{:.2}", account_data.total_debt_usd()),
         "availableBorrowsUSD": format!("{:.2}", account_data.available_borrows_usd()),
-        "currentLiquidationThreshold": format!("{:.2}%", account_data.current_liquidation_threshold as f64 / 100.0),
-        "loanToValue": format!("{:.2}%", account_data.ltv as f64 / 100.0),
+        "currentLiquidationThreshold": liq_threshold_display,
+        "loanToValue": ltv_display,
         "positions": per_asset
     }))
 }
