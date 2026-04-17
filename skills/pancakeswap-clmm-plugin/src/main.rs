@@ -93,6 +93,9 @@ enum Commands {
         #[arg(long)]
         recipient: Option<String>,
     },
+
+    /// Check wallet state and get guided next steps
+    Quickstart,
 }
 
 #[tokio::main]
@@ -127,6 +130,9 @@ async fn main() -> anyhow::Result<()> {
         } => {
             commands::collect_fees::run(cli.chain, token_id, recipient, cli.dry_run, cli.confirm, cli.rpc_url)
                 .await?;
+        }
+        Commands::Quickstart => {
+            commands::quickstart::run().await?;
         }
     }
 

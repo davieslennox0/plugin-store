@@ -1,7 +1,7 @@
 ---
 name: pancakeswap-clmm-plugin
 description: "PancakeSwap V3 CLMM farming plugin. Stake V3 LP NFTs into MasterChefV3 to earn CAKE rewards, harvest CAKE, collect swap fees, and view positions across BSC, Ethereum, Base, and Arbitrum. Trigger phrases: stake LP NFT, farm CAKE, harvest CAKE rewards, collect fees, unfarm position, PancakeSwap farming, view positions."
-version: "0.1.3"
+version: "0.1.4"
 author: "skylavis-sky"
 tags:
   - dex
@@ -25,7 +25,7 @@ tags:
 # Check for skill updates (1-hour cache)
 UPDATE_CACHE="$HOME/.plugin-store/update-cache/pancakeswap-clmm-plugin"
 CACHE_MAX=3600
-LOCAL_VER="0.1.3"
+LOCAL_VER="0.1.4"
 DO_CHECK=true
 
 if [ -f "$UPDATE_CACHE" ]; then
@@ -98,7 +98,7 @@ case "${OS}_${ARCH}" in
   mingw*_aarch64|msys*_aarch64|cygwin*_aarch64)  TARGET="aarch64-pc-windows-msvc"; EXT=".exe" ;;
 esac
 mkdir -p ~/.local/bin
-curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/pancakeswap-clmm-plugin@0.1.3/pancakeswap-clmm-plugin-${TARGET}${EXT}" -o ~/.local/bin/.pancakeswap-clmm-plugin-core${EXT}
+curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/pancakeswap-clmm-plugin@0.1.4/pancakeswap-clmm-plugin-${TARGET}${EXT}" -o ~/.local/bin/.pancakeswap-clmm-plugin-core${EXT}
 chmod +x ~/.local/bin/.pancakeswap-clmm-plugin-core${EXT}
 
 # Symlink CLI name to universal launcher
@@ -106,7 +106,7 @@ ln -sf "$LAUNCHER" ~/.local/bin/pancakeswap-clmm-plugin
 
 # Register version
 mkdir -p "$HOME/.plugin-store/managed"
-echo "0.1.2" > "$HOME/.plugin-store/managed/pancakeswap-clmm-plugin"
+echo "0.1.4" > "$HOME/.plugin-store/managed/pancakeswap-clmm-plugin"
 ```
 
 ### Report install (auto-injected, runs once)
@@ -126,7 +126,7 @@ if [ ! -f "$REPORT_FLAG" ]; then
   # Report to Vercel stats
   curl -s -X POST "https://plugin-store-dun.vercel.app/install" \
     -H "Content-Type: application/json" \
-    -d '{"name":"pancakeswap-clmm-plugin","version":"0.1.3"}' >/dev/null 2>&1 || true
+    -d '{"name":"pancakeswap-clmm-plugin","version":"0.1.4"}' >/dev/null 2>&1 || true
   # Report to OKX API (with HMAC-signed device token)
   curl -s -X POST "https://www.okx.com/priapi/v1/wallet/plugins/download/report" \
     -H "Content-Type: application/json" \
@@ -194,6 +194,23 @@ pancakeswap-clmm --chain 56 positions --include-staked 12345,67890
 ```
 
 ## Commands
+
+### quickstart — Check Wallet and Get Guided Next Steps
+
+Resolves the BSC wallet and emits a JSON guide with onboarding steps for new users. No arguments required.
+
+```
+pancakeswap-clmm quickstart
+```
+
+**Output fields:**
+- `ok` — `true` if a wallet is resolved, `false` otherwise
+- `wallet` — resolved BSC wallet address
+- `status` — `"ready"` when wallet is found
+- `onboarding_steps` — ordered list of commands to get started with farming
+- `error` — present only when `ok` is `false`; includes login instruction
+
+---
 
 ### farm — Stake LP NFT into MasterChefV3
 
@@ -357,6 +374,5 @@ pancakeswap-clmm --chain 56 positions --include-staked 12345,67890
 | Ethereum (1) | `0x46A15B0b27311cedF172AB29E4f4766fbE7F4364` | `0x556B9306565093C855AEA9AE92A594704c2Cd59e` |
 | Base (8453) | `0x46A15B0b27311cedF172AB29E4f4766fbE7F4364` | `0xC6A2Db661D5a5690172d8eB0a7DEA2d3008665A3` |
 | Arbitrum (42161) | `0x46A15B0b27311cedF172AB29E4f4766fbE7F4364` | `0x5e09ACf80C0296740eC5d6F643005a4ef8DaA694` |
-
 
 
