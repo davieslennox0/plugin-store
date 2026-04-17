@@ -106,6 +106,9 @@ enum Commands {
         #[arg(long)]
         confirm: bool,
     },
+
+    /// Check wallet state and get personalised onboarding steps
+    Quickstart,
 }
 
 #[tokio::main]
@@ -162,6 +165,16 @@ async fn main() {
                 confirm,
             )
             .await
+        }
+
+        Commands::Quickstart => {
+            match commands::quickstart::run(cli.chain).await {
+                Ok(val) => {
+                    println!("{}", serde_json::to_string_pretty(&val).unwrap_or_default());
+                    Ok(())
+                }
+                Err(e) => Err(e),
+            }
         }
     };
 

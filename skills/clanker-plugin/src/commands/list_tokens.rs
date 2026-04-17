@@ -13,7 +13,16 @@ pub async fn run(
 
     // API returns { data: [...], total: ..., cursor: ... }
     // (Note: top-level "data" array, NOT "tokens")
-    let tokens = result["data"].as_array().cloned().unwrap_or_default();
+    let tokens = {
+        let raw = result["data"].as_array().cloned().unwrap_or_default();
+        if let Some(cid) = chain_id {
+            raw.into_iter()
+                .filter(|t| t["chain_id"].as_u64().map(|c| c == cid).unwrap_or(true))
+                .collect::<Vec<_>>()
+        } else {
+            raw
+        }
+    };
     let total = result["total"].as_u64().unwrap_or(0);
     // API uses cursor-based pagination; derive has_more from whether cursor is present
     let has_more = result["cursor"].is_string() && !result["cursor"].as_str().unwrap_or("").is_empty();

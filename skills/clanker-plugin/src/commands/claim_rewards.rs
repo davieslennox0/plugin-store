@@ -118,7 +118,7 @@ pub async fn run(
             "data": {
                 "action": "claim_rewards",
                 "chain_id": chain_id,
-                "to": fee_locker_addr,
+                "fee_locker": fee_locker_addr,
                 "input_data": calldata,
                 "from": wallet,
                 "token_address": token_address,

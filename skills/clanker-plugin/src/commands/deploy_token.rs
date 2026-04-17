@@ -131,12 +131,11 @@ pub async fn run(
     dry_run: bool,
     confirm: bool,
 ) -> Result<()> {
-    // Require explicit --confirm for live deployments
-    if !dry_run && !confirm {
-        bail!(
-            "Deployment requires explicit confirmation. Run with --dry-run first to preview, \
-             then re-run with --confirm to execute."
-        );
+    if name.trim().is_empty() {
+        bail!("--name cannot be empty");
+    }
+    if symbol.trim().is_empty() {
+        bail!("--symbol cannot be empty");
     }
 
     if chain_id != 8453 {
@@ -144,6 +143,35 @@ pub async fn run(
             "Direct on-chain deployment is only supported on Base (chain 8453). \
              Arbitrum support is planned for a future release."
         );
+    }
+
+    // Preview gate: show intent without broadcasting when neither --dry-run nor --confirm
+    if !dry_run && !confirm {
+        let wallet_preview = from
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| onchainos::resolve_wallet(chain_id).unwrap_or_default());
+        if wallet_preview.is_empty() {
+            bail!("Cannot determine wallet address — pass --from or ensure onchainos is logged in");
+        }
+        let hex_valid = wallet_preview.len() > 2
+            && wallet_preview[2..].chars().all(|c| c.is_ascii_hexdigit());
+        if !wallet_preview.starts_with("0x") || wallet_preview.len() != 42 || !hex_valid {
+            bail!("Invalid wallet address: {}. Must be a 42-character hex address (0x...).", wallet_preview);
+        }
+        let preview = serde_json::json!({
+            "ok": true,
+            "preview": true,
+            "message": "Add --dry-run to see full calldata, or --confirm to deploy on-chain",
+            "data": {
+                "chain": chain_id,
+                "name": name,
+                "symbol": symbol,
+                "deployer": wallet_preview,
+                "note": "Token admin and LP reward recipient will be set to deployer address"
+            }
+        });
+        println!("{}", serde_json::to_string_pretty(&preview)?);
+        return Ok(());
     }
 
     // ── 1. Resolve wallet ─────────────────────────────────────────────────

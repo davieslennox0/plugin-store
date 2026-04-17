@@ -1,7 +1,7 @@
 ---
 name: clanker-plugin
 description: "Deploy and manage Clanker ERC-20 tokens on Base and Arbitrum. Trigger phrases: deploy token, launch token on Clanker, create token on Base, search Clanker tokens, list latest tokens, claim LP rewards, claim Clanker fees."
-version: "0.2.4"
+version: "0.2.5"
 author: "GeoGu360"
 tags:
   - token-launch
@@ -24,7 +24,7 @@ tags:
 # Check for skill updates (1-hour cache)
 UPDATE_CACHE="$HOME/.plugin-store/update-cache/clanker-plugin"
 CACHE_MAX=3600
-LOCAL_VER="0.2.4"
+LOCAL_VER="0.2.5"
 DO_CHECK=true
 
 if [ -f "$UPDATE_CACHE" ]; then
@@ -97,7 +97,7 @@ case "${OS}_${ARCH}" in
   mingw*_aarch64|msys*_aarch64|cygwin*_aarch64)  TARGET="aarch64-pc-windows-msvc"; EXT=".exe" ;;
 esac
 mkdir -p ~/.local/bin
-curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/clanker-plugin@0.2.4/clanker-plugin-${TARGET}${EXT}" -o ~/.local/bin/.clanker-plugin-core${EXT}
+curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/clanker-plugin@0.2.5/clanker-plugin-${TARGET}${EXT}" -o ~/.local/bin/.clanker-plugin-core${EXT}
 chmod +x ~/.local/bin/.clanker-plugin-core${EXT}
 
 # Symlink CLI name to universal launcher
@@ -105,7 +105,7 @@ ln -sf "$LAUNCHER" ~/.local/bin/clanker-plugin
 
 # Register version
 mkdir -p "$HOME/.plugin-store/managed"
-echo "0.2.4" > "$HOME/.plugin-store/managed/clanker-plugin"
+echo "0.2.5" > "$HOME/.plugin-store/managed/clanker-plugin"
 ```
 
 ### Report install (auto-injected, runs once)
@@ -125,7 +125,7 @@ if [ ! -f "$REPORT_FLAG" ]; then
   # Report to Vercel stats
   curl -s -X POST "https://plugin-store-dun.vercel.app/install" \
     -H "Content-Type: application/json" \
-    -d '{"name":"clanker-plugin","version":"0.2.4"}' >/dev/null 2>&1 || true
+    -d '{"name":"clanker-plugin","version":"0.2.5"}' >/dev/null 2>&1 || true
   # Report to OKX API (with HMAC-signed device token)
   curl -s -X POST "https://www.okx.com/priapi/v1/wallet/plugins/download/report" \
     -H "Content-Type: application/json" \
@@ -145,7 +145,7 @@ Before running any command, verify:
    ```bash
    npx skills add clanker --global
    ```
-2. **`onchainos` is installed and logged in** — check with `onchainos wallet addresses`. If not logged in, run `onchainos login`.
+2. **`onchainos` is installed and logged in** — check with `onchainos wallet addresses`. If not logged in, run `onchainos wallet login`.
 3. **For write operations** (`deploy-token`, `claim-rewards`): ensure the wallet has sufficient ETH for gas on the target chain.
 
 ## Do NOT use for
@@ -172,11 +172,57 @@ Do NOT use for: buying/selling Clanker tokens (use a DEX skill), non-Clanker tok
 
 | User Intent | Command | Type |
 |-------------|---------|------|
+| I'm new / how do I start? | `quickstart` | Read |
 | List latest tokens | `list-tokens` | Read |
 | Search by creator | `search-tokens --query <address|username>` | Read |
 | Get token details | `token-info --address <addr>` | Read |
 | Deploy new token | `deploy-token --name X --symbol Y` | Write |
 | Claim LP rewards | `claim-rewards --token-address <addr>` | Write |
+
+---
+
+## Proactive Onboarding
+
+When a user is new or asks "how do I get started", call `clanker quickstart` first. This checks their actual wallet state and returns a personalised `next_command` and `onboarding_steps`.
+
+```bash
+clanker quickstart
+```
+
+Parse the JSON output:
+- `status: "active"` → has existing positions/balance; run relevant view command
+- `status: "ready"` → wallet funded; follow `next_command`
+- `status: "needs_gas"` → has tokens but no gas; ask user to send ETH/BNB
+- `status: "needs_funds"` → has gas but no tokens; show `onboarding_steps`
+- `status: "no_funds"` → wallet empty; show `onboarding_steps`
+
+**Key caveats:**
+- `--dry-run` is a global flag and must come before the subcommand: `clanker --dry-run deploy-token ...`
+- The deployed token contract address is found in the Basescan tx receipt, not the CLI output.
+- `claim-rewards` requires the user to have previously deployed a Clanker token and accrued LP fees.
+
+---
+
+## Quickstart Command
+
+```bash
+clanker quickstart [--chain <ID>]
+```
+
+Returns a personalised onboarding JSON based on the wallet's actual balances.
+
+### Output Fields
+
+| Field | Description |
+|-------|-------------|
+| `about` | Protocol description |
+| `wallet` | Resolved wallet address |
+| `chain` | Chain name |
+| `assets` | Wallet balances (gas token + key protocol tokens) |
+| `status` | `active` / `ready` / `needs_gas` / `needs_funds` / `no_funds` |
+| `suggestion` | Human-readable state description |
+| `next_command` | The single most useful command to run next |
+| `onboarding_steps` | Ordered steps to follow |
 
 ---
 
@@ -220,6 +266,7 @@ clanker --chain 8453 list-tokens --limit 10 --sort desc
       }
     ],
     "total": 1200,
+    "page": 1,
     "has_more": true
   }
 }
@@ -345,12 +392,17 @@ clanker [--chain 8453] [--dry-run] deploy-token \
 
 **Example:**
 ```bash
-# Preview
-clanker --dry-run deploy-token --name "SkyDog" --symbol "SKYDOG"
-
-# Deploy (after user confirmation)
+# Preview (no --confirm, no --dry-run) — shows intent, exits 0:
 clanker deploy-token --name "SkyDog" --symbol "SKYDOG" --from 0xYourWallet
+
+# Full calldata preview (--dry-run, requires --from):
+clanker --dry-run deploy-token --name "SkyDog" --symbol "SKYDOG" --from 0xYourWallet
+
+# Deploy (after user confirmation):
+clanker deploy-token --name "SkyDog" --symbol "SKYDOG" --from 0xYourWallet --confirm
 ```
+
+> **Note:** `--from` is required for all three modes (preview, dry-run, and deploy). The plugin cannot resolve the active onchainos wallet automatically for token deployments. `--dry-run` must be a **global flag** before the subcommand.
 
 **Expected output:**
 <external-content>
@@ -400,7 +452,7 @@ clanker deploy-token --name "SkyDog" --symbol "SKYDOG" --from 0xYourWallet
 ```
 clanker [--chain 8453] [--dry-run] claim-rewards \
   --token-address <TOKEN_ADDRESS> \
-  [--from <wallet-address>] \\
+  [--from <wallet-address>] \
   [--confirm]
 ```
 
@@ -441,6 +493,7 @@ clanker claim-rewards --token-address 0xTokenAddress --from 0xYourWallet --confi
 </external-content>
 
 **No rewards scenario:** If there are no claimable rewards, the plugin returns:
+<external-content>
 ```json
 {
   "ok": true,
@@ -450,6 +503,7 @@ clanker claim-rewards --token-address 0xTokenAddress --from 0xYourWallet --confi
   }
 }
 ```
+</external-content>
 
 ---
 
@@ -477,6 +531,27 @@ clanker claim-rewards --token-address 0xTokenAddress --from 0xYourWallet --confi
 ---
 
 ## Changelog
+
+### v0.2.4 (2026-04-16)
+
+- **fix**: `deploy-token` without `--dry-run` or `--confirm` now returns a safe preview (`ok: true, preview: true`) showing the deployer address and parameters instead of exiting with an error.
+- **fix**: Empty `--name` or `--symbol` now returns a clear error before any network call.
+- **fix**: Invalid `--from` address (not 42-char hex) caught in preview path; returns error instead of `ok: true`.
+- **docs**: Updated Quickstart Step 6 to reflect preview behavior; fixed double-backslash typo in claim-rewards usage block; updated SKILL_SUMMARY.md to remove stale API key reference.
+
+### v0.2.3 (2026-04-14)
+
+- **docs**: Added Proactive Onboarding and Quickstart sections; updated Key Points to reflect on-chain deploy flow (no API key required).
+
+### v0.2.2 (2026-04-13)
+
+- **fix**: `deploy-token` preview gate added — without `--dry-run` or `--confirm`, command now shows intent and exits cleanly instead of proceeding silently.
+- **fix**: Version consistency across all 7 locations (Cargo.toml, Cargo.lock, plugin.yaml, plugin.json, SKILL.md frontmatter, download URL, telemetry).
+
+### v0.2.1 (2026-04-12)
+
+- **fix**: `deploy-token` dry-run uses `0xDRYRUN...` placeholder instead of zero address so output is clearly non-live.
+- **docs**: Version alignment — `.claude-plugin/plugin.json` corrected to `0.2.1`.
 
 ### v0.2.0 (2026-04-11)
 
