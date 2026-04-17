@@ -58,11 +58,13 @@ pub async fn run() -> Result<()> {
                 "1. Get token info (replace with your token mint):",
                 "   pump-fun-plugin get-token-info --mint <TOKEN_MINT>",
                 "2. Check buy price:",
-                "   pump-fun-plugin get-price --mint <TOKEN_MINT> --side buy",
-                "3. Buy tokens (0.01 SOL minimum):",
+                "   pump-fun-plugin get-price --mint <TOKEN_MINT> --direction buy",
+                "3. Preview a buy (no transaction):",
+                "   pump-fun-plugin buy --mint <TOKEN_MINT> --sol-amount 0.01",
+                "4. Execute when ready:",
                 "   pump-fun-plugin buy --mint <TOKEN_MINT> --sol-amount 0.01 --confirm",
-                "4. Sell tokens back:",
-                "   pump-fun-plugin sell --mint <TOKEN_MINT> --amount <AMOUNT> --confirm",
+                "5. Sell tokens back:",
+                "   pump-fun-plugin sell --mint <TOKEN_MINT> --token-amount <AMOUNT> --confirm",
                 "Note: Find token mints at pump.fun or via search"
             ]),
         )
