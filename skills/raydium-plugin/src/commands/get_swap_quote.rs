@@ -3,8 +3,8 @@ use clap::Args;
 use serde_json::Value;
 
 use crate::config::{
-    parse_human_amount, DEFAULT_SLIPPAGE_BPS, DEFAULT_TX_VERSION, SOL_NATIVE_MINT, USDC_SOLANA,
-    TX_API_BASE,
+    parse_human_amount, DEFAULT_SLIPPAGE_BPS, DEFAULT_TX_VERSION, SOL_NATIVE_MINT,
+    SOL_SYSTEM_PROGRAM, USDC_SOLANA, TX_API_BASE,
 };
 
 #[derive(Args, Debug)]
@@ -32,7 +32,7 @@ pub struct GetSwapQuoteArgs {
 
 /// Resolve decimals for well-known Solana mints, falling back to Raydium mint API.
 async fn resolve_decimals(mint: &str, client: &reqwest::Client) -> anyhow::Result<u8> {
-    if mint == SOL_NATIVE_MINT {
+    if mint == SOL_NATIVE_MINT || mint == SOL_SYSTEM_PROGRAM {
         return Ok(9);
     }
     if mint == USDC_SOLANA {
@@ -53,20 +53,32 @@ async fn resolve_decimals(mint: &str, client: &reqwest::Client) -> anyhow::Resul
 }
 
 pub async fn execute(args: &GetSwapQuoteArgs) -> Result<()> {
-    crate::config::validate_solana_address(&args.input_mint)?;
-    crate::config::validate_solana_address(&args.output_mint)?;
+    // Rewrite native SOL system program address to WSOL — Raydium routes use WSOL
+    let input_mint = if args.input_mint == SOL_SYSTEM_PROGRAM {
+        SOL_NATIVE_MINT.to_string()
+    } else {
+        args.input_mint.clone()
+    };
+    let output_mint = if args.output_mint == SOL_SYSTEM_PROGRAM {
+        SOL_NATIVE_MINT.to_string()
+    } else {
+        args.output_mint.clone()
+    };
+
+    crate::config::validate_solana_address(&input_mint)?;
+    crate::config::validate_solana_address(&output_mint)?;
 
     let client = reqwest::Client::new();
 
-    let input_decimals = resolve_decimals(&args.input_mint, &client).await?;
+    let input_decimals = resolve_decimals(&input_mint, &client).await?;
     let raw_amount = parse_human_amount(&args.amount, input_decimals)?;
 
     let url = format!("{}/compute/swap-base-in", TX_API_BASE);
     let resp: Value = client
         .get(&url)
         .query(&[
-            ("inputMint", args.input_mint.as_str()),
-            ("outputMint", args.output_mint.as_str()),
+            ("inputMint", input_mint.as_str()),
+            ("outputMint", output_mint.as_str()),
             ("amount", &raw_amount.to_string()),
             ("slippageBps", &args.slippage_bps.to_string()),
             ("txVersion", args.tx_version.as_str()),
