@@ -1,6 +1,6 @@
 **Overview**
 
-Supply assets and borrow against collateral on Aave V3 ($43B+ TVL) across Ethereum, Base, Polygon, and Arbitrum — with real-time Health Factor tracking to prevent liquidation.
+Supply assets and borrow against collateral on Aave V3 across Ethereum, Base, Polygon, and Arbitrum — with real-time Health Factor tracking to prevent liquidation.
 
 **Prerequisites**
 - onchainos agentic wallet connected
