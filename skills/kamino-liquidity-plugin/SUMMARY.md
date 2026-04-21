@@ -1,13 +1,13 @@
-**Overview**
+## Overview
 
 Kamino Liquidity (KVaults) are automated yield-optimization vaults on Solana that accept single-token deposits (SOL / USDC / etc.) and earn yield via auto-compounding liquidity allocation. This skill lets you browse KVaults, deposit tokens, monitor positions, and withdraw shares.
 
-**Prerequisites**
+## Prerequisites
 - onchainos CLI installed and logged in
 - SOL for gas on Solana mainnet
 - USDC, SOL, or another supported SPL token to deposit
 
-**Quick Start**
+## Quick Start
 1. Check your state and get a guided next step: `kamino-liquidity quickstart`
 2. If you see `status: no_funds` / `needs_gas` / `needs_funds` — fund the wallet address shown in the output (SOL for gas + USDC or another supported token to deposit)
 3. Browse available KVaults filtered by token: `kamino-liquidity vaults --token USDC`
