@@ -1,13 +1,13 @@
-**Overview**
+## Overview
 
 PancakeSwap V3 is a concentrated liquidity DEX. This skill lets you get swap quotes, swap tokens via SmartRouter, browse pools across fee tiers, and manage concentrated liquidity positions (add, view, remove) on BNB Chain, Base, and Arbitrum.
 
-**Prerequisites**
+## Prerequisites
 - onchainos CLI installed and logged in
 - Gas token on the target chain: BNB on BSC (chain 56, default), ETH on Base (8453) or Arbitrum (42161)
 - Tokens to swap or provide as liquidity (e.g. WBNB / USDT / USDC / WETH)
 
-**Quick Start**
+## Quick Start
 1. Check your BNB Chain state and get a guided next step: `pancakeswap-v3 quickstart`
 2. If you see `status: no_funds` / `needs_gas` / `needs_funds` — fund the wallet address shown in the output (BNB for gas + USDT/USDC to trade)
 3. Get a swap quote (read-only, no gas): `pancakeswap-v3 quote --from WBNB --to USDT --amount 0.1 --chain 56`
