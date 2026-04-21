@@ -5,7 +5,7 @@ Stake PancakeSwap V3 LP NFTs into MasterChefV3 to earn CAKE rewards on top of sw
 ## Prerequisites
 - onchainos agentic wallet connected
 - A PancakeSwap V3 LP NFT (create one with `pancakeswap-v3-plugin`)
-- Some BNB in your wallet for gas
+- Native gas token in your wallet (BNB on BSC, ETH on Ethereum / Base / Arbitrum)
 
 ## How it Works
 1. **Check your wallet**: Get a personalised next step based on your BNB balance and existing positions. `pancakeswap-clmm-plugin quickstart`
