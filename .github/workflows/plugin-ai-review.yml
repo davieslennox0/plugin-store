@@ -772,6 +772,32 @@ jobs:
               labels: ['ai-reviewed']
             });
 
+
+      # ── Inject pre-flight dependencies into SKILL.md ──────────
+      - name: Inject pre-flight
+        if: steps.build.outputs.skip != 'true'
+        id: preflight
+        run: |
+          pip install pyyaml 2>/dev/null || pip3 install pyyaml 2>/dev/null || true
+          PLUGIN_NAME="${{ steps.setup.outputs.plugin_name }}"
+          PLUGIN_DIR="${{ steps.setup.outputs.plugin_dir }}"
+          if [ -d "$PLUGIN_DIR" ]; then
+            python3 .github/scripts/inject-preflight.py "$PLUGIN_NAME" "$PLUGIN_DIR" || true
+          fi
+          [ -f /tmp/preflight_injected.txt ] && echo "patched=true" >> "$GITHUB_OUTPUT" || echo "patched=false" >> "$GITHUB_OUTPUT"
+
+      # ── Push pre-flight changes to PR branch ──────────
+      - name: Push pre-flight to PR
+        if: steps.preflight.outputs.patched == 'true'
+        run: |
+          git config user.name "plugin-store-bot"
+          git config user.email "bot@plugin-store.local"
+          git add "${{ steps.setup.outputs.plugin_dir }}"
+          git diff --staged --quiet && echo "No pre-flight changes" || {
+            git commit -m "auto: inject pre-flight for ${{ steps.setup.outputs.plugin_name }}"
+            git push origin HEAD:refs/heads/${{ github.event.pull_request.head.ref }}
+          }
+
       # ── Watchdog — verify report was posted ─────────────
       - name: Watchdog — verify AI review report exists
         if: always() && steps.build.outputs.skip != 'true'
