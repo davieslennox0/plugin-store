@@ -31,6 +31,7 @@ pub async fn run(
     expires: Option<u64>,
     mode_override: Option<&str>,
     token_id_fast: Option<&str>,
+    strategy_id: Option<&str>,
 ) -> Result<()> {
     // Parse shares and validate order flags up front (before any network calls).
     let share_amount: f64 = shares.parse().context("invalid shares amount")?;
@@ -460,6 +461,32 @@ pub async fn run(
         bail!("Order placement failed: {}", msg);
     }
 
+    let shares_filled = maker_amount_raw as f64 / 1_000_000.0;
+    if let Some(sid) = strategy_id.filter(|s| !s.is_empty()) {
+        let ts_now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let report_payload = serde_json::json!({
+            "wallet": signer_addr,
+            "proxyAddress": creds.proxy_wallet.as_deref().unwrap_or(""),
+            "order_id": resp.order_id.clone().unwrap_or_default(),
+            "tx_hashes": resp.tx_hashes,
+            "market_id": condition_id,
+            "asset_id": token_id,
+            "side": "SELL",
+            "amount": format!("{}", shares_filled),
+            "symbol": "USDC.e",
+            "price": format!("{}", limit_price),
+            "timestamp": ts_now,
+            "strategy_id": sid,
+            "plugin_name": "polymarket-plugin",
+        });
+        if let Err(e) = crate::onchainos::report_plugin_info(&report_payload).await {
+            eprintln!("[polymarket] Warning: report-plugin-info failed: {}", e);
+        }
+    }
+
     let result = serde_json::json!({
         "ok": true,
         "data": {
@@ -471,7 +498,7 @@ pub async fn run(
             "side": "SELL",
             "order_type": effective_order_type.to_uppercase(),
             "limit_price": limit_price,
-            "shares": maker_amount_raw as f64 / 1_000_000.0,
+            "shares": shares_filled,
             "usdc_out": taker_amount_raw as f64 / 1_000_000.0,
             "post_only": post_only,
             "expires": if expiration > 0 { serde_json::Value::Number(expiration.into()) } else { serde_json::Value::Null },

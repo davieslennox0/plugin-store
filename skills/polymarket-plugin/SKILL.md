@@ -1,7 +1,7 @@
 ---
 name: polymarket-plugin
 description: "Trade prediction markets on Polymarket - buy outcome tokens (YES/NO and categorical markets), check positions, list markets, manage orders, redeem winning tokens, and deposit funds on Polygon. Trigger phrases: buy polymarket shares, sell polymarket position, check my polymarket positions, list polymarket markets, get polymarket market, cancel polymarket order, redeem polymarket tokens, polymarket yes token, polymarket no token, prediction market trade, polymarket price, get started with polymarket, just installed polymarket, how do I use polymarket, set up polymarket, polymarket quickstart, new to polymarket, polymarket setup, help me trade on polymarket, place a bet on, buy prediction market, bet on, trade on prediction markets, prediction trading, place a prediction market bet, i want to bet on, deposit, 充值, 充钱, 转入, 打钱, fund polymarket, top up polymarket, add funds to polymarket, recharge polymarket, deposit usdc, deposit eth, polymarket deposit, BTC 5分钟, ETH 5分钟, 5分钟市场, 5min market, 五分钟市场, 短线市场, list 5-minute, BTC up or down, 找5分钟, 看5分钟, 5m updown, crypto 5m, 5分钟涨跌, 五分钟涨跌, updown market, BTC 5min, ETH 5min, SOL 5min, 5分钟预测."
-version: "0.4.9"
+version: "0.4.10"
 author: "skylavis-sky"
 tags:
   - prediction-market
@@ -25,7 +25,7 @@ tags:
 # Check for skill updates (1-hour cache)
 UPDATE_CACHE="$HOME/.plugin-store/update-cache/polymarket-plugin"
 CACHE_MAX=3600
-LOCAL_VER="0.4.9"
+LOCAL_VER="0.4.10"
 DO_CHECK=true
 
 if [ -f "$UPDATE_CACHE" ]; then
@@ -98,7 +98,7 @@ case "${OS}_${ARCH}" in
   mingw*_aarch64|msys*_aarch64|cygwin*_aarch64)  TARGET="aarch64-pc-windows-msvc"; EXT=".exe" ;;
 esac
 mkdir -p ~/.local/bin
-curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/polymarket-plugin@0.4.9/polymarket-plugin-${TARGET}${EXT}" -o ~/.local/bin/.polymarket-plugin-core${EXT}
+curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/polymarket-plugin@0.4.10/polymarket-plugin-${TARGET}${EXT}" -o ~/.local/bin/.polymarket-plugin-core${EXT}
 chmod +x ~/.local/bin/.polymarket-plugin-core${EXT}
 
 # Symlink CLI name to universal launcher
@@ -126,7 +126,7 @@ if [ ! -f "$REPORT_FLAG" ]; then
   # Report to Vercel stats
   curl -s -X POST "https://plugin-store-dun.vercel.app/install" \
     -H "Content-Type: application/json" \
-    -d '{"name":"polymarket-plugin","version":"0.4.9"}' >/dev/null 2>&1 || true
+    -d '{"name":"polymarket-plugin","version":"0.4.10"}' >/dev/null 2>&1 || true
   # Report to OKX API (with HMAC-signed device token)
   curl -s -X POST "https://www.okx.com/priapi/v1/wallet/plugins/download/report" \
     -H "Content-Type: application/json" \
@@ -309,7 +309,7 @@ The first `buy` or `sell` automatically derives your Polymarket API credentials 
 polymarket-plugin --version
 ```
 
-Expected: `polymarket-plugin 0.4.9`. If missing or wrong version, run the install script in **Pre-flight Dependencies** above.
+Expected: `polymarket-plugin 0.4.10`. If missing or wrong version, run the install script in **Pre-flight Dependencies** above.
 
 ### Step 2 — Install `onchainos` CLI (required for buy/sell/cancel/redeem only)
 
@@ -594,7 +594,7 @@ polymarket-plugin get-positions --address 0xAbCd...
 ### `buy` — Buy Outcome Shares
 
 ```
-polymarket-plugin buy --market-id <id> --outcome <outcome> --amount <usdc> [--price <0-1>] [--order-type <GTC|FOK>] [--approve] [--round-up]
+polymarket-plugin buy --market-id <id> --outcome <outcome> --amount <usdc> [--price <0-1>] [--order-type <GTC|FOK>] [--approve] [--round-up] [--strategy-id <id>]
 ```
 
 > **Amount vs shares**: `buy` takes `--amount` in **USDC.e** (dollars you spend). `sell` takes `--shares` in **outcome tokens** (shares you hold). They are different units — a user saying "I want to sell $50" means sell enough shares to receive ~$50 USDC; you must first check their share balance via `get-positions` and convert using the current bid price.
@@ -614,6 +614,7 @@ polymarket-plugin buy --market-id <id> --outcome <outcome> --amount <usdc> [--pr
 | `--expires` | Unix timestamp (seconds, UTC) at which the order auto-cancels. Minimum 90 seconds in the future (CLOB enforces a "now + 1 min 30 s" security threshold). Automatically sets `order_type` to `GTD` (Good Till Date) — do not also pass `--order-type GTC`. Example: `--expires $(date -d '+1 hour' +%s)` | — |
 | `--mode` | Override trading mode for this order only: `eoa` or `proxy`. Does not change the stored default. | — |
 | `--confirm` | Confirm a previously gated action (reserved for future use) | false |
+| `--strategy-id` | Strategy ID for attribution reporting. When provided and non-empty, the plugin calls `onchainos wallet report-plugin-info` after successful order placement with order metadata (`wallet`, `proxyAddress`, `order_id`, `tx_hashes`, `market_id`, `side`, `amount`, `symbol`, `price`, `strategy_id`, `plugin_name`). `tx_hashes` is an array of on-chain settlement tx hashes — non-empty for FOK/immediate-fill orders, empty for resting GTC limits that haven't crossed yet. Omit or pass `""` to skip reporting. Failures are logged to stderr and do not affect the order result. | — |
 
 **Auth required:** Yes — onchainos wallet; EIP-712 order signing via `onchainos sign-message --type eip712`
 
@@ -655,7 +656,7 @@ polymarket-plugin buy --market-id 0xabc... --outcome no --amount 100
 ### `sell` — Sell Outcome Shares
 
 ```
-polymarket-plugin sell --market-id <id> --outcome <outcome> --shares <amount> [--price <0-1>] [--order-type <GTC|FOK>] [--approve] [--dry-run]
+polymarket-plugin sell --market-id <id> --outcome <outcome> --shares <amount> [--price <0-1>] [--order-type <GTC|FOK>] [--approve] [--dry-run] [--strategy-id <id>]
 ```
 
 **Flags:**
@@ -672,6 +673,7 @@ polymarket-plugin sell --market-id <id> --outcome <outcome> --shares <amount> [-
 | `--dry-run` | Simulate without submitting the order or triggering any on-chain approval. Prints a confirmation JSON and exits. Use to verify parameters before a real sell. | false |
 | `--mode` | Override trading mode for this order only: `eoa` or `proxy`. Does not change the stored default. | — |
 | `--confirm` | Confirm a low-price market sell that was previously gated | false |
+| `--strategy-id` | Strategy ID for attribution reporting. When provided and non-empty, the plugin calls `onchainos wallet report-plugin-info` after successful order placement. Omit or pass `""` to skip reporting. Failures are logged to stderr and do not affect the order result. | — |
 
 **Auth required:** Yes — onchainos wallet; EIP-712 order signing via `onchainos sign-message --type eip712`
 
@@ -786,6 +788,7 @@ polymarket redeem --all --dry-run
 | `--market-id` | Market to redeem from: condition_id (0x-prefixed) or slug. Omit when using `--all`. |
 | `--all` | Discover and redeem **all** redeemable positions across EOA and proxy wallets in one pass, sequentially with on-chain confirmation between each. |
 | `--dry-run` | Preview without submitting: shows which wallets/markets will be redeemed and estimated POL gas cost |
+| `--strategy-id` | Strategy ID for attribution reporting. When provided and non-empty, after each redeem tx confirms the plugin calls `onchainos wallet report-plugin-info` with `side=REDEEM` and the confirmed tx hashes. Omit or pass `""` to skip reporting. Failures log to stderr and do not affect the redeem result. |
 
 **Auth required:** onchainos wallet (for signing the on-chain tx). No CLOB credentials needed.
 
@@ -1142,4 +1145,4 @@ Fees are deducted by the exchange from the received amount. The `feeRateBps` fie
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for full version history. Current version: **0.4.6** (2026-04-14).
+See [CHANGELOG.md](CHANGELOG.md) for full version history. Current version: **0.4.10** (2026-04-22).

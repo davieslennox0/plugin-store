@@ -17,6 +17,54 @@ const REDEEM_WAIT_SECS: u64 = 45;
 /// to absorb gas price spikes.
 const POL_PER_REDEEM: f64 = 0.015;
 
+/// Fire `onchainos wallet report-plugin-info` with a REDEEM payload.
+/// No-op when strategy_id is missing/empty or no tx hashes are available.
+async fn report_redeem(
+    strategy_id: Option<&str>,
+    eoa: &str,
+    proxy: Option<&str>,
+    condition_id: &str,
+    result: &serde_json::Value,
+) {
+    let sid = match strategy_id.filter(|s| !s.is_empty()) {
+        Some(s) => s,
+        None => return,
+    };
+    let mut tx_hashes: Vec<String> = Vec::new();
+    if let Some(t) = result.get("eoa_tx").and_then(|v| v.as_str()) {
+        tx_hashes.push(t.to_string());
+    }
+    if let Some(t) = result.get("proxy_tx").and_then(|v| v.as_str()) {
+        tx_hashes.push(t.to_string());
+    }
+    if tx_hashes.is_empty() {
+        return;
+    }
+    let ts_now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let cid_display = format!("0x{}", condition_id.trim_start_matches("0x"));
+    let payload = serde_json::json!({
+        "wallet": eoa,
+        "proxyAddress": proxy.unwrap_or(""),
+        "order_id": tx_hashes[0],
+        "tx_hashes": tx_hashes,
+        "market_id": cid_display,
+        "asset_id": "",
+        "side": "REDEEM",
+        "amount": "",
+        "symbol": "USDC.e",
+        "price": "",
+        "timestamp": ts_now,
+        "strategy_id": sid,
+        "plugin_name": "polymarket-plugin",
+    });
+    if let Err(e) = crate::onchainos::report_plugin_info(&payload).await {
+        eprintln!("[polymarket] Warning: report-plugin-info failed: {}", e);
+    }
+}
+
 /// Resolve (condition_id, neg_risk, question) from a market_id (condition_id or slug).
 async fn resolve_market(client: &Client, market_id: &str) -> Result<(String, bool, String)> {
     if market_id.starts_with("0x") {
@@ -190,7 +238,7 @@ async fn check_pol_budget(eoa_addr: &str, tx_count: usize) -> Result<f64> {
 }
 
 /// Redeem a single market by market_id (condition_id or slug).
-pub async fn run(market_id: &str, dry_run: bool) -> Result<()> {
+pub async fn run(market_id: &str, dry_run: bool, strategy_id: Option<&str>) -> Result<()> {
     let client = Client::new();
 
     let (condition_id, neg_risk, question) = match resolve_market(&client, market_id).await {
@@ -260,6 +308,7 @@ pub async fn run(market_id: &str, dry_run: bool) -> Result<()> {
 
     match redeem_one(&client, &condition_id, &question, &eoa_addr, proxy_addr.as_deref()).await {
         Ok(result) => {
+            report_redeem(strategy_id, &eoa_addr, proxy_addr.as_deref(), &condition_id, &result).await;
             println!(
                 "{}",
                 serde_json::to_string_pretty(&serde_json::json!({
@@ -276,7 +325,7 @@ pub async fn run(market_id: &str, dry_run: bool) -> Result<()> {
 }
 
 /// Redeem ALL redeemable positions across EOA and proxy wallets in one pass.
-pub async fn run_all(dry_run: bool) -> Result<()> {
+pub async fn run_all(dry_run: bool, strategy_id: Option<&str>) -> Result<()> {
     let client = Client::new();
     let eoa_addr = match get_wallet_address().await {
         Ok(a) => a,
@@ -392,7 +441,10 @@ pub async fn run_all(dry_run: bool) -> Result<()> {
             title
         );
         match redeem_one(&client, cid, title, &eoa_addr, proxy_addr.as_deref()).await {
-            Ok(r) => results.push(r),
+            Ok(r) => {
+                report_redeem(strategy_id, &eoa_addr, proxy_addr.as_deref(), cid, &r).await;
+                results.push(r);
+            }
             Err(e) => {
                 eprintln!("[polymarket] Error redeeming {}: {:#}", cid, e);
                 let classified: serde_json::Value = serde_json::from_str(

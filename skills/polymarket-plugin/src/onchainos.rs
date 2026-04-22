@@ -1179,6 +1179,34 @@ pub async fn get_chain_balances(chain: &str) -> Vec<ChainTokenBalance> {
         .collect()
 }
 
+/// Report plugin-level order metadata to the OKX backend for strategy attribution.
+///
+/// Serializes `payload` to a JSON string and passes it as `--plugin-parameter`.
+/// Non-fatal at the call site: the trade has already succeeded before this is invoked,
+/// so callers should log and continue on error rather than propagate.
+pub async fn report_plugin_info(payload: &Value) -> Result<()> {
+    let payload_str = serde_json::to_string(payload)
+        .context("serializing report-plugin-info payload")?;
+    let output = tokio::process::Command::new("onchainos")
+        .args([
+            "wallet", "report-plugin-info",
+            "--plugin-parameter", &payload_str,
+            "--chain", CHAIN,
+        ])
+        .output()
+        .await
+        .context("Failed to spawn onchainos wallet report-plugin-info")?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        anyhow::bail!(
+            "onchainos report-plugin-info failed ({}): {}",
+            output.status,
+            stderr.trim()
+        );
+    }
+    Ok(())
+}
+
 pub async fn is_ctf_approved_for_all(owner: &str, operator: &str) -> Result<bool> {
     use crate::config::{Contracts, Urls};
     // isApprovedForAll(address,address) selector = 0xe985e9c5

@@ -1,5 +1,9 @@
 # Polymarket Plugin Changelog
 
+### v0.4.10 (2026-04-22)
+
+- **feat**: Strategy attribution reporting — `buy` / `sell` / `redeem` each accept an optional `--strategy-id <id>`. When provided and non-empty, the plugin invokes `onchainos wallet report-plugin-info` after the order succeeds with a JSON payload containing `wallet`, `proxyAddress`, `order_id`, `tx_hashes`, `market_id`, `asset_id`, `side`, `amount`, `symbol`, `price`, `timestamp`, `strategy_id`, `plugin_name`. Omitting the flag skips reporting entirely. Report failures log to stderr as warnings and do not affect the trade result. `symbol` encodes the collateral / quote asset (Polymarket: `USDC.e`).
+
 ### v0.4.6 (2026-04-15)
 
 - **chore**: Version bump.

@@ -135,6 +135,10 @@ enum Commands {
         /// Skip market lookup — use a known token ID directly (from get-series or get-market output).
         #[arg(long)]
         token_id: Option<String>,
+
+        /// Strategy ID for attribution — reported to OKX backend alongside the order
+        #[arg(long)]
+        strategy_id: Option<String>,
     },
 
     /// Sell YES or NO shares in a market (signs via onchainos wallet)
@@ -190,6 +194,10 @@ enum Commands {
         /// Skip market lookup — use a known token ID directly (from get-series or get-market output).
         #[arg(long)]
         token_id: Option<String>,
+
+        /// Strategy ID for attribution — reported to OKX backend alongside the order
+        #[arg(long)]
+        strategy_id: Option<String>,
     },
 
     /// Create a Polymarket proxy wallet and switch to gasless POLY_PROXY trading mode.
@@ -256,6 +264,10 @@ enum Commands {
         /// Preview the redemption call without submitting the transaction
         #[arg(long)]
         dry_run: bool,
+
+        /// Strategy ID for attribution — reported to OKX backend after successful redeem
+        #[arg(long)]
+        strategy_id: Option<String>,
     },
 
     /// Cancel a single open order by order ID (signs via onchainos wallet)
@@ -327,8 +339,9 @@ async fn main() {
             mode,
             confirm: _confirm,
             token_id,
+            strategy_id,
         } => {
-            commands::buy::run(market_id.as_deref(), &outcome, &amount, price, &order_type, approve, dry_run, round_up, post_only, expires, mode.as_deref(), token_id.as_deref()).await
+            commands::buy::run(market_id.as_deref(), &outcome, &amount, price, &order_type, approve, dry_run, round_up, post_only, expires, mode.as_deref(), token_id.as_deref(), strategy_id.as_deref()).await
         }
         Commands::Sell {
             market_id,
@@ -343,8 +356,9 @@ async fn main() {
             mode,
             confirm: _confirm,
             token_id,
+            strategy_id,
         } => {
-            commands::sell::run(market_id.as_deref(), &outcome, &shares, price, &order_type, approve, dry_run, post_only, expires, mode.as_deref(), token_id.as_deref()).await
+            commands::sell::run(market_id.as_deref(), &outcome, &shares, price, &order_type, approve, dry_run, post_only, expires, mode.as_deref(), token_id.as_deref(), strategy_id.as_deref()).await
         }
         Commands::SetupProxy { dry_run } => {
             commands::setup_proxy::run(dry_run).await
@@ -358,11 +372,11 @@ async fn main() {
         Commands::SwitchMode { mode } => {
             commands::switch_mode::run(&mode).await
         }
-        Commands::Redeem { market_id, all, dry_run } => {
+        Commands::Redeem { market_id, all, dry_run, strategy_id } => {
             if all {
-                commands::redeem::run_all(dry_run).await
+                commands::redeem::run_all(dry_run, strategy_id.as_deref()).await
             } else if let Some(mid) = market_id {
-                commands::redeem::run(&mid, dry_run).await
+                commands::redeem::run(&mid, dry_run, strategy_id.as_deref()).await
             } else {
                 eprintln!("Error: provide --market-id <ID> or --all");
                 std::process::exit(1);
