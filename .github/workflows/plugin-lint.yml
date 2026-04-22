@@ -244,6 +244,20 @@ jobs:
           EXIT_CODE=$?
           set -e
 
+
+          # Check SUMMARY.md exists alongside SKILL.md
+          PLUGIN_DIR="${{ needs.collect.outputs.plugin_dir }}"
+          SUMMARY_FOUND=false
+          for skill_dir in "$PLUGIN_DIR"/skills/*/; do
+            [ -f "${skill_dir}SUMMARY.md" ] && SUMMARY_FOUND=true
+          done
+          [ -f "$PLUGIN_DIR/SUMMARY.md" ] && SUMMARY_FOUND=true
+          if [ "$SUMMARY_FOUND" = "false" ]; then
+            SUMMARY_MSG="  E150: SUMMARY.md not found. Every plugin must include a SUMMARY.md (English) with Overview, Prerequisites, and Quick Start sections."
+            OUTPUT=$(printf '%s\n%s' "$OUTPUT" "$SUMMARY_MSG")
+            EXIT_CODE=1
+          fi
+
           # Append name uniqueness result
           if [ "${{ steps.name_check.outputs.duplicate }}" = "true" ]; then
             DUPE_MSG="  E034: name '${{ needs.collect.outputs.plugin_name }}' already exists in registry"
