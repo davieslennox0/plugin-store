@@ -9,7 +9,7 @@ description: >
   Trigger: RWA, real world asset, tokenized treasury, gold token, USDY, OUSG, PAXG, ONDO, CFG,
   PENDLE, PLUME, OM, GFI, TRU, bIB01, yield rotation, macro trading, macro event, NAV premium,
   NAV discount, credit expansion, credit tightening.
-version: 1.1
+version: 1.1.0
 updated: 2026-04-01
 ---
 
