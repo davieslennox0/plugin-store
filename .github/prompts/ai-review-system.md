@@ -216,11 +216,44 @@ Check the SUMMARY.md file:
 
 If the character count exceeds 17,000, mark this as a **🔴 Critical** issue and recommend the reviewer **reject this plugin**. The SUMMARY.md must be concise.
 
-## 9. Recommendations
+## 9. Strategy Attribution Check
+
+**Only apply this section if the plugin has `category: "strategy"` AND a `dependent_plugin` field in plugin.yaml. Skip entirely for non-strategy plugins.**
+
+This plugin is a **trading strategy** — it does not connect to chains/wallets directly, but calls other trading plugins (declared in `dependent_plugin`) to execute orders. Every write operation call to a dependent plugin MUST include `--strategy <strategy-name>` for attribution tracking.
+
+### Dependent Plugin Declarations
+
+| Declared Plugin | Exists in Registry | Version Compatible |
+|----------------|-------------------|-------------------|
+[List each entry from `dependent_plugin` in plugin.yaml. Check if the plugin name exists in the current registry.]
+
+### Strategy Attribution Scan
+
+Scan ALL source code files (.py, .ts, .js, .rs, .sh) for calls to dependent plugins. For each call:
+
+| File | Line | Command | Has --strategy | Write Operation |
+|------|------|---------|:--------------:|:---------------:|
+[List every subprocess/exec/Command call that invokes a declared dependent plugin. Mark whether it includes `--strategy` flag and whether it's a write operation (buy/sell/order/send/swap/approve/broadcast) vs read-only (list/query/search/balance).]
+
+**Rules:**
+- Write operations WITHOUT `--strategy`: mark as **🔴 Critical** — reviewer must reject
+- Read-only operations without `--strategy`: **✅ OK** (no attribution needed)
+- Lines with `# plugin-store-lint: skip-strategy-check` comment: **✅ Whitelisted**
+
+### Sensitive Data Check (Strategy-specific)
+
+| Check | Result |
+|-------|--------|
+| Hardcoded private keys (`0x` + 64 hex chars) | [✅ / ❌] |
+| Hardcoded RPC URLs (should use env vars) | [✅ / ❌] |
+| Plaintext API keys | [✅ / ❌] |
+
+## 10. Recommendations
 
 [Numbered list of actionable improvements, ordered by priority]
 
-## 10. Reviewer Summary
+## 11. Reviewer Summary
 
 **One-line verdict**: [concise summary for the human reviewer]
 
