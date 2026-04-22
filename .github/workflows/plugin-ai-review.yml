@@ -407,6 +407,23 @@ jobs:
             fi
             echo ""
 
+
+            # Include SUMMARY.md content + character count check
+            SUMMARY_FILE=$(dirname "${SKILL_FILE:-${PLUGIN_DIR}/SKILL.md}")/SUMMARY.md
+            if [ -f "$SUMMARY_FILE" ]; then
+              SUMMARY_CHARS=$(wc -c < "$SUMMARY_FILE" | tr -d ' ')
+              echo "## SUMMARY.md (${SUMMARY_CHARS} characters)"
+              if [ "$SUMMARY_CHARS" -gt 17000 ]; then
+                echo ""
+                echo "⚠️ **WARNING: SUMMARY.md exceeds 17,000 characters (${SUMMARY_CHARS} chars). Reviewer must reject this plugin.**"
+                echo ""
+              fi
+              echo '```markdown'
+              cat "$SUMMARY_FILE"
+              echo '```'
+              echo ""
+            fi
+
             # Include references from local submissions or external repo
             for search_dir in "${PLUGIN_DIR}" "${EXTERNAL_DIR}"; do
               [ -z "$search_dir" ] && continue
