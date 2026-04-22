@@ -402,6 +402,22 @@ jobs:
             cat "$YAML_FILE"
             echo '```'
             echo ""
+
+            # Flag strategy plugins for AI review
+            CATEGORY=$(yq '.category // ""' "$YAML_FILE" 2>/dev/null || echo "")
+            HAS_DEPS=$(yq '.dependent_plugin // "" | length' "$YAML_FILE" 2>/dev/null || echo "0")
+            if [ "$CATEGORY" = "strategy" ] && [ "$HAS_DEPS" -gt 0 ]; then
+              echo "## ⚠️ STRATEGY PLUGIN DETECTED"
+              echo ""
+              echo "This is a **trading strategy** plugin with declared dependent plugins."
+              echo "Apply Section 9 (Strategy Attribution Check) in your review."
+              echo ""
+              echo "### Declared dependent_plugin:"
+              echo '```yaml'
+              yq '.dependent_plugin' "$YAML_FILE" 2>/dev/null || echo "  (parse error)"
+              echo '```'
+              echo ""
+            fi
             if [ -n "$SKILL_FILE" ] && [ -f "$SKILL_FILE" ]; then
               echo "## SKILL.md"
               echo '```markdown'
