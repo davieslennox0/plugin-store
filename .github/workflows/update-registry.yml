@@ -32,7 +32,7 @@ jobs:
         run: |
           # Scan all skills/*/plugin.json and SKILL.md to build registry entries
           python3 << 'PYEOF'
-          import json, os, re
+          import json, os, re, time
 
           # ── Read current registry (preserve community entries) ──
           with open("registry.json") as f:
@@ -112,12 +112,8 @@ jobs:
                   if tag in lower_content:
                       tags.append(tag)
 
-              # Detect category
-              category = "utility"
-              if any(t in tags for t in ["trading", "signal", "scanner", "sniper"]):
-                  category = "trading-strategy"
-              elif any(t in tags for t in ["defi"]):
-                  category = "defi-protocol"
+              # Read category from plugin.yaml (authoritative source)
+              category = pjson.get("category", "utility")
 
               # Detect chains
               chains = []
@@ -164,7 +160,10 @@ jobs:
                           "dir": f"skills/{skill_name}"
                       }
                   },
-                  "link": "https://github.com/okx/plugin-store"
+                  "github_link": f"https://github.com/okx/plugin-store/tree/main/skills/{skill_name}",
+                  "skill_md_link": f"https://raw.githubusercontent.com/okx/plugin-store/main/skills/{skill_name}/SKILL.md",
+                  "summary_md_link": f"https://raw.githubusercontent.com/okx/plugin-store/main/skills/{skill_name}/SUMMARY.md",
+                  "modify_date": str(int(time.time())),
               }
 
               if trust_source:
