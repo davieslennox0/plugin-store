@@ -481,7 +481,7 @@ This creates the plugin.yaml automatically — see [Mode C details](#mode-c----m
 | `author.github` | Yes | GitHub username | Must match PR author |
 | `author.email` | No | Contact email | Used for security notifications |
 | `license` | Yes | License identifier | SPDX format: `MIT`, `Apache-2.0`, `GPL-3.0`, etc. |
-| `category` | Yes | Plugin category | One of: `trading-strategy`, `defi-protocol`, `analytics`, `utility`, `security`, `wallet`, `nft` |
+| `category` | Yes | Plugin category | One of: `trading-strategy`, `strategy`, `defi-protocol`, `analytics`, `utility`, `security`, `wallet`, `nft` |
 | `tags` | No | Search keywords | Array of strings |
 | `type` | No | Author type | `"official"`, `"dapp-official"`, `"community-developer"` |
 | `github_link` | No | Project GitHub URL | URL, displayed in the marketplace |
