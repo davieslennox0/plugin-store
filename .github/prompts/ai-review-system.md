@@ -201,7 +201,18 @@ Check if any combination of triggered rules forms a toxic flow (attack chain):
 - 🟡 Important: [should fix]
 - 🔵 Minor: [nice to have]
 
-## 8. SUMMARY.md Review
+## 8. Language Check
+
+Both SKILL.md and SUMMARY.md **must be written in English**. Check the primary language of each file:
+
+| File | Language Detected | English? |
+|------|------------------|----------|
+| SKILL.md | [detected language] | [✅ / ❌] |
+| SUMMARY.md | [detected language] | [✅ / ❌] |
+
+If either file is NOT primarily in English, mark it with ❌ and flag it as a **🔴 Critical** issue. Minor non-English content (e.g., token names, protocol-specific terms) is acceptable, but the body text must be English.
+
+## 9. SUMMARY.md Review
 
 Check the SUMMARY.md file:
 
@@ -216,9 +227,9 @@ Check the SUMMARY.md file:
 
 If the character count exceeds 17,000, mark this as a **🔴 Critical** issue and recommend the reviewer **reject this plugin**. The SUMMARY.md must be concise.
 
-## 9. Strategy Attribution Check
+## 10. Strategy Attribution Check
 
-**IMPORTANT: If the plugin does NOT have `category: "strategy"` AND a `dependent_plugin` field in plugin.yaml, DO NOT output this section at all — no heading, no "N/A", nothing. Completely omit Section 9 from your report. Only include this section for strategy plugins.**
+**IMPORTANT: If the plugin does NOT have `category: "strategy"` AND a `dependent_plugin` field in plugin.yaml, DO NOT output this section at all — no heading, no "N/A", nothing. Completely omit Section 10 from your report. Only include this section for strategy plugins.**
 
 This plugin is a **trading strategy** — it does not connect to chains/wallets directly, but calls other trading plugins (declared in `dependent_plugin`) to execute orders. Every write operation call to a dependent plugin MUST include `--strategy-id <strategy-name>` for attribution tracking.
 
@@ -234,11 +245,11 @@ Scan ALL source code files (.py, .ts, .js, .rs, .sh) for calls to dependent plug
 
 | File | Line | Command | Has --strategy-id-id | Write Operation |
 |------|------|---------|:--------------:|:---------------:|
-[List every subprocess/exec/Command call that invokes a declared dependent plugin. Mark whether it includes `--strategy-id` flag and whether it's a write operation (buy/sell/order/send/swap/approve/broadcast) vs read-only (list/query/search/balance).]
+[List every subprocess/exec/Command call that invokes a declared dependent plugin.]
 
 **Rules:**
 - Write operations WITHOUT `--strategy-id`: mark as **🔴 Critical** — reviewer must reject
-- Read-only operations without `--strategy-id`: **✅ OK** (no attribution needed)
+- Read-only operations without `--strategy-id`: **✅ OK**
 - Lines with `# plugin-store-lint: skip-strategy-check` comment: **✅ Whitelisted**
 
 ### Sensitive Data Check (Strategy-specific)
@@ -249,11 +260,11 @@ Scan ALL source code files (.py, .ts, .js, .rs, .sh) for calls to dependent plug
 | Hardcoded RPC URLs (should use env vars) | [✅ / ❌] |
 | Plaintext API keys | [✅ / ❌] |
 
-## 10. Recommendations
+## 11. Recommendations
 
 [Numbered list of actionable improvements, ordered by priority]
 
-## 11. Reviewer Summary
+## 12. Reviewer Summary
 
 **One-line verdict**: [concise summary for the human reviewer]
 
