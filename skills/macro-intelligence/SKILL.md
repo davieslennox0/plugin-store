@@ -120,10 +120,7 @@ Every signal from all sources follows this schema:
 
 ## WebSocket Protocol (port 3253)
 
-### Connect
-```
-ws://localhost:3253
-```
+Connect to the WebSocket server on port 3253.
 
 ### Subscribe with Filters
 ```json
@@ -137,25 +134,7 @@ All filter fields are optional. Empty subscribe = all signals.
 ```
 
 ### Consumer Example
-```python
-import asyncio, json, websockets
-
-async def consume():
-    async with websockets.connect("ws://localhost:3253") as ws:
-        await ws.send(json.dumps({"action": "subscribe", "min_mag": 0.6}))
-        async for msg in ws:
-            signal = json.loads(msg)
-            if signal["type"] == "signal":
-                print(f"[{signal['data']['event_type']}] {signal['data']['text'][:80]}")
-
-asyncio.run(consume())
-```
-
-### wscat Example
-```bash
-wscat -c ws://localhost:3253
-> {"action":"subscribe","direction":"bullish"}
-```
+Use `websockets` library to connect to port 3253, send a subscribe message with optional filters, then iterate incoming signal messages. Each message has `type` ("signal") and `data` (the signal payload).
 
 ## Webhook Configuration
 
@@ -192,7 +171,7 @@ Webhooks POST the full signal JSON to each URL. Non-blocking (daemon threads).
 
 ## Dashboard
 
-Dark-theme monitoring UI at `http://localhost:3252`:
+Dark-theme monitoring UI on port 3252:
 - **Ticker bar** (top): Live prices for SPY, Gold, Silver, BTC, ETH with 24h % change (scrollable on mobile)
 - **Sidebar**: Source filter nav (9 sources), stats panel (includes WS client count), Fear & Greed gauge, Polymarket predictions, FRED indicators
 - **Main feed**: Signal cards with colored accent borders, AI insights, latency badges, voting buttons, tags
@@ -249,21 +228,11 @@ Pre-screen: Only messages containing `LLM_PRESCREEN_KEYWORDS` are sent to LLM (s
 
 ## Downstream Integration
 
-```python
-# REST: Get bullish RWA signals
-resp = urlopen("http://localhost:3252/api/signals?affects=rwa&direction=bullish&hours=6&min_mag=0.3")
-signals = json.loads(resp.read())
+Downstream skills can consume signals via three methods:
 
-# WebSocket: Real-time consumer
-async with websockets.connect("ws://localhost:3253") as ws:
-    await ws.send(json.dumps({"action": "subscribe", "affects": ["rwa"]}))
-    async for msg in ws:
-        signal = json.loads(msg)["data"]
-        print(signal["event_type"], signal["latency_ms"], "ms")
-
-# Webhook: Configure in config.py
-WEBHOOK_URLS = ["YOUR_WEBHOOK_URL"]
-```
+1. **REST polling**: `GET /api/signals?affects=rwa&direction=bullish&hours=6&min_mag=0.3` returns filtered JSON signals.
+2. **WebSocket**: Connect to port 3253 and send `{"action": "subscribe", "affects": ["rwa"]}` for real-time push.
+3. **Webhooks**: Configure `WEBHOOK_URLS` in `config.py` with your endpoint URLs. Webhooks POST the full signal JSON on high-magnitude events.
 
 ## Key Design Decisions
 
@@ -303,9 +272,9 @@ This skill performs NO financial transactions — it is a read-only intelligence
 
 ## Monitoring
 
-- Dashboard: `http://localhost:3252`
-- Health: `http://localhost:3252/api/health`
-- WebSocket: `ws://localhost:3253`
+- Dashboard: port 3252 (HTTP)
+- Health endpoint: `/api/health` on same port
+- WebSocket: port 3253
 - Logs: stdout (timestamped, leveled)
 - State: `state/state.json` (auto-saved every 10s)
 - Startup banner shows enable/disable status for all sources + WS server
