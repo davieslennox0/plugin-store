@@ -1,15 +1,15 @@
 # market-structure-analyzer
 
-## 1. Overview
+## Overview
 Crypto market-structure research agent delivering institutional-grade analysis with 24+ indicators across derivatives, options (gamma wall, skew), on-chain (MVRV, smart money, DEX hot tokens), and macro sentiment. Features a live auto-refreshing dashboard with K-line candlestick charts, TA overlays (RSI, MACD, Bollinger Bands), and a 12-signal composite scoring engine (-100 to +100). Powered by OKX CeFi CLI + OnchainOS CLI, zero pip dependencies.
 
-## 2. Prerequisites
+## Prerequisites
 - Python 3.8+
 - OKX CeFi CLI (`npm install -g @okx_ai/okx-trade-cli`) — no API key needed for read-only market data
 - OnchainOS CLI (`onchainos`) at `~/.local/bin/onchainos` — for smart money signals and DEX hot tokens
 - No pip dependencies required (Python stdlib only)
 
-## 3. Quick Start
+## Quick Start
 ```bash
 # Start live dashboard (recommended)
 cd skills/market-structure-analyzer
