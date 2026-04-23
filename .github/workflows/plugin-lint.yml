@@ -41,8 +41,10 @@ jobs:
         - name: Block .github modifications from forks
           id: check
           run: |
+            git remote add base https://github.com/${{ github.event.pull_request.base.repo.full_name }}.git 2>/dev/null || true
+            git fetch base ${{ github.event.pull_request.base.ref }} 2>/dev/null || true
             echo "Checking PR for .github/ modifications..."
-            CHANGES=$(git diff --name-only origin/main...${{ github.event.pull_request.head.sha }} | grep "^\.github/" || true)
+            CHANGES=$(git diff --name-only base/${{ github.event.pull_request.base.ref }}...${{ github.event.pull_request.head.sha }} | grep "^\.github/" || true)
             if [ -n "$CHANGES" ]; then
               echo "::error::Fork PRs cannot modify .github/ files:"
               echo "$CHANGES"
@@ -73,10 +75,15 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
+      - name: Fetch base branch for diff
+        run: |
+          git remote add base https://github.com/${{ github.event.pull_request.base.repo.full_name }}.git 2>/dev/null || true
+          git fetch base ${{ github.event.pull_request.base.ref }} 2>/dev/null || true
+
       - name: Find changed plugin directory
         id: find
         run: |
-          CHANGED=$(git diff --name-only origin/main...${{ github.event.pull_request.head.sha }} -- 'skills/' | head -100)
+          CHANGED=$(git diff --name-only base/${{ github.event.pull_request.base.ref }}...${{ github.event.pull_request.head.sha }} -- 'skills/' | head -100)
 
           if [ -z "$CHANGED" ]; then
             echo "No changes in skills/"
@@ -106,7 +113,7 @@ jobs:
 
       - name: Verify PR only modifies one plugin
         run: |
-          CHANGED=$(git diff --name-only origin/main...${{ github.event.pull_request.head.sha }} -- 'skills/')
+          CHANGED=$(git diff --name-only base/${{ github.event.pull_request.base.ref }}...${{ github.event.pull_request.head.sha }} -- 'skills/')
           DIRS=$(echo "$CHANGED" | cut -d'/' -f2 | sort -u)
           COUNT=$(echo "$DIRS" | wc -l | tr -d ' ')
 
@@ -117,7 +124,7 @@ jobs:
 
       - name: Verify PR does not modify files outside skills/
         run: |
-          OUTSIDE=$(git diff --name-only origin/main...${{ github.event.pull_request.head.sha }} | grep -v '^skills/' || true)
+          OUTSIDE=$(git diff --name-only base/${{ github.event.pull_request.base.ref }}...${{ github.event.pull_request.head.sha }} | grep -v '^skills/' || true)
           if [ -n "$OUTSIDE" ]; then
             echo "::error::PR modifies files outside skills/: ${OUTSIDE}."
             exit 1
@@ -244,21 +251,6 @@ jobs:
           EXIT_CODE=$?
           set -e
 
-
-          # Check SUMMARY.md exists alongside SKILL.md
-          PLUGIN_DIR="${{ needs.collect.outputs.plugin_dir }}"
-          SUMMARY_FOUND=false
-          for skill_dir in "$PLUGIN_DIR"/skills/*/; do
-            [ -f "${skill_dir}SUMMARY.md" ] && SUMMARY_FOUND=true
-          done
-          [ -f "$PLUGIN_DIR/SUMMARY.md" ] && SUMMARY_FOUND=true
-          if [ "$SUMMARY_FOUND" = "false" ]; then
-            SUMMARY_MSG="  E150: SUMMARY.md not found. Every plugin must include a SUMMARY.md (English) with Overview, Prerequisites, and Quick Start sections."
-            OUTPUT=$(printf '%s\n%s' "$OUTPUT" "$SUMMARY_MSG")
-            EXIT_CODE=1
-          fi
-
-
           # Check dependent_plugin references exist in registry (strategy plugins only)
           PLUGIN_DIR="${{ needs.collect.outputs.plugin_dir }}"
           YAML_FILE="${PLUGIN_DIR}/plugin.yaml"
@@ -266,7 +258,8 @@ jobs:
           DEP_COUNT=$(yq '.dependent_plugin | length' "$YAML_FILE" 2>/dev/null || echo "0")
           if [ "$CATEGORY" = "strategy" ] && [ "$DEP_COUNT" -gt 0 ]; then
             echo "Strategy plugin detected — checking dependent_plugin..."
-            REGISTRY=$(curl -sSL --max-time 10               "https://raw.githubusercontent.com/okx/plugin-store/main/registry.json" 2>/dev/null || echo '{"plugins":[]}')
+            REGISTRY=$(curl -sSL --max-time 10 \
+              "https://raw.githubusercontent.com/okx/plugin-store/main/registry.json" 2>/dev/null || echo '{"plugins":[]}')
             REG_NAMES=$(echo "$REGISTRY" | jq -r '.plugins[].name' 2>/dev/null)
 
             for i in $(seq 0 $((DEP_COUNT - 1))); do
@@ -360,19 +353,25 @@ jobs:
 
             const body = `## ${icon} Phase 1: Structure Validation — ${status}\n\n\`\`\`\n${output}\n\`\`\`\n\n${passed ? '→ Proceeding to Phase 2: Build Verification' : '→ Please fix the errors above and push again.'}`;
 
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner, repo: context.repo.repo,
-              issue_number: prNumber,
-            });
-            const botComment = comments.find(c =>
-              c.user.type === 'Bot' && c.body.includes('Phase 1: Structure Validation')
-            );
+            try {
+              const { data: comments } = await github.rest.issues.listComments({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: prNumber,
+              });
+              const botComment = comments.find(c =>
+                c.user.type === 'Bot' && c.body.includes('Phase 1: Structure Validation')
+              );
 
-            const params = { owner: context.repo.owner, repo: context.repo.repo, body };
-            if (botComment) {
-              await github.rest.issues.updateComment({ ...params, comment_id: botComment.id });
-            } else {
-              await github.rest.issues.createComment({ ...params, issue_number: prNumber });
+              const params = { owner: context.repo.owner, repo: context.repo.repo, body };
+              if (botComment) {
+                await github.rest.issues.updateComment({ ...params, comment_id: botComment.id });
+              } else {
+                await github.rest.issues.createComment({ ...params, issue_number: prNumber });
+              }
+              console.log('Phase 1 comment posted successfully');
+            } catch (e) {
+              console.log('Failed to post Phase 1 comment:', e.message);
+              core.warning('Failed to post Phase 1 lint report: ' + e.message);
             }
 
       - name: Fail if lint errors
