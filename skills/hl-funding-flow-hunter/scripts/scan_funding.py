@@ -47,13 +47,19 @@ def log_score(value: float, scale: float, cap: float) -> float:
     return min(math.log10(value + 1) / scale * cap, cap)
 
 
-def risk_flags(funding: float, volume_24h: float, open_interest: float, mark_px: float, prev_day_px: float) -> list[str]:
+def risk_flags(
+    funding: float,
+    volume_24h: float,
+    open_interest_notional: float,
+    mark_px: float,
+    prev_day_px: float,
+) -> list[str]:
     flags: list[str] = []
     if abs(funding) < 0.000025:
         flags.append("funding_signal_weak")
     if volume_24h < 5_000_000:
         flags.append("low_24h_volume")
-    if open_interest < 1_000_000:
+    if open_interest_notional < 1_000_000:
         flags.append("low_open_interest")
     if mark_px > 0 and prev_day_px > 0:
         day_move = abs(mark_px - prev_day_px) / prev_day_px
@@ -62,11 +68,11 @@ def risk_flags(funding: float, volume_24h: float, open_interest: float, mark_px:
     return flags
 
 
-def score_candidate(funding: float, volume_24h: float, open_interest: float, premium: float) -> float:
+def score_candidate(funding: float, volume_24h: float, open_interest_notional: float, premium: float) -> float:
     funding_bps = abs(funding) * 10_000
     funding_component = min(funding_bps / 1.5 * 40, 40)
     volume_component = log_score(volume_24h, 9.0, 25)
-    oi_component = log_score(open_interest, 8.0, 25)
+    oi_component = log_score(open_interest_notional, 9.0, 25)
     premium_penalty = min(abs(premium) * 10_000 / 5, 10)
     return round(max(funding_component + volume_component + oi_component - premium_penalty, 0), 2)
 
@@ -92,19 +98,20 @@ def build_candidates(data: Any, args: argparse.Namespace) -> list[dict[str, Any]
 
         funding = as_float(ctx.get("funding"))
         volume_24h = as_float(ctx.get("dayNtlVlm"))
-        open_interest = as_float(ctx.get("openInterest"))
         premium = as_float(ctx.get("premium"))
         mark_px = as_float(ctx.get("markPx"))
         prev_day_px = as_float(ctx.get("prevDayPx"))
+        open_interest_base = as_float(ctx.get("openInterest"))
+        open_interest_notional = open_interest_base * mark_px if mark_px > 0 else 0.0
 
-        if volume_24h < args.min_volume or open_interest < args.min_oi:
+        if volume_24h < args.min_volume or open_interest_notional < args.min_oi:
             continue
         if abs(funding) < args.min_abs_funding:
             continue
 
-        flags = risk_flags(funding, volume_24h, open_interest, mark_px, prev_day_px)
+        flags = risk_flags(funding, volume_24h, open_interest_notional, mark_px, prev_day_px)
         side = "sell" if funding > 0 else "buy"
-        score = score_candidate(funding, volume_24h, open_interest, premium)
+        score = score_candidate(funding, volume_24h, open_interest_notional, premium)
         annualized = funding * 24 * 365
 
         rows.append(
@@ -117,7 +124,8 @@ def build_candidates(data: Any, args: argparse.Namespace) -> list[dict[str, Any]
                 "mark_price": mark_px,
                 "previous_day_price": prev_day_px,
                 "volume_24h": volume_24h,
-                "open_interest": open_interest,
+                "open_interest_base": open_interest_base,
+                "open_interest_notional": round(open_interest_notional, 6),
                 "max_leverage": asset.get("maxLeverage"),
                 "score": score,
                 "risk_flags": flags,
@@ -140,7 +148,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Scan Hyperliquid perp markets for funding and flow candidates.")
     parser.add_argument("--top", type=int, default=5, help="Number of candidates to return.")
     parser.add_argument("--min-volume", type=float, default=5_000_000, help="Minimum 24h notional volume.")
-    parser.add_argument("--min-oi", type=float, default=1_000_000, help="Minimum open interest.")
+    parser.add_argument("--min-oi", type=float, default=1_000_000, help="Minimum open interest notional in USDC.")
     parser.add_argument("--min-abs-funding", type=float, default=0.00001, help="Minimum absolute hourly funding rate.")
     parser.add_argument("--timeout", type=float, default=10.0, help="HTTP timeout in seconds.")
     return parser.parse_args(argv)
