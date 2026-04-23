@@ -13,14 +13,15 @@
 3. [快速入门（7 步）](#3-快速入门7-步)
 4. [Plugin 结构](#4-plugin-结构)
 5. [编写 SKILL.md](#5-编写-skillmd)
-6. [提交包含源代码的 Plugin（Binary）](#6-提交包含源代码的-pluginbinary)
-7. [三种提交模式](#7-三种提交模式)
-8. [Onchain OS 集成](#8-onchainos-集成)
-9. [审核流程](#9-审核流程)
-10. [风险等级](#10-风险等级)
-11. [规则与限制](#11-规则与限制)
-12. [常见问题](#12-常见问题)
-13. [获取帮助](#13-获取帮助)
+6. [编写 SUMMARY.md](#编写-summarymd)
+7. [提交包含源代码的 Plugin（Binary）](#6-提交包含源代码的-pluginbinary)
+8. [三种提交模式](#7-三种提交模式)
+9. [Onchain OS 集成](#8-onchainos-集成)
+10. [审核流程](#9-审核流程)
+11. [风险等级](#10-风险等级)
+12. [规则与限制](#11-规则与限制)
+13. [常见问题](#12-常见问题)
+14. [获取帮助](#13-获取帮助)
 
 ---
 
@@ -272,6 +273,7 @@ skills/my-plugin/
 │   └── plugin.json      # 必需 -- Claude Skill 注册元数据
 ├── plugin.yaml          # 必需 -- Plugin 元数据和清单
 ├── SKILL.md             # 必需 -- AI 代理的 Skill 定义
+├── SUMMARY.md           # 必需 -- 英文摘要（Overview、Prerequisites、Quick Start）
 ├── src/                 # 可选 -- 二进制 Plugin 源码
 │   └── main.rs          #   Rust 示例（或 main.go、main.ts、main.py）
 ├── Cargo.toml           # 可选 -- 构建配置（或 go.mod、package.json、pyproject.toml）
@@ -286,7 +288,7 @@ skills/my-plugin/
 └── LICENSE              # 推荐 -- SPDX 兼容的许可证文件
 ```
 
-`.claude-plugin/plugin.json`、`plugin.yaml` 和 `SKILL.md` 都是**必需的**。其他均为可选。
+`.claude-plugin/plugin.json`、`plugin.yaml`、`SKILL.md` 和 `SUMMARY.md` 都是**必需的**。其他均为可选。
 
 ### .claude-plugin/plugin.json
 
@@ -470,7 +472,7 @@ plugin-store import <github-url>
 | `category` | 是 | Plugin 类别 | 以下之一：`trading-strategy`、`defi-protocol`、`analytics`、`utility`、`security`、`wallet`、`nft` |
 | `tags` | 否 | 搜索关键词 | 字符串数组 |
 | `type` | 否 | 作者类型 | `"official"`、`"dapp-official"`、`"community-developer"` |
-| `link` | 否 | 项目主页 | URL，在市场中展示 |
+| `github_link` | 否 | 项目 GitHub 地址 | URL，在市场中展示 |
 | `components.skill.dir` | 模式 A | Skill 目录路径 | Plugin 目录内的相对路径（使用 `"."` 表示根目录） |
 | `components.skill.repo` | 模式 B | 外部仓库 | 格式：`owner/repo` |
 | `components.skill.commit` | 模式 B | 固定的 commit | 完整的 40 个字符的十六进制 SHA |
@@ -712,6 +714,102 @@ onchainos market price --address <TOKEN_ADDRESS> --chain solana
 **Output**: Current price in USD, 24h change percentage, 24h volume.
 **If the token is not found**: Ask the user to verify the contract address or try `onchainos token search --query <NAME> --chain solana` first.
 ```
+
+---
+
+## 编写 SUMMARY.md
+
+每个 Plugin **必须**包含一个 `SUMMARY.md` 文件，放在与 `SKILL.md` 同级的目录中。该文件是**英文**的面向用户摘要，必须包含固定的三段式结构。CI lint 会在提交时检查：缺少文件报 `E150` 错误，缺少必需章节报 `E151` 错误。
+
+### 必需结构
+
+```markdown
+# <plugin-name>
+
+## Overview
+
+<一句话概括该平台/协议是什么。>
+
+Core operations:
+
+- <核心操作 1，例如 "Swap tokens across 500+ DEX sources">
+- <核心操作 2，例如 "Query real-time portfolio balances">
+- <核心操作 3，例如 "Place limit orders with slippage protection">
+
+Tags: `defi` `ethereum` `swap` `lending`
+
+## Prerequisites
+
+- <IP/地区限制，例如 "No IP restrictions" 或 "US users excluded">
+- <支持的链，例如 "Ethereum, Base, Arbitrum, Polygon">
+- <支持的代币，例如 "All ERC-20 tokens" 或 "USDC, WETH, DAI">
+- <所需工具，例如 "onchainos CLI installed and authenticated">
+- <其他前置条件>
+
+## Quick Start
+
+<用通俗语言引导用户完成基本流程，描述关键步骤、模式或选项。>
+
+1. **步骤标题**: 做什么，为什么。
+2. **步骤标题**: 下一步操作。
+3. **步骤标题**: 如何验证一切正常。
+```
+
+### 示例：Polymarket Plugin
+
+```markdown
+# polymarket-plugin
+
+## Overview
+
+Polymarket is a decentralized prediction market platform on Polygon where users trade
+outcome shares on real-world events.
+
+Core operations:
+
+- Browse and search prediction markets by topic
+- Buy and sell YES/NO outcome shares (market orders and limit orders)
+- Check portfolio positions and P&L
+- Manage open orders (cancel, modify)
+- Claim winnings after market settlement
+
+Tags: `prediction-market` `polygon` `trading` `polymarket`
+
+## Prerequisites
+
+- US users are restricted from trading on Polymarket
+- Supported chain: Polygon (MATIC)
+- Supported tokens: USDC.e for trading, POL for gas fees
+- onchainos CLI installed and authenticated
+- A funded wallet with USDC.e on Polygon
+
+## Quick Start
+
+1. **选择交易模式**
+   直连模式：直接用你的钱包下单，最简单直接。买入时 Agent 会自动完成授权，需少量 POL 作为手续费。
+   代理模式：Agent 帮你创建专属代理钱包，交易手续费由 Polymarket 承担。首次使用需完成设置并充值 USDC.e，之后可无感交易。两种模式随时可切换。
+
+2. **余额查询与充值**
+   输入"查看余额"即可看到所有钱包的 POL 和 USDC.e 数量。代理钱包余额不足时，向代理地址转入 USDC.e 即可，同普通转账。
+
+3. **选择市场**
+   告诉 Agent 你感兴趣的话题（如"帮我找 BTC 涨跌相关的市场"），它会搜索匹配的预测市场并展示价格、成交量和截止时间，帮你判断是否参与。
+
+4. **下单交易**
+   立即成交：按当前最优价买入或卖出，全部成交或自动取消，适合想快速交易的场景。
+   挂单等待：设定期望价格等待成交，适合不急、想拿更好价格的场景。可设置有效期或仅做挂单方。
+   示例："花 10 USDC.e 买入 Yes" / "以 0.35 挂单买 100 份 No"
+
+5. **管理持仓**
+   随时让 Agent 查看当前持仓和盈亏，取消未成交的挂单，或在市场结算后提取收益。代理模式首次启用时会自动完成合约授权，后续无需重复。
+```
+
+### 关键规则
+
+- **语言**: SUMMARY.md 必须用**英文**编写。
+- **章节**: 三个章节（`## Overview`、`## Prerequisites`、`## Quick Start`）全部必需。
+- **标签**: 使用行内代码块（`` `tag-name` ``）展示标签，放在 Overview 章节末尾。
+- **位置**: SUMMARY.md 必须与 SKILL.md 放在同一目录。
 
 ---
 
