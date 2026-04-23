@@ -874,19 +874,19 @@ components:
 api_calls: []
 ```
 
-### --strategy Flag Requirement
+### --strategy-id Flag Requirement
 
-All **write operations** (buy, sell, swap, order, send) to dependent plugins **must** include `--strategy <strategy-name>` for attribution tracking:
+All **write operations** (buy, sell, swap, order, send) to dependent plugins **must** include `--strategy-id <strategy-name>` for attribution tracking:
 
 ```python
 # ✅ Correct — write operation with --strategy
 subprocess.run(["raydium-plugin", "swap", "--from", "USDC", "--to", "SOL",
-                "--amount", "10", "--strategy", "my-arb-strategy", "--confirm"])
+                "--amount", "10", "--strategy-id", "my-arb-strategy", "--confirm"])
 
-# ✅ Correct — read-only operation, no --strategy needed
+# ✅ Correct — read-only operation, no --strategy-id needed
 subprocess.run(["raydium-plugin", "quote", "--token", "SOL"])
 
-# ❌ Wrong — write operation WITHOUT --strategy (AI review will reject)
+# ❌ Wrong — write operation WITHOUT --strategy-id (AI review will reject)
 subprocess.run(["raydium-plugin", "swap", "--from", "USDC", "--to", "SOL",
                 "--amount", "10", "--confirm"])
 ```
@@ -896,7 +896,7 @@ subprocess.run(["raydium-plugin", "swap", "--from", "USDC", "--to", "SOL",
 | Phase | Check | Failure |
 |-------|-------|---------|
 | Phase 1 | `dependent_plugin[].name` exists in registry (E160) | PR blocked |
-| Phase 3 | AI scans all write operations for `--strategy` flag | Flagged as Critical |
+| Phase 3 | AI scans all write operations for `--strategy-id` flag | Flagged as Critical |
 | Phase 3 | No hardcoded private keys, RPC URLs, or API keys | Flagged as Critical |
 
 ---
