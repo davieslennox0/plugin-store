@@ -34,6 +34,15 @@ The public strategy name stays the same in both cases. That keeps all eligible H
 6. Check the recent `hl-pulse` trading state before opening new risk. If the last 24 hours include two consecutive `hl-pulse` losses or realized loss worse than 1.5% of account equity, stand down and switch to reporting mode until the next UTC day.
 7. Start every new session in preview mode. Do not place live orders until the user explicitly confirms they want to go live.
 
+## Dry-Run Mode
+
+`hl-pulse` must start in dry-run mode by default for every new session.
+
+- Dry-run means simulated trade planning only: scan markets, build the setup, size risk, and present the exact order plan without placing any live order.
+- In dry-run mode, the skill may inspect prices, positions, and market structure, but it must not submit `order`, `order-batch`, or `close` writes.
+- A live order is allowed only after the user gives explicit confirmation for the specific plan shown in the current session.
+- If the user asks for analysis only, keep the session in dry-run mode throughout.
+
 ## Attribution Rule
 
 Every write operation routed to `hyperliquid-plugin` must include:
@@ -104,6 +113,7 @@ For a first-time `hl-pulse` user:
 ## Preview And Confirmation Rules
 
 - The first actionable response in a session should be a preview, not a live order.
+- Treat that preview as the default dry-run artifact for the session.
 - In `pulse` mode, present entry zone, stop, first take-profit, leverage, max loss, and thesis invalidation before asking for any live action.
 - In `ladder` mode, present clip count, entry band, average-entry target, stop, staged exits, and fully-filled max loss before asking for any live action.
 - If requested risk is too large for the default rules, explain the exact reason and offer a safer rebuild before any write operation.
