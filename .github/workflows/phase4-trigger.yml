@@ -1,0 +1,80 @@
+# Trigger Phase 4 when maintainer adds 'approved-for-publish' label
+#
+# Only admin/maintain role can trigger. Uses pull_request_target
+# which has full secrets + write permissions for fork PRs.
+
+name: "Phase 4: Trigger"
+
+on:
+  pull_request_target:
+    types: [labeled]
+
+permissions:
+  actions: write
+  checks: write
+  pull-requests: read
+
+jobs:
+  trigger:
+    name: Trigger Phase 4
+    if: >-
+      github.event.label.name == 'approved-for-publish' &&
+      github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check sender is maintainer
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_SENDER: ${{ github.event.sender.login }}
+        run: |
+          SENDER="$EVENT_SENDER"
+          PERM=$(gh api "repos/${{ github.repository }}/collaborators/${SENDER}/permission" --jq '.permission' 2>/dev/null || echo "none")
+          echo "Sender: ${SENDER}, Permission: ${PERM}"
+          if [[ "$PERM" != "admin" && "$PERM" != "maintain" ]]; then
+            echo "::error::${SENDER} (${PERM}) is not a maintainer. Only admin/maintain can trigger publish."
+            exit 1
+          fi
+
+      - name: Create check run (in_progress)
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_TITLE_SAFE: ${{ github.event.pull_request.title }}
+        run: |
+          HEAD_SHA="$PR_HEAD_SHA"
+          PR_TITLE="$PR_TITLE_SAFE"
+          CHECK_NAME="Phase 4: Publish — ${PR_TITLE}"
+          CHECK_ID=$(gh api "repos/${{ github.repository }}/check-runs" \
+            --method POST \
+            -f name="${CHECK_NAME}" \
+            -f head_sha="$HEAD_SHA" \
+            -f status="in_progress" \
+            -f output[title]="${CHECK_NAME}" \
+            -f output[summary]="Building, publishing, and merging..." \
+            --jq '.id')
+          echo "check_run_id=${CHECK_ID}" >> "$GITHUB_OUTPUT"
+          echo "head_sha=${HEAD_SHA}" >> "$GITHUB_OUTPUT"
+          echo "Created check run: ${CHECK_NAME}"
+
+      - name: Generate App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Dispatch Phase 4
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          PR_NUM="$PR_NUMBER"
+          echo "Dispatching Phase 4 for PR #${PR_NUM}..."
+          gh workflow run "Phase 4: Publish" \
+            --repo "${{ github.repository }}" \
+            --ref main \
+            -f pr_number="${PR_NUM}" \
+            -f check_run_id="${{ steps.check.outputs.check_run_id }}" \
+            -f head_sha="${{ steps.check.outputs.head_sha }}"
+          echo "✅ Phase 4 dispatched"
