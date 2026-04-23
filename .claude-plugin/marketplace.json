@@ -250,11 +250,6 @@
       }
     },
     {
-      "name": "rwa-alpha",
-      "description": "RWA Alpha — Real World Asset intelligence trading. Macro event detection + Polymarket confirmation + on-chain price action → auto-trade tokenized treasury/gold/yield/governance tokens via OKX DEX. Three modes: Yield Optimizer / Macro Trader / Full Alpha. Multi-chain Ethereum + Solana.",
-      "source": "./skills/rwa-alpha"
-    },
-    {
       "name": "smart-money-signal-copy-trade",
       "description": "Smart Money Signal Copy Trade v1.0 — Smart money signal tracker with cost-aware TP, 15-check safety, 7-layer exit system",
       "source": "./skills/smart-money-signal-copy-trade",
