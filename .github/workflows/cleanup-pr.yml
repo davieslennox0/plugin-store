@@ -15,9 +15,11 @@ jobs:
       - name: Cancel Phase 1-4 runs for this PR
         env:
           GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          PR_NUM=${{ github.event.pull_request.number }}
-          HEAD_SHA=${{ github.event.pull_request.head.sha }}
+          PR_NUM="$PR_NUMBER"
+          HEAD_SHA="$PR_HEAD_SHA"
           echo "PR #${PR_NUM} closed. Cancelling stale Phase 1-4 runs..."
 
           CANCELLED=0
