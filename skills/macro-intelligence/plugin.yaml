@@ -16,7 +16,6 @@ tags:
   - finnhub
   - websocket
   - webhook
-  - rss
   - cryptopanic
   - real-time
 
@@ -24,5 +23,14 @@ components:
   skill:
     dir: "."
 
-api_calls: []
+api_calls:
+  - "newsnow.busiyi.world"
+  - "gamma-api.polymarket.com"
+  - "finnhub.io"
+  - "ai.6551.io"
+  - "api.stlouisfed.org"
+  - "api.alternative.me"
+  - "api.coingecko.com"
+  - "cryptopanic.com"
+  - "api.anthropic.com"
 type: community-developer

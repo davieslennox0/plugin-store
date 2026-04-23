@@ -50,10 +50,10 @@ Unified macro intelligence feed. Reads news from 9+ sources (NewsNow, Polymarket
 - `pip install websockets` (needed for 6551.io OpenNews WebSocket + WS server)
 - Env: `ANTHROPIC_API_KEY` for LLM classification + AI insights (optional)
 - Env: `TG_API_ID`, `TG_API_HASH` (or set in config.py)
-- Env: `OPENNEWS_TOKEN` for 6551.io (free — get token at https://6551.io/mcp)
-- Env: `FINNHUB_API_KEY` for Finnhub market news (free — register at https://finnhub.io)
-- Env: `FRED_API_KEY` for FRED macro indicators (free — register at https://fred.stlouisfed.org/docs/api/api_key.html)
-- Env: `CRYPTOPANIC_TOKEN` for CryptoPanic (free — register at https://cryptopanic.com/developers/api/)
+- Env: `OPENNEWS_TOKEN` for 6551.io OpenNews (free tier available at 6551.io)
+- Env: `FINNHUB_API_KEY` for Finnhub market news (free tier available at finnhub.io)
+- Env: `FRED_API_KEY` for FRED macro indicators (free tier available at fred.stlouisfed.org)
+- Env: `CRYPTOPANIC_TOKEN` for CryptoPanic news (free tier available at cryptopanic.com)
 
 All sources are **disabled by default** if their API key env var is empty — graceful degradation.
 
@@ -162,8 +162,8 @@ wscat -c ws://localhost:3253
 In `config.py`:
 ```python
 WEBHOOK_URLS = [
-    "https://open.larksuite.com/open-apis/bot/v2/hook/YOUR_HOOK_ID",
-    "https://your-service.com/webhook",
+    "YOUR_LARK_OR_SLACK_WEBHOOK_URL",
+    "YOUR_CUSTOM_WEBHOOK_URL",
 ]
 WEBHOOK_MIN_MAGNITUDE = 0.6   # Only push high-impact signals
 WEBHOOK_EVENTS = []            # Empty = all; ["fed_cut_surprise", "whale_buy"] = specific
@@ -262,7 +262,7 @@ async with websockets.connect("ws://localhost:3253") as ws:
         print(signal["event_type"], signal["latency_ms"], "ms")
 
 # Webhook: Configure in config.py
-WEBHOOK_URLS = ["https://your-service.com/webhook"]
+WEBHOOK_URLS = ["YOUR_WEBHOOK_URL"]
 ```
 
 ## Key Design Decisions
@@ -315,10 +315,10 @@ This skill performs NO financial transactions — it is a read-only intelligence
 - **No signals**: Check NewsNow sources are accessible
 - **Telethon not connecting**: Run `python3 macro_news.py setup`
 - **LLM not classifying / no insights**: Check `ANTHROPIC_API_KEY` env var
-- **OpenNews 401**: Token may be expired — regenerate at https://6551.io/mcp
+- **OpenNews 401**: Token may be expired — regenerate at 6551.io
 - **Finnhub empty**: Verify API key
 - **FRED empty**: Verify API key
-- **CryptoPanic empty**: Verify token at https://cryptopanic.com/developers/api/
+- **CryptoPanic empty**: Verify token at cryptopanic.com
 - **WS not connecting**: Check port 3253 is free, `websockets` package installed
 - **No price tickers**: Requires `FINNHUB_API_KEY` for SPY/GLD/SLV; BTC/ETH use free CoinGecko
 - **Port in use**: Change `DASHBOARD_PORT` / `WS_PORT` in config.py
