@@ -6,7 +6,7 @@ HL Funding Flow Hunter is a guarded Hyperliquid strategy scanner for funding-rat
 
 Core operations:
 
-- Scan public Hyperliquid market data for funding, volume, and open interest candidates
+- Scan public Hyperliquid market data for funding, volume, and open interest notional candidates
 - Rank candidates with risk flags
 - Prepare low-leverage isolated order previews
 - Execute only through `hyperliquid-plugin` after explicit confirmation
@@ -38,7 +38,7 @@ hyperliquid quickstart
 Scan funding candidates:
 
 ```bash
-python3 skills/hl-funding-flow-hunter/scripts/scan_funding.py --top 5
+python3 ./scripts/scan_funding.py --top 5
 ```
 
 Preview a guarded order:
