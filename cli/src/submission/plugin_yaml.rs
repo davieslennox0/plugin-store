@@ -18,9 +18,9 @@ pub struct PluginYaml {
     /// Defaults to "community-developer" in registry if absent.
     #[serde(default, rename = "type")]
     pub plugin_type: Option<String>,
-    /// Link URL for the plugin (project homepage, repo, etc.).
+    /// GitHub link URL for the plugin (project homepage, repo, etc.).
     #[serde(default)]
-    pub link: Option<String>,
+    pub github_link: Option<String>,
     /// Build configuration for Binary source code compilation.
     /// Any developer can submit source code — our CI compiles it.
     /// Absent = pure Skill plugin (no compilation needed).
@@ -163,14 +163,15 @@ impl PluginYaml {
 
 /// Valid categories for plugins.
 pub const VALID_CATEGORIES: &[&str] = &[
-    "trading-strategy",
     "strategy",
-    "defi-protocol",
-    "analytics",
+    "defi",
+    "game",
+    "prediction",
+    "data_tools",
+    "dev_tools",
+    "others",
     "utility",
-    "security",
-    "wallet",
-    "nft",
+    "trading",
 ];
 
 /// Valid build languages (all compile to binary via our CI).
