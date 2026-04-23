@@ -57,8 +57,10 @@ jobs:
         - name: Block .github modifications from forks
           id: check
           run: |
+            git remote add base https://github.com/${{ github.event.pull_request.base.repo.full_name }}.git 2>/dev/null || true
+            git fetch base ${{ github.event.pull_request.base.ref }} 2>/dev/null || true
             echo "Checking PR for .github/ modifications..."
-            CHANGES=$(git diff --name-only origin/main...${{ github.event.pull_request.head.sha }} | grep "^\.github/" || true)
+            CHANGES=$(git diff --name-only base/${{ github.event.pull_request.base.ref }}...${{ github.event.pull_request.head.sha }} | grep "^\.github/" || true)
             if [ -n "$CHANGES" ]; then
               echo "::error::Fork PRs cannot modify .github/ files:"
               echo "$CHANGES"
@@ -87,11 +89,16 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
+      - name: Fetch base branch for diff
+        run: |
+          git remote add base https://github.com/${{ github.event.pull_request.base.repo.full_name }}.git 2>/dev/null || true
+          git fetch base ${{ github.event.pull_request.base.ref }} 2>/dev/null || true
+
       # ── Detect which plugin is being submitted ──────────
       - name: Detect plugin
         id: detect
         run: |
-          CHANGED=$(git diff --name-only origin/main...${{ github.event.pull_request.head.sha }} -- 'skills/' | head -100)
+          CHANGED=$(git diff --name-only base/${{ github.event.pull_request.base.ref }}...${{ github.event.pull_request.head.sha }} -- 'skills/' | head -100)
           PLUGIN_NAME=$(echo "$CHANGED" | head -1 | cut -d'/' -f2)
 
           # Validate plugin name (prevent injection via malicious folder names)
@@ -127,14 +134,11 @@ jobs:
     environment: ai-review
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
         # No repository/ref override = checkouts main (trusted code)
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 1
 
       - uses: actions/download-artifact@v4
         with:
@@ -402,22 +406,6 @@ jobs:
             cat "$YAML_FILE"
             echo '```'
             echo ""
-
-            # Flag strategy plugins for AI review
-            CATEGORY=$(yq '.category // ""' "$YAML_FILE" 2>/dev/null || echo "")
-            HAS_DEPS=$(yq '.dependent_plugin // "" | length' "$YAML_FILE" 2>/dev/null || echo "0")
-            if [ "$CATEGORY" = "strategy" ] && [ "$HAS_DEPS" -gt 0 ]; then
-              echo "## ⚠️ STRATEGY PLUGIN DETECTED"
-              echo ""
-              echo "This is a **trading strategy** plugin with declared dependent plugins."
-              echo "Apply Section 9 (Strategy Attribution Check) in your review."
-              echo ""
-              echo "### Declared dependent_plugin:"
-              echo '```yaml'
-              yq '.dependent_plugin' "$YAML_FILE" 2>/dev/null || echo "  (parse error)"
-              echo '```'
-              echo ""
-            fi
             if [ -n "$SKILL_FILE" ] && [ -f "$SKILL_FILE" ]; then
               echo "## SKILL.md"
               echo '```markdown'
@@ -426,10 +414,22 @@ jobs:
             fi
             echo ""
 
+            # Flag strategy plugins for AI review
+            CATEGORY=$(yq '.category // ""' "$YAML_FILE" 2>/dev/null || echo "")
+            HAS_DEPS=$(yq '.dependent_plugin // "" | length' "$YAML_FILE" 2>/dev/null || echo "0")
+            if [ "$CATEGORY" = "strategy" ] && [ "$HAS_DEPS" -gt 0 ]; then
+              echo "## ⚠️ STRATEGY PLUGIN DETECTED"
+              echo ""
+              echo "This is a **trading strategy** plugin with declared dependent plugins."
+              echo "Apply Section 10 (Strategy Attribution Check) in your review."
+              echo ""
+              echo "### Declared dependent_plugin:"
+              echo '```yaml'
+              yq '.dependent_plugin' "$YAML_FILE" 2>/dev/null || echo "  (parse error)"
+              echo '```'
+              echo ""
+            fi
 
-            # Include SUMMARY.md content + character count check
-            echo "DEBUG: Looking for SUMMARY.md in ${PLUGIN_DIR}:"
-            find "${PLUGIN_DIR}" -name "SUMMARY.md" -type f 2>/dev/null || echo "  (none found)"
             SUMMARY_FILE=$(find "${PLUGIN_DIR}" -name "SUMMARY.md" -type f | head -1)
             if [ -n "$SUMMARY_FILE" ] && [ -f "$SUMMARY_FILE" ]; then
               SUMMARY_CHARS=$(wc -c < "$SUMMARY_FILE" | tr -d ' ')
@@ -792,47 +792,6 @@ jobs:
               issue_number: ${{ github.event.pull_request.number }},
               labels: ['ai-reviewed']
             });
-
-
-      # ── Clone fork branch, inject pre-flight, push back ──
-      - name: Inject pre-flight and push
-        if: steps.build.outputs.skip != 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          FORK_REPO: ${{ github.event.pull_request.head.repo.full_name }}
-          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
-        run: |
-          # Validate branch name (prevent shell injection via crafted branch names)
-          if ! echo "$PR_BRANCH" | grep -qE '^[a-zA-Z0-9/_.-]+$'; then
-            echo "::error::Invalid branch name characters detected — aborting for security"
-            exit 1
-          fi
-          FORK_URL="https://x-access-token:${GH_TOKEN}@github.com/${FORK_REPO}.git"
-          PLUGIN_NAME="${{ needs.collect.outputs.plugin_name }}"
-          PLUGIN_DIR="${{ needs.collect.outputs.plugin_dir }}"
-
-          pip install pyyaml 2>/dev/null || pip3 install pyyaml 2>/dev/null || true
-
-          # Clone fork branch so we commit on the correct history
-          git clone --depth=10 --branch "$PR_BRANCH" "$FORK_URL" /tmp/pr-repo
-          cp .github/scripts/inject-preflight.py /tmp/pr-repo/.inject.py
-
-          cd /tmp/pr-repo
-          python3 .inject.py "$PLUGIN_NAME" "$PLUGIN_DIR" || true
-          rm -f .inject.py
-
-          if [ -f /tmp/preflight_injected.txt ]; then
-            git config user.name "plugin-store-bot"
-            git config user.email "bot@plugin-store.local"
-            git add .
-            git diff --staged --quiet && echo "No pre-flight changes" || {
-              git commit -m "auto: pre-flight for $PLUGIN_NAME"
-              git push origin "$PR_BRANCH"
-              echo "Pre-flight pushed to $PR_BRANCH"
-            }
-          else
-            echo "No pre-flight needed"
-          fi
 
       # ── Watchdog — verify report was posted ─────────────
       - name: Watchdog — verify AI review report exists
