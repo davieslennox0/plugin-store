@@ -1,0 +1,29 @@
+schema_version: 1
+name: pm-5m-crypto-arena
+version: "1.0.0"
+description: "One-tap Polymarket 5-minute crypto Up/Down trading co-pilot"
+author:
+  name: "KB"
+  github: "Brian5216"
+license: MIT
+category: strategy
+tags:
+  - polymarket
+  - prediction-market
+  - crypto
+  - trading-strategy
+  - five-minute
+
+components:
+  skill:
+    dir: "."
+
+dependent_plugin:
+  - name: polymarket-plugin
+    version: "^0.4.10"
+
+risk_level: standard
+supported_venues:
+  - polymarket
+
+api_calls: []
