@@ -1,0 +1,30 @@
+schema_version: 1
+name: hl-funding-flow-hunter
+version: "1.0.0"
+description: "Hyperliquid funding and flow strategy scanner with guarded execution"
+author:
+  name: "KB"
+  github: "Brian5216"
+license: MIT
+category: strategy
+tags:
+  - hyperliquid
+  - perpetuals
+  - funding
+  - trading-strategy
+  - risk-management
+
+components:
+  skill:
+    dir: "."
+
+dependent_plugin:
+  - name: hyperliquid-plugin
+    version: "^0.3.8"
+
+risk_level: standard
+supported_venues:
+  - hyperliquid
+
+api_calls:
+  - "https://api.hyperliquid.xyz"
