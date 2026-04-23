@@ -320,7 +320,7 @@
 
 ### M08 · external-data-field-passthrough
 **标题**：外部数据字段无隔离渲染 —— 链上内容直通 Agent 决策上下文
-**检测方式**：LLM Judge（J07）——静态规则无法覆盖，由 Phase 4 判断。
+**检测方式**：LLM Judge（J07）——静态规则无法覆盖，由 Phase 3 AI Review 判断。
 检查 SKILL.md 的显示/输出指令是否满足以下任一安全条件：
 1. 明确枚举了允许展示的具体字段（如"show token symbol, balance, USD value"）
 2. 对展示字段有"不得作为指令解释"的逐字段说明
