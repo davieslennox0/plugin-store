@@ -469,7 +469,7 @@ plugin-store import <github-url>
 | `author.github` | 是 | GitHub 用户名 | 必须与 PR 作者一致 |
 | `author.email` | 否 | 联系邮箱 | 用于安全通知 |
 | `license` | 是 | 许可证标识符 | SPDX 格式：`MIT`、`Apache-2.0`、`GPL-3.0` 等 |
-| `category` | 是 | Plugin 类别 | 以下之一：`trading-strategy`、`defi-protocol`、`analytics`、`utility`、`security`、`wallet`、`nft` |
+| `category` | 是 | Plugin 类别 | 以下之一：`trading-strategy`、`strategy`、`defi-protocol`、`analytics`、`utility`、`security`、`wallet`、`nft` |
 | `tags` | 否 | 搜索关键词 | 字符串数组 |
 | `type` | 否 | 作者类型 | `"official"`、`"dapp-official"`、`"community-developer"` |
 | `github_link` | 否 | 项目 GitHub 地址 | URL，在市场中展示 |
