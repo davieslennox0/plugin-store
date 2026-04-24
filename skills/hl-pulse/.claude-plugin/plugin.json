@@ -1,0 +1,10 @@
+{
+  "name": "hl-pulse",
+  "description": "Hyperliquid intraday trading co-pilot with Pulse and Ladder modes for clean setups, staged execution, and explicit risk control.",
+  "version": "0.1.0",
+  "author": {
+    "name": "doublekunkun"
+  },
+  "license": "MIT",
+  "keywords": ["strategy", "hyperliquid", "perps", "intraday", "ladder", "execution"]
+}
