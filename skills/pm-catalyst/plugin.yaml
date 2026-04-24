@@ -1,0 +1,30 @@
+schema_version: 1
+name: pm-catalyst
+version: "0.1.0"
+description: "Polymarket first-trade strategy skill for major catalysts and short-dated event setups, built for clear yes/no positioning, dry-run previews, and low-friction onboarding."
+author:
+  name: "doublekunkun"
+  github: "doublekunkun1"
+license: MIT
+category: trading-strategy
+type: community-developer
+tags:
+  - polymarket
+  - prediction-market
+  - catalysts
+  - events
+  - flash
+
+dependent_plugin:
+  - name: polymarket-plugin
+    version: "^0.4.10"
+
+risk_level: medium
+supported_venues:
+  - polymarket
+
+components:
+  skill:
+    dir: "."
+
+api_calls: []
