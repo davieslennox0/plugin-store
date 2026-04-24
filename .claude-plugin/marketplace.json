@@ -16,6 +16,15 @@
       }
     },
     {
+      "name": "btc-adaptive-hyperliquid",
+      "description": "Adaptive BTC perpetual strategy planner for Hyperliquid Plugin with dry-run safety, dynamic risk controls, and explicit user confirmation.",
+      "source": "./skills/btc-adaptive-hyperliquid",
+      "category": "utility",
+      "author": {
+        "name": "cw"
+      }
+    },
+    {
       "name": "clanker-plugin",
       "description": "Deploy and manage Clanker ERC-20 tokens on Base and Arbitrum — launch tokens, search by creator, and claim LP fee rewards",
       "source": "./skills/clanker-plugin",
