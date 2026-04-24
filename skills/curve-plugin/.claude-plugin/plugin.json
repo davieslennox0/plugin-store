@@ -1,5 +1,5 @@
 {
-  "name": "curve",
+  "name": "curve-plugin",
   "description": "Curve DEX plugin — swap stablecoins, add/remove liquidity, query pools and APY across Ethereum, Arbitrum, Base, Polygon, and BSC.",
   "version": "0.2.8",
   "author": {"name": "GeoGu360", "github": "GeoGu360"},

@@ -1,5 +1,5 @@
 {
-  "name": "lido",
+  "name": "lido-plugin",
   "description": "Stake ETH with Lido liquid staking protocol to receive stETH",
   "version": "0.2.8",
   "author": {

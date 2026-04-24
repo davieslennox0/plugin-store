@@ -1,5 +1,5 @@
 {
-  "name": "clanker",
+  "name": "clanker-plugin",
   "description": "Deploy and manage Clanker ERC-20 tokens on Base and Arbitrum — launch tokens, search by creator, and claim LP fee rewards",
   "version": "0.2.5",
   "author": {"name": "GeoGu360", "github": "GeoGu360"},

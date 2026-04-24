@@ -1,5 +1,5 @@
 {
-  "name": "velodrome-v2",
+  "name": "velodrome-v2-plugin",
   "description": "Swap tokens and manage classic AMM (volatile/stable) LP positions on Velodrome V2 on Optimism",
   "version": "0.1.3",
   "author": {

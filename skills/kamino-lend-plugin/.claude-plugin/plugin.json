@@ -1,5 +1,5 @@
 {
-  "name": "kamino-lend",
+  "name": "kamino-lend-plugin",
   "description": "Supply, borrow, and manage positions on Kamino Lend \u2014 the leading Solana lending protocol",
   "version": "0.1.4",
   "author": {

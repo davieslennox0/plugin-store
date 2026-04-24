@@ -1,5 +1,5 @@
 {
-  "name": "gmx-v2",
+  "name": "gmx-v2-plugin",
   "description": "Trade perpetuals and spot on GMX V2 — open/close leveraged positions, place limit/stop orders, add/remove GM pool liquidity, query markets and positions",
   "version": "0.2.2",
   "author": {"name": "GeoGu360", "github": "GeoGu360"},
