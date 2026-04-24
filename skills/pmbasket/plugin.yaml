@@ -1,0 +1,29 @@
+schema_version: 1
+name: pmbasket
+version: "1.0.0"
+description: "Natural-language event baskets on Polymarket: one sentence of intent becomes a liquidity-filtered, risk-capped basket placed through Polymarket CLOB via polymarket-plugin."
+author:
+  name: "dddd86971-cloud"
+  github: "dddd86971-cloud"
+license: MIT
+category: strategy
+tags:
+  - polymarket
+  - prediction-markets
+  - basket
+  - event-driven
+  - agentic-wallet
+
+dependent_plugin:
+  - name: polymarket-plugin
+    version: "^0.4.10"
+
+risk_level: advanced
+supported_venues:
+  - polymarket
+
+components:
+  skill:
+    dir: "."
+
+api_calls: []
