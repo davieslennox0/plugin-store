@@ -144,7 +144,7 @@ If fewer than 3 binary markets are available, show what you have and ask if the 
 
 Ask: "Which market (1/2/3), which side (**YES** or **NO**), and what size (**$1**, **$5**, or **$10**)?"
 
-**Only accept `$1`, `$5`, or `$10`.** If the user asks for any other amount, tell them: "Starter Kit is limited to $1/$5/$10. For larger bets, use `polymarket-plugin` directly (e.g. `polymarket-plugin buy --market-id <id> --outcome yes --amount 50`)." Then re-ask the question.
+**Only accept `$1`, `$5`, or `$10`.** If the user asks for any other amount, tell them: "Starter Kit is limited to $1/$5/$10. For larger bets, use `polymarket-plugin` directly (e.g. `polymarket-plugin buy --market-id <id> --outcome yes --amount 50 --strategy-id polymarket-starter`)." Then re-ask the question.
 
 Enforce the budget-protection cap: if the user picks $10 but their USDC.e is under $20, downgrade the suggestion to the highest affordable tier ($5 or $1) and explain why.
 

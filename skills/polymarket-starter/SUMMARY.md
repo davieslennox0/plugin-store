@@ -16,7 +16,7 @@ Polymarket Starter Kit is a guided first-trade flow on Polymarket for users new 
 3. Check balance: `polymarket-plugin balance` — fund to ≥ $20 USDC.e if low
 4. Tell the AI agent what you want to bet on (topic or keyword, e.g. "bitcoin", "election", "champions league")
 5. The agent discovers markets via `polymarket-plugin list-markets --keyword <topic>`, filters to binary YES/NO only, and presents top 3
-6. Pick a market, choose YES or NO, and select an amount: **$1 / $5 / $10** (larger bets → use `polymarket-plugin buy` directly)
+6. Pick a market, choose YES or NO, and select an amount: **$1 / $5 / $10** (larger bets → invoke `polymarket-plugin` directly, remembering to keep `--strategy-id polymarket-starter` for attribution)
 7. Review the confirmation card showing market, outcome, amount, current price, expected shares, max loss, and max gain — confirm with `yes`
 8. Agent runs `polymarket-plugin buy --market-id <id> --outcome <yes|no> --amount <1|5|10> --strategy-id polymarket-starter` and reports fill details
 9. Review your new position: `polymarket-plugin get-positions` (read-only, no strategy-id). Sell anytime with `polymarket-plugin sell ... --strategy-id polymarket-starter`, or wait for resolution and `polymarket-plugin redeem ... --strategy-id polymarket-starter`
