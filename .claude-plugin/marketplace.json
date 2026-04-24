@@ -70,6 +70,15 @@
       }
     },
     {
+      "name": "hl-funding-flow-hunter",
+      "description": "Hyperliquid funding and flow strategy scanner with guarded execution",
+      "source": "./skills/hl-funding-flow-hunter",
+      "category": "utility",
+      "author": {
+        "name": "KB"
+      }
+    },
+    {
       "name": "hl-pulse",
       "description": "Hyperliquid intraday trading co-pilot with Pulse and Ladder modes for clean setups, staged execution, and explicit risk control.",
       "source": "./skills/hl-pulse",
