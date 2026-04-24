@@ -1,0 +1,23 @@
+schema_version: 1
+name: btc-adaptive-hyperliquid
+version: "1.0.0"
+description: "Adaptive BTC perpetual strategy planner for Hyperliquid Plugin with dry-run safety, dynamic risk controls, and explicit user confirmation."
+author:
+  name: "cw"
+  github: "AN25235"
+  email: "2100813zyw@gmail.com"
+license: MIT
+category: trading
+tags:
+  - hyperliquid
+  - bitcoin
+  - perpetuals
+  - strategy
+  - risk-management
+
+components:
+  skill:
+    dir: "."
+
+api_calls:
+  - "fapi.binance.com"

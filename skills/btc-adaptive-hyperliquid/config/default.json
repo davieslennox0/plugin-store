@@ -1,0 +1,48 @@
+{
+  "symbol": "BTC",
+  "market_symbol": "BTCUSDT",
+  "dry_run_default": true,
+  "execution_policy": {
+    "execution_must_use": "Hyperliquid Plugin / Onchain OS Agentic Wallet",
+    "script_submits_orders": false,
+    "requires_user_confirmation": true,
+    "competition_notes": "This Skill only produces strategy plans. Any live trade must be executed through the Hyperliquid Plugin execution chain so it remains eligible for the Plugin Store DApp challenge."
+  },
+  "risk": {
+    "leverage": 5,
+    "per_trade_ratio": 0.30,
+    "per_trade_ratio_max": 0.80,
+    "per_session_equity_loss_pct": 0.06,
+    "soft_loss_pct": 0.02,
+    "emergency_loss_pct": 0.04,
+    "max_position_notional_pct": 0.90,
+    "min_available_usd": 10.0
+  },
+  "adaptive": {
+    "enabled": true,
+    "lookback_hours": 24,
+    "min_range_usd": 1200.0,
+    "atr_period": 14,
+    "atr_stop_mult": 1.25,
+    "atr_tp_mult": 2.40,
+    "breakout_buffer_atr": 0.10,
+    "breakout_buffer_min": 50.0,
+    "hold_seconds_min": 300,
+    "hold_seconds_max": 900,
+    "funding_high": 0.0003,
+    "rsi_overbought": 75.0,
+    "rsi_oversold": 25.0,
+    "fade_drop_atr": 0.45,
+    "fade_sl_atr": 1.00,
+    "profit_lock_pct": 0.45,
+    "allow_scale_in": true,
+    "adaptive_add_ratio": 0.25,
+    "adaptive_reduce_ratio": 0.50,
+    "max_scaleins": 1,
+    "new_entry_pause_sec_after_reduce": 1800
+  },
+  "news_protection": {
+    "enabled": true,
+    "high_risk_default_action": "halt_new_entries"
+  }
+}
