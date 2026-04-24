@@ -162,6 +162,9 @@ pub fn lint_submission(submission_dir: &Path) -> Result<LintReport> {
     // ── 15. PR scope: directory name matches plugin name ──────────
     check_dir_name_match(&plugin.name, submission_dir, &mut diags);
 
+    // ── 15b. Name consistency across plugin.json / Cargo.toml ─────
+    check_name_consistency(&plugin, submission_dir, &mut diags);
+
     // NOTE: onchainos API compliance is checked by AI review (Phase 3),
     // not by static lint. AI can understand context and intent, while
     // pattern matching produces false positives on natural language.
@@ -1086,6 +1089,145 @@ fn check_dir_name_match(plugin_name: &str, dir: &Path, diags: &mut Vec<LintDiag>
                     dir_name, plugin_name
                 ),
             });
+        }
+    }
+}
+
+/// Verify the plugin name is consistent across all manifest files.
+///
+/// plugin.yaml is the source of truth for the plugin name. When a plugin is
+/// renamed, every other file that carries the name must be updated in lock-step.
+/// A drift (e.g. plugin.yaml says `foo-plugin` but plugin.json still says `foo`)
+/// causes the CI's update-registry workflow to publish the wrong name, since
+/// it reads plugin.json first. This check catches that drift at submission time.
+///
+/// Checks:
+/// - `.claude-plugin/plugin.json` → `name` field                   [E036]
+/// - `Cargo.toml` → `[package]` `name` (Rust plugins)              [E037]
+/// - `Cargo.toml` → `[[bin]]` `name` (Rust plugins, if present)    [E038]
+fn check_name_consistency(plugin: &PluginYaml, dir: &Path, diags: &mut Vec<LintDiag>) {
+    let expected = &plugin.name;
+
+    // ── .claude-plugin/plugin.json ────────────────────────────────
+    let pjson_path = dir.join(".claude-plugin").join("plugin.json");
+    if pjson_path.exists() {
+        match std::fs::read_to_string(&pjson_path)
+            .ok()
+            .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+        {
+            Some(v) => {
+                if let Some(pj_name) = v.get("name").and_then(|n| n.as_str()) {
+                    if pj_name != expected {
+                        diags.push(LintDiag {
+                            level: DiagLevel::Error,
+                            code: "E036",
+                            message: format!(
+                                ".claude-plugin/plugin.json name '{}' does not match \
+                                 plugin.yaml name '{}'. These must stay in sync — \
+                                 plugin.yaml is the source of truth.",
+                                pj_name, expected
+                            ),
+                        });
+                    }
+                } else {
+                    diags.push(LintDiag {
+                        level: DiagLevel::Error,
+                        code: "E036",
+                        message: ".claude-plugin/plugin.json is missing the 'name' field."
+                            .to_string(),
+                    });
+                }
+            }
+            None => {
+                diags.push(LintDiag {
+                    level: DiagLevel::Error,
+                    code: "E036",
+                    message: ".claude-plugin/plugin.json is present but unreadable or \
+                              contains invalid JSON."
+                        .to_string(),
+                });
+            }
+        }
+    }
+
+    // ── Cargo.toml (Rust plugins only) ────────────────────────────
+    let cargo_path = dir.join("Cargo.toml");
+    if cargo_path.exists() {
+        if let Ok(cargo) = std::fs::read_to_string(&cargo_path) {
+            // Surgical line-scan: avoid pulling in a full TOML parser.
+            // Track which section (table header) we're currently in.
+            let mut section = String::new();
+            let mut seen_package_name = false;
+            let mut seen_bin_name_in_current_bin = false;
+
+            for raw in cargo.lines() {
+                let line = raw.trim();
+
+                if let Some(hdr) = line.strip_prefix('[').and_then(|s| s.strip_suffix(']')) {
+                    let hdr = hdr.trim();
+                    // Entering a new [[bin]] block resets the per-block flag.
+                    if hdr == "[bin]" || hdr == "bin" {
+                        // "[[bin]]" → after stripping outer brackets we get "[bin]"
+                        seen_bin_name_in_current_bin = false;
+                    }
+                    section = hdr.trim_matches(|c| c == '[' || c == ']').to_string();
+                    continue;
+                }
+
+                // Match: name = "<value>"  (ignore commented lines)
+                if line.starts_with('#') {
+                    continue;
+                }
+                // Only match "name = ..." (avoid name_ext, names_list, etc.)
+                let is_name_line = line
+                    .strip_prefix("name")
+                    .map(|rest| {
+                        let r = rest.trim_start();
+                        r.starts_with('=')
+                    })
+                    .unwrap_or(false);
+                if !is_name_line {
+                    continue;
+                }
+                // Extract quoted value
+                let value = match line.split('=').nth(1) {
+                    Some(rest) => rest.trim().trim_matches('"').trim_matches('\'').to_string(),
+                    None => continue,
+                };
+
+                match section.as_str() {
+                    "package" if !seen_package_name => {
+                        seen_package_name = true;
+                        if value != *expected {
+                            diags.push(LintDiag {
+                                level: DiagLevel::Error,
+                                code: "E037",
+                                message: format!(
+                                    "Cargo.toml [package] name '{}' does not match \
+                                     plugin.yaml name '{}'.",
+                                    value, expected
+                                ),
+                            });
+                        }
+                    }
+                    "bin" if !seen_bin_name_in_current_bin => {
+                        seen_bin_name_in_current_bin = true;
+                        if value != *expected {
+                            diags.push(LintDiag {
+                                level: DiagLevel::Error,
+                                code: "E038",
+                                message: format!(
+                                    "Cargo.toml [[bin]] name '{}' does not match \
+                                     plugin.yaml name '{}'. The compiled binary name \
+                                     must equal the plugin name.",
+                                    value, expected
+                                ),
+                            });
+                        }
+                    }
+                    _ => {}
+                }
+            }
         }
     }
 }
