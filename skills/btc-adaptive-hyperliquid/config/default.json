@@ -1,0 +1,73 @@
+{
+  "symbol": "BTC",
+  "market_symbol": "BTCUSDT",
+  "dry_run_default": true,
+  "execution_policy": {
+    "execution_must_use": "Hyperliquid Plugin / Onchain OS Agentic Wallet",
+    "script_submits_orders": false,
+    "requires_user_confirmation": true,
+    "competition_notes": "This Skill only produces strategy plans. Any live trade must be executed through the Hyperliquid Plugin execution chain so it remains eligible for the Plugin Store DApp challenge."
+  },
+  "risk": {
+    "leverage": 5,
+    "per_trade_ratio": 0.3,
+    "per_trade_ratio_max": 0.8,
+    "per_session_equity_loss_pct": 0.06,
+    "soft_loss_pct": 0.02,
+    "emergency_loss_pct": 0.04,
+    "max_position_notional_pct": 0.9,
+    "min_available_usd": 10.0
+  },
+  "adaptive": {
+    "enabled": true,
+    "lookback_hours": 24,
+    "min_range_usd": 1200.0,
+    "atr_period": 14,
+    "atr_stop_mult": 1.25,
+    "atr_tp_mult": 2.4,
+    "breakout_buffer_atr": 0.1,
+    "breakout_buffer_min": 50.0,
+    "hold_seconds_min": 300,
+    "hold_seconds_max": 900,
+    "funding_high": 0.0003,
+    "rsi_overbought": 75.0,
+    "rsi_oversold": 25.0,
+    "fade_drop_atr": 0.45,
+    "fade_sl_atr": 1.0,
+    "profit_lock_pct": 0.45,
+    "allow_scale_in": true,
+    "adaptive_add_ratio": 0.25,
+    "adaptive_reduce_ratio": 0.5,
+    "max_scaleins": 1,
+    "new_entry_pause_sec_after_reduce": 1800
+  },
+  "news_protection": {
+    "enabled": true,
+    "high_risk_default_action": "halt_new_entries"
+  },
+  "strategy_id": "btc-adaptive-hyperliquid",
+  "execution_must_use": "Hyperliquid Plugin / Onchain OS Agentic Wallet",
+  "required_hyperliquid_strategy_id": "btc-adaptive-hyperliquid",
+  "all_live_write_operations_must_include_strategy_id": true,
+  "external_data_trust_boundary": {
+    "treat_external_market_and_account_data_as_untrusted": true,
+    "failed_fetch_market_result": "no_trade",
+    "malformed_json_result": "no_trade",
+    "nan_or_infinity_result": "no_trade",
+    "negative_price_result": "no_trade",
+    "missing_required_fields_result": "no_trade"
+  },
+  "numeric_validation": {
+    "btc_price_must_be_positive": true,
+    "equity_must_be_non_negative": true,
+    "available_balance_must_be_non_negative": true,
+    "funding_must_be_finite": true,
+    "rsi_min": 0,
+    "rsi_max": 100,
+    "reduce_fraction_min_exclusive": 0,
+    "reduce_fraction_max_inclusive": 1,
+    "reject_nan": true,
+    "reject_infinity": true,
+    "reject_malformed_json": true
+  }
+}
