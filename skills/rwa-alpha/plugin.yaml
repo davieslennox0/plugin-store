@@ -1,7 +1,7 @@
 schema_version: 1
 name: "rwa-alpha"
 version: "1.1.0"
-description: "RWA Alpha — Real World Asset intelligence trading. Macro event detection + Polymarket confirmation + on-chain price action → auto-trade tokenized treasury/gold/yield/governance tokens via OKX DEX. Three modes: Yield Optimizer / Macro Trader / Full Alpha. Multi-chain Ethereum + Solana."
+description: "RWA Alpha -- Real World Asset intelligence trading. Macro event detection + Polymarket confirmation + on-chain price action, auto-trade tokenized treasury/gold/yield/governance tokens via OKX DEX. Three modes: Yield Optimizer / Macro Trader / Full Alpha. Multi-chain Ethereum + Solana."
 author:
   name: "VibeCodeDaddy"
   github: "VibeCodeDaddy69"
@@ -24,7 +24,7 @@ components:
     dir: "."
 
 api_calls:
-  - "news.google.com"
+  - "newsnow.busiyi.world"
   - "gamma-api.polymarket.com"
   - "api.anthropic.com"
 

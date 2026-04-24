@@ -1,25 +1,32 @@
 # rwa-alpha
 
-## 1. Overview
-Real World Asset intelligence trading skill that detects macro events (Fed rate decisions, CPI releases, gold moves, SEC rulings) via NewsNow headlines + Polymarket probability confirmation, then auto-trades 15 tokenized treasury/gold/yield/governance tokens via OKX DEX with dual exit systems. Features 3-layer macro event detection (keyword regex → LLM confirm → LLM discover), 3 strategy modes, and composite sentiment scoring. Paper mode + PAUSED=True by default.
+## Overview
 
-## 2. Prerequisites
-- Python 3.8+
-- OnchainOS CLI (`onchainos`) at `~/.local/bin/onchainos` — for wallet operations and DEX swaps
-- OKX Agentic Wallet logged in (`onchainos wallet status`)
-- Optional: `ANTHROPIC_API_KEY` env var for LLM headline classification (falls back to keyword-only without it)
-- No pip dependencies required (Python stdlib only)
+Real World Asset intelligence trading skill that detects macro events (Fed rate decisions, CPI, gold, SEC rulings) via news headlines and Polymarket probability confirmation, then trades 15 tokenized RWA tokens via OKX DEX with dual exit systems. Paper mode and PAUSED=True by default.
 
-## 3. Quick Start
-```bash
-# Start in paper mode (default)
-cd skills/rwa-alpha
-python3 rwa_alpha.py
-# → Dashboard at http://localhost:3249
+Core operations:
 
-# Switch to live mode (edit config.py)
-# MODE = "live"
-# PAUSED = False
-```
+- Detect macro events from NewsNow headlines with 3-layer classification (keyword -> LLM confirm -> LLM discover)
+- Confirm event probability via Polymarket prediction markets
+- Auto-trade 15 RWA tokens across treasury, gold, yield, and governance categories
+- Manage positions with dual exit: NAV premium/discount for asset-backed, TP/SL/trailing for governance
+- Multi-chain execution on Ethereum and Solana via Agentic Wallet TEE signing
 
-Supports 15 RWA tokens across Ethereum and Solana: treasury (USDY, OUSG, sDAI, bIB01), gold (PAXG, XAUT), DeFi yield (USDe), governance (ONDO, CFG, MPL, PENDLE, PLUME, OM, GFI, TRU). 3 strategy modes: Yield Optimizer / Macro Trader / Full Alpha.
+Tags: `rwa` `real-world-assets` `treasury` `gold` `macro` `trading` `ethereum` `solana`
+
+## Prerequisites
+
+- Python 3.8+ (stdlib only, no pip dependencies)
+- OnchainOS CLI (`onchainos`) installed and authenticated (`onchainos wallet status`)
+- OKX Agentic Wallet with funded balance on Ethereum or Solana
+- Optional: `ANTHROPIC_API_KEY` env var for LLM headline classification
+
+## Quick Start
+
+1. **Start in paper mode**: Run `python3 rwa_alpha.py` from the skill directory. Dashboard opens at `http://localhost:3249`. Default mode is paper trading with PAUSED=True.
+
+2. **Monitor signals**: The dashboard shows detected macro events, sentiment scores, active positions, and trade history. News polls every 120 seconds.
+
+3. **Switch to live mode**: Edit `config.py` to set `MODE = "live"` and `PAUSED = False`. The bot will autonomously execute trades based on macro signals — ensure you understand the risk controls (daily limit, session stop, cooldown).
+
+4. **Choose a strategy**: Three modes available in `config.py` — Yield Optimizer (asset-backed only), Macro Trader (balanced), Full Alpha (all strategies).
