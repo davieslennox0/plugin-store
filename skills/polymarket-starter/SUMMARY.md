@@ -1,6 +1,6 @@
 ## Overview
 
-Polymarket Starter Kit is a guided first-trade flow on Polymarket for users new to prediction markets. It wraps `polymarket-plugin` with three added safety behaviors: budget protection (refuses if USDC.e < 2× bet size), fixed bet tiers ($1 / $5 / $10 only), and a binary-markets-only filter (no multi-outcome markets). All on-chain operations are delegated to `polymarket-plugin`; this skill adds no new signing logic.
+Polymarket Starter Kit is a guided first-trade flow on Polymarket for users new to prediction markets. It wraps `polymarket-plugin` with three added safety behaviors: budget protection (refuses if USDC.e < 2× bet size), fixed bet tiers ($1 / $5 / $10 only), and a binary-markets-only filter (no multi-outcome markets). All on-chain operations are delegated to `polymarket-plugin`; this skill adds no new signing logic. Every write call carries `--strategy-id polymarket-starter` so trades are attributed to this strategy on the OKX backend.
 
 ## Prerequisites
 
@@ -18,5 +18,5 @@ Polymarket Starter Kit is a guided first-trade flow on Polymarket for users new 
 5. The agent discovers markets via `polymarket-plugin list-markets --keyword <topic>`, filters to binary YES/NO only, and presents top 3
 6. Pick a market, choose YES or NO, and select an amount: **$1 / $5 / $10** (larger bets → use `polymarket-plugin buy` directly)
 7. Review the confirmation card showing market, outcome, amount, current price, expected shares, max loss, and max gain — confirm with `yes`
-8. Agent runs `polymarket-plugin buy --market-id <id> --outcome <yes|no> --amount <1|5|10>` and reports fill details
-9. Review your new position: `polymarket-plugin get-positions`. Sell anytime with `polymarket-plugin sell`, or wait for resolution and `polymarket-plugin redeem`
+8. Agent runs `polymarket-plugin buy --market-id <id> --outcome <yes|no> --amount <1|5|10> --strategy-id polymarket-starter` and reports fill details
+9. Review your new position: `polymarket-plugin get-positions` (read-only, no strategy-id). Sell anytime with `polymarket-plugin sell ... --strategy-id polymarket-starter`, or wait for resolution and `polymarket-plugin redeem ... --strategy-id polymarket-starter`

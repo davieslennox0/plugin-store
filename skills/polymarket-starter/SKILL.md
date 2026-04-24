@@ -1,7 +1,7 @@
 ---
 name: polymarket-starter
-description: "Guided first-trade flow on Polymarket with budget protection and $1/$5/$10 presets for new prediction-market users. Trigger phrases: polymarket starter kit, first polymarket trade, polymarket for beginners, safe polymarket bet, small polymarket bet, bet $1 on polymarket, bet $5 on polymarket, bet $10 on polymarket, help me start betting on polymarket, new to prediction markets, polymarket 新手, 第一次下注 polymarket, polymarket 小额试水, 帮我买 polymarket, 1 美元下注, 5 美元下注, polymarket 入门, polymarket 怎么开始, 安全下注"
-version: "0.1.0"
+description: "Guided first-trade flow on Polymarket with budget protection and $1/$5/$10 presets for new prediction-market users. Routes orders through polymarket-plugin with --strategy-id attribution. Trigger phrases: polymarket starter kit, first polymarket trade, polymarket for beginners, safe polymarket bet, small polymarket bet, bet $1 on polymarket, bet $5 on polymarket, bet $10 on polymarket, help me start betting on polymarket, new to prediction markets, polymarket 新手, 第一次下注 polymarket, polymarket 小额试水, 帮我买 polymarket, 1 美元下注, 5 美元下注, polymarket 入门, polymarket 怎么开始, 安全下注"
+version: "0.2.0"
 author: "Lucas"
 tags:
   - polymarket
@@ -31,6 +31,8 @@ This skill provides a **guided first-trade flow** on Polymarket for users who ar
 3. **Binary markets only** — filters out categorical markets during market discovery; only YES/NO binary markets are presented.
 
 All on-chain operations are delegated to `polymarket-plugin`, which submits signed transactions via the onchainos Agentic Wallet (TEE-protected). This skill adds no new signing logic and performs no direct API calls. Every write step in the Starter Flow is preceded by an explicit user confirmation at Step 8.
+
+**Attribution.** Every write operation invoked from this skill carries `--strategy-id polymarket-starter` so that `polymarket-plugin` attributes the trade to this strategy on the OKX backend. Read-only commands (`check-access`, `balance`, `list-markets`, `get-positions`) do not require the flag.
 
 **Supported chain:** Polygon Mainnet (chain 137).
 
@@ -169,10 +171,15 @@ If the user does not clearly confirm, abort and ask what they want to change.
 ### Step 9 — Execute buy
 
 ```bash
-polymarket-plugin buy --market-id <market_id> --outcome <yes|no> --amount <1|5|10>
+polymarket-plugin buy \
+  --market-id <market_id> \
+  --outcome <yes|no> \
+  --amount <1|5|10> \
+  --strategy-id polymarket-starter
 ```
 
 Notes:
+- `--strategy-id polymarket-starter` is **required on every write operation** so the trade is attributed to this skill on the OKX backend. Never omit it.
 - `--amount` is the USDC.e size; `polymarket-plugin` handles converting to shares at market price.
 - Pass the market's `slug` or `condition_id` as `--market-id` depending on what `list-markets` returned (check `polymarket-plugin buy --help` if unsure).
 - If you are uncertain of the exact flag name at runtime, run `polymarket-plugin buy --help` once to confirm before calling.
@@ -188,9 +195,11 @@ polymarket-plugin get-positions
 Show the new position. Then tell the user:
 
 > "You now hold `X` shares of '[market question]' on the `[YES|NO]` side. You can:
-> - **Sell anytime before market resolution:** `polymarket-plugin sell --market-id <id> --amount <usdc>`
-> - **Wait for resolution and claim winnings:** `polymarket-plugin redeem --market-id <id>`
-> - **Check positions anytime:** `polymarket-plugin get-positions`"
+> - **Sell anytime before market resolution:** `polymarket-plugin sell --market-id <id> --amount <usdc> --strategy-id polymarket-starter`
+> - **Wait for resolution and claim winnings:** `polymarket-plugin redeem --market-id <id> --strategy-id polymarket-starter`
+> - **Check positions anytime:** `polymarket-plugin get-positions` (read-only, no strategy-id needed)"
+
+**Reminder:** any follow-up `sell`, `cancel`, or `redeem` call invoked through this skill must also carry `--strategy-id polymarket-starter` to preserve attribution.
 
 ## Error Handling
 
