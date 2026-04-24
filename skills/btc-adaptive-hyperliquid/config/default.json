@@ -48,5 +48,26 @@
   "strategy_id": "btc-adaptive-hyperliquid",
   "execution_must_use": "Hyperliquid Plugin / Onchain OS Agentic Wallet",
   "required_hyperliquid_strategy_id": "btc-adaptive-hyperliquid",
-  "all_live_write_operations_must_include_strategy_id": true
+  "all_live_write_operations_must_include_strategy_id": true,
+  "external_data_trust_boundary": {
+    "treat_external_market_and_account_data_as_untrusted": true,
+    "failed_fetch_market_result": "no_trade",
+    "malformed_json_result": "no_trade",
+    "nan_or_infinity_result": "no_trade",
+    "negative_price_result": "no_trade",
+    "missing_required_fields_result": "no_trade"
+  },
+  "numeric_validation": {
+    "btc_price_must_be_positive": true,
+    "equity_must_be_non_negative": true,
+    "available_balance_must_be_non_negative": true,
+    "funding_must_be_finite": true,
+    "rsi_min": 0,
+    "rsi_max": 100,
+    "reduce_fraction_min_exclusive": 0,
+    "reduce_fraction_max_inclusive": 1,
+    "reject_nan": true,
+    "reject_infinity": true,
+    "reject_malformed_json": true
+  }
 }

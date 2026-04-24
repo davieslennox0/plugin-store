@@ -68,3 +68,11 @@ All live Hyperliquid Plugin write operations must include:
 Example:
 
     hyperliquid-plugin order --coin BTC --side long --size {notional_usd} --strategy-id btc-adaptive-hyperliquid
+
+## External Data Safety
+
+External market/account data is treated as untrusted input.
+
+If Binance market fetching fails or returns malformed values, the Skill must not produce a live execution command. If numeric validation fails, the safe output is a no-trade plan.
+
+The strategy rejects unsafe inputs such as NaN, Infinity, negative BTC prices, negative equity, malformed JSON, missing required fields, or invalid reduce fractions.
