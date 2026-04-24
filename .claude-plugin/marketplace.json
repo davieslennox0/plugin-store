@@ -61,6 +61,15 @@
       }
     },
     {
+      "name": "hl-pulse",
+      "description": "Hyperliquid intraday trading co-pilot with Pulse and Ladder modes for clean setups, staged execution, and explicit risk control.",
+      "source": "./skills/hl-pulse",
+      "category": "utility",
+      "author": {
+        "name": "doublekunkun"
+      }
+    },
+    {
       "name": "hyperliquid",
       "description": "Hyperliquid on-chain perpetuals DEX — check positions, get market prices, place and cancel perpetual orders on Hyperliquid L1 (chain_id 999).",
       "source": "./skills/hyperliquid-plugin",
