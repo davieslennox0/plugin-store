@@ -58,3 +58,13 @@ submit/btc-adaptive-hyperliquid
 ## License
 
 MIT.
+
+## Competition Attribution
+
+All live Hyperliquid Plugin write operations must include:
+
+    --strategy-id btc-adaptive-hyperliquid
+
+Example:
+
+    hyperliquid-plugin order --coin BTC --side long --size {notional_usd} --strategy-id btc-adaptive-hyperliquid

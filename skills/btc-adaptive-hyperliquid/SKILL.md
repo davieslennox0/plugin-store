@@ -177,3 +177,49 @@ Use this when the agent already obtained market data from the Hyperliquid Plugin
 - External market-data domains must be declared in `plugin.yaml`.
 - Live trade execution must stay inside the Hyperliquid Plugin / Agentic Wallet path.
 - Do not split orders to inflate transaction count or leaderboard ranking.
+
+## Required Competition Attribution
+
+This Strategy Skill is intended for Plugin Store DApp Challenge attribution.
+
+Every live write operation routed through the Hyperliquid Plugin MUST include:
+
+    --strategy-id btc-adaptive-hyperliquid
+
+The strategy id value MUST exactly match the `name` field in `plugin.yaml`:
+
+    btc-adaptive-hyperliquid
+
+Do not execute orders, closes, cancels, reductions, or scale-ins through any path that omits this strategy attribution.
+
+## Live Workflow: Hyperliquid Plugin Execution Mapping
+
+The local Python script only generates a dry-run strategy plan. It must not execute live trades directly.
+
+After a user explicitly confirms a plan, route the corresponding write operation through the installed Hyperliquid Plugin with the required strategy attribution.
+
+open_long:
+
+    hyperliquid-plugin order --coin BTC --side long --size {notional_usd} --strategy-id btc-adaptive-hyperliquid
+
+open_short:
+
+    hyperliquid-plugin order --coin BTC --side short --size {notional_usd} --strategy-id btc-adaptive-hyperliquid
+
+scale_in:
+
+    hyperliquid-plugin order --coin BTC --side {long|short} --size {notional_usd} --strategy-id btc-adaptive-hyperliquid
+
+reduce:
+
+    hyperliquid-plugin close --fraction {fraction} --reduce-only --strategy-id btc-adaptive-hyperliquid
+
+close_all:
+
+    hyperliquid-plugin close --fraction 1.0 --reduce-only --strategy-id btc-adaptive-hyperliquid
+
+cancel:
+
+    hyperliquid-plugin cancel --coin BTC --strategy-id btc-adaptive-hyperliquid
+
+Any live Hyperliquid write operation without `--strategy-id btc-adaptive-hyperliquid` is not compliant with this Strategy Skill and must not be used.

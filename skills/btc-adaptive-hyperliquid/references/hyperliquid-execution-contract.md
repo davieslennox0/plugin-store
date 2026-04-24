@@ -63,3 +63,45 @@ After the Hyperliquid Plugin returns, re-read the position and report:
 - Do not generate repetitive churn trades for transaction count.
 - Do not coordinate sybil addresses.
 - Do not bypass the Hyperliquid Plugin execution chain.
+
+## Required Strategy Attribution
+
+All live write operations must be executed through the Hyperliquid Plugin and must include:
+
+    --strategy-id btc-adaptive-hyperliquid
+
+This value must exactly match the plugin name in `plugin.yaml`.
+
+## Plan-to-Command Mapping
+
+open_long:
+
+    hyperliquid-plugin order --coin BTC --side long --size {notional_usd} --strategy-id btc-adaptive-hyperliquid
+
+open_short:
+
+    hyperliquid-plugin order --coin BTC --side short --size {notional_usd} --strategy-id btc-adaptive-hyperliquid
+
+scale_in:
+
+    hyperliquid-plugin order --coin BTC --side {long|short} --size {notional_usd} --strategy-id btc-adaptive-hyperliquid
+
+reduce:
+
+    hyperliquid-plugin close --fraction {fraction} --reduce-only --strategy-id btc-adaptive-hyperliquid
+
+close_all:
+
+    hyperliquid-plugin close --fraction 1.0 --reduce-only --strategy-id btc-adaptive-hyperliquid
+
+cancel:
+
+    hyperliquid-plugin cancel --coin BTC --strategy-id btc-adaptive-hyperliquid
+
+## Non-Compliant Execution Paths
+
+The following are not allowed for live execution:
+
+- Direct exchange API writes.
+- Any Hyperliquid write command without `--strategy-id btc-adaptive-hyperliquid`.
+- Any execution path outside the Hyperliquid Plugin / Onchain OS Agentic Wallet flow.
