@@ -270,4 +270,13 @@ Scan ALL source code files (.py, .ts, .js, .rs, .sh) for calls to dependent plug
 
 **Merge recommendation**: [✅ Ready to merge | ⚠️ Merge with noted caveats | 🔍 Needs changes before merge]
 
-[If "needs changes", list the specific items that should be addressed]
+**Blockers** (if any — list every issue that MUST be fixed before merge, each prefixed with ❌):
+
+❌ [BLOCKER description — e.g., "Missing source code: scripts/ directory not included"]
+❌ [BLOCKER description — e.g., "Hardcoded private key detected in line 42"]
+
+If there are NO blockers, write: "No blockers found."
+
+If there ARE blockers, the merge recommendation MUST be 🔍 Needs changes. Do NOT recommend ✅ Ready to merge or ⚠️ Merge with caveats when blockers exist.
+
+[If "needs changes" but non-blocking, list the improvements that should be addressed]
