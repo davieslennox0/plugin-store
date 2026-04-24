@@ -35,37 +35,6 @@
       }
     },
     {
-      "name": "btc-adaptive-hyperliquid",
-      "version": "1.0.0",
-      "description": "Adaptive BTC perpetual strategy planner for Hyperliquid Plugin with dry-run safety, dynamic risk controls, and explicit user confirmation.",
-      "author": {
-        "name": "cw"
-      },
-      "category": "utility",
-      "tags": [
-        "trading",
-        "ranking"
-      ],
-      "type": "community-developer",
-      "components": {
-        "skill": {
-          "repo": "okx/plugin-store",
-          "dir": "skills/btc-adaptive-hyperliquid"
-        }
-      },
-      "github_link": "https://github.com/okx/plugin-store/tree/main/skills/btc-adaptive-hyperliquid",
-      "skill_md_link": "https://raw.githubusercontent.com/okx/plugin-store/main/skills/btc-adaptive-hyperliquid/SKILL.md",
-      "summary_md_link": "https://raw.githubusercontent.com/okx/plugin-store/main/skills/btc-adaptive-hyperliquid/SUMMARY.md",
-      "modify_date": "1777030999",
-      "extra": {
-        "chains": [
-          "base"
-        ],
-        "protocols": [],
-        "risk_level": "high"
-      }
-    },
-    {
       "name": "clanker-plugin",
       "version": "0.2.5",
       "description": "Deploy and manage Clanker ERC-20 tokens on Base and Arbitrum — launch tokens, search by creator, and claim LP fee rewards",
@@ -222,69 +191,6 @@
       }
     },
     {
-      "name": "hl-funding-flow-hunter",
-      "version": "1.0.0",
-      "description": "Hyperliquid funding and flow strategy scanner with guarded execution",
-      "author": {
-        "name": "KB"
-      },
-      "category": "utility",
-      "tags": [
-        "trading",
-        "scanner"
-      ],
-      "type": "official",
-      "components": {
-        "skill": {
-          "repo": "okx/plugin-store",
-          "dir": "skills/hl-funding-flow-hunter"
-        }
-      },
-      "github_link": "https://github.com/okx/plugin-store/tree/main/skills/hl-funding-flow-hunter",
-      "skill_md_link": "https://raw.githubusercontent.com/okx/plugin-store/main/skills/hl-funding-flow-hunter/SKILL.md",
-      "summary_md_link": "https://raw.githubusercontent.com/okx/plugin-store/main/skills/hl-funding-flow-hunter/SUMMARY.md",
-      "modify_date": "1777030999",
-      "extra": {
-        "chains": [
-          "base"
-        ],
-        "protocols": [],
-        "risk_level": "high"
-      }
-    },
-    {
-      "name": "hl-pulse",
-      "version": "0.1.0",
-      "description": "Hyperliquid intraday trading co-pilot with Pulse and Ladder modes for clean setups, staged execution, and explicit risk control.",
-      "author": {
-        "name": "doublekunkun"
-      },
-      "category": "utility",
-      "tags": [
-        "trading",
-        "signal",
-        "defi"
-      ],
-      "type": "community-developer",
-      "components": {
-        "skill": {
-          "repo": "okx/plugin-store",
-          "dir": "skills/hl-pulse"
-        }
-      },
-      "github_link": "https://github.com/okx/plugin-store/tree/main/skills/hl-pulse",
-      "skill_md_link": "https://raw.githubusercontent.com/okx/plugin-store/main/skills/hl-pulse/SKILL.md",
-      "summary_md_link": "https://raw.githubusercontent.com/okx/plugin-store/main/skills/hl-pulse/SUMMARY.md",
-      "modify_date": "1777030999",
-      "extra": {
-        "chains": [
-          "base"
-        ],
-        "protocols": [],
-        "risk_level": "high"
-      }
-    },
-    {
       "name": "hyperliquid-plugin",
       "version": "0.3.9",
       "description": "Hyperliquid on-chain perpetuals DEX — check positions, get market prices, place and cancel perpetual orders on Hyperliquid L1 (chain_id 999).",
@@ -412,125 +318,6 @@
         ],
         "protocols": [],
         "risk_level": "medium"
-      }
-    },
-    {
-      "name": "ligoudan-btc-hype",
-      "version": "0.1.0",
-      "description": "BTC 囤币 + HYPE 理财：Hyperliquid 70k-90k 区间 8x 永续网格做多，已实现利润自动复投 2x HYPE 长单（带 SL/TP 保护）。",
-      "author": {
-        "name": "OKX"
-      },
-      "category": "utility",
-      "tags": [
-        "trading"
-      ],
-      "type": "official",
-      "components": {
-        "skill": {
-          "repo": "okx/plugin-store",
-          "dir": "skills/ligoudan-btc-hype"
-        }
-      },
-      "github_link": "https://github.com/okx/plugin-store/tree/main/skills/ligoudan-btc-hype",
-      "skill_md_link": "https://raw.githubusercontent.com/okx/plugin-store/main/skills/ligoudan-btc-hype/SKILL.md",
-      "summary_md_link": "https://raw.githubusercontent.com/okx/plugin-store/main/skills/ligoudan-btc-hype/SUMMARY.md",
-      "modify_date": "1777030999",
-      "extra": {
-        "chains": [
-          "base"
-        ],
-        "protocols": [],
-        "risk_level": "high"
-      }
-    },
-    {
-      "name": "macro-intelligence",
-      "version": "2.0.0",
-      "description": "Unified macro intelligence feed — reads 7 sources, classifies events, scores sentiment, generates AI insights, exposes signals via HTTP API",
-      "author": {
-        "name": "VibeCodeDaddy"
-      },
-      "category": "trading-strategy",
-      "tags": [
-        "trading",
-        "signal"
-      ],
-      "type": "community-developer",
-      "components": {
-        "skill": {
-          "repo": "okx/plugin-store",
-          "dir": "skills/macro-intelligence"
-        }
-      },
-      "github_link": "https://github.com/okx/plugin-store/tree/main/skills/macro-intelligence",
-      "skill_md_link": "https://raw.githubusercontent.com/okx/plugin-store/main/skills/macro-intelligence/SKILL.md",
-      "summary_md_link": "https://raw.githubusercontent.com/okx/plugin-store/main/skills/macro-intelligence/SUMMARY.md",
-      "modify_date": "1777030999"
-    },
-    {
-      "name": "mainstream-spot-order",
-      "version": "1.0.0",
-      "description": "Multi-chain DEX spot trading system with 6-signal ensemble, auto-research strategy optimization, and per-pair backtesting across SOL, ETH, BTC, BNB, AVAX, DOGE",
-      "author": {
-        "name": "victorlee"
-      },
-      "category": "trading-strategy",
-      "tags": [
-        "solana",
-        "trading",
-        "signal"
-      ],
-      "type": "community-developer",
-      "components": {
-        "skill": {
-          "repo": "okx/plugin-store",
-          "dir": "skills/mainstream-spot-order"
-        }
-      },
-      "github_link": "https://github.com/okx/plugin-store/tree/main/skills/mainstream-spot-order",
-      "skill_md_link": "https://raw.githubusercontent.com/okx/plugin-store/main/skills/mainstream-spot-order/SKILL.md",
-      "summary_md_link": "https://raw.githubusercontent.com/okx/plugin-store/main/skills/mainstream-spot-order/SUMMARY.md",
-      "modify_date": "1777030999",
-      "extra": {
-        "chains": [
-          "solana",
-          "base"
-        ],
-        "protocols": [],
-        "risk_level": "high"
-      }
-    },
-    {
-      "name": "market-structure-analyzer",
-      "version": "3.0.0",
-      "description": "Crypto market-structure research agent — 24+ indicators across derivatives, options (gamma wall, skew), on-chain (MVRV, smart money, DEX hot tokens), and macro sentiment. Live dashboard with K-line charts, TA indicators, and 12-signal composite scoring. Powered by OKX CeFi CLI + OnchainOS.",
-      "author": {
-        "name": "VibeCodeDaddy"
-      },
-      "category": "utility",
-      "tags": [
-        "trading",
-        "signal",
-        "defi"
-      ],
-      "type": "community-developer",
-      "components": {
-        "skill": {
-          "repo": "okx/plugin-store",
-          "dir": "skills/market-structure-analyzer"
-        }
-      },
-      "github_link": "https://github.com/okx/plugin-store/tree/main/skills/market-structure-analyzer",
-      "skill_md_link": "https://raw.githubusercontent.com/okx/plugin-store/main/skills/market-structure-analyzer/SKILL.md",
-      "summary_md_link": "https://raw.githubusercontent.com/okx/plugin-store/main/skills/market-structure-analyzer/SUMMARY.md",
-      "modify_date": "1777030999",
-      "extra": {
-        "chains": [
-          "base"
-        ],
-        "protocols": [],
-        "risk_level": "high"
       }
     },
     {
@@ -663,39 +450,6 @@
         "chains": [
           "base",
           "xlayer"
-        ],
-        "protocols": [],
-        "risk_level": "high"
-      }
-    },
-    {
-      "name": "one-click-token-launch",
-      "version": "1.0.0",
-      "description": "One-click multi-launchpad token creation with bundled buy, IPFS metadata, MEV protection across 6 launchpads on Solana and BSC",
-      "author": {
-        "name": "victorlee"
-      },
-      "category": "trading-strategy",
-      "tags": [
-        "solana",
-        "trading",
-        "defi"
-      ],
-      "type": "community-developer",
-      "components": {
-        "skill": {
-          "repo": "okx/plugin-store",
-          "dir": "skills/one-click-token-launch"
-        }
-      },
-      "github_link": "https://github.com/okx/plugin-store/tree/main/skills/one-click-token-launch",
-      "skill_md_link": "https://raw.githubusercontent.com/okx/plugin-store/main/skills/one-click-token-launch/SKILL.md",
-      "summary_md_link": "https://raw.githubusercontent.com/okx/plugin-store/main/skills/one-click-token-launch/SUMMARY.md",
-      "modify_date": "1777030999",
-      "extra": {
-        "chains": [
-          "solana",
-          "base"
         ],
         "protocols": [],
         "risk_level": "high"
@@ -889,101 +643,6 @@
       }
     },
     {
-      "name": "pm-5m-crypto-arena",
-      "version": "1.0.0",
-      "description": "One-tap Polymarket 5-minute crypto Up/Down trading co-pilot",
-      "author": {
-        "name": "KB"
-      },
-      "category": "utility",
-      "tags": [
-        "trading"
-      ],
-      "type": "official",
-      "components": {
-        "skill": {
-          "repo": "okx/plugin-store",
-          "dir": "skills/pm-5m-crypto-arena"
-        }
-      },
-      "github_link": "https://github.com/okx/plugin-store/tree/main/skills/pm-5m-crypto-arena",
-      "skill_md_link": "https://raw.githubusercontent.com/okx/plugin-store/main/skills/pm-5m-crypto-arena/SKILL.md",
-      "summary_md_link": "https://raw.githubusercontent.com/okx/plugin-store/main/skills/pm-5m-crypto-arena/SUMMARY.md",
-      "modify_date": "1777030999",
-      "extra": {
-        "chains": [
-          "base"
-        ],
-        "protocols": [],
-        "risk_level": "high"
-      }
-    },
-    {
-      "name": "pm-catalyst",
-      "version": "0.1.0",
-      "description": "Polymarket first-trade strategy skill for major catalysts and short-dated event setups, built for clear yes/no positioning, dry-run previews, and low-friction onboarding.",
-      "author": {
-        "name": "doublekunkun"
-      },
-      "category": "utility",
-      "tags": [
-        "trading",
-        "scanner",
-        "ranking"
-      ],
-      "type": "community-developer",
-      "components": {
-        "skill": {
-          "repo": "okx/plugin-store",
-          "dir": "skills/pm-catalyst"
-        }
-      },
-      "github_link": "https://github.com/okx/plugin-store/tree/main/skills/pm-catalyst",
-      "skill_md_link": "https://raw.githubusercontent.com/okx/plugin-store/main/skills/pm-catalyst/SKILL.md",
-      "summary_md_link": "https://raw.githubusercontent.com/okx/plugin-store/main/skills/pm-catalyst/SUMMARY.md",
-      "modify_date": "1777030999",
-      "extra": {
-        "chains": [
-          "base"
-        ],
-        "protocols": [],
-        "risk_level": "high"
-      }
-    },
-    {
-      "name": "pmbasket",
-      "version": "1.0.0",
-      "description": "Natural-language event baskets on Polymarket: one sentence of intent becomes a liquidity-filtered, risk-capped basket placed through Polymarket CLOB via polymarket-plugin.",
-      "author": {
-        "name": "dddd86971-cloud"
-      },
-      "category": "utility",
-      "tags": [
-        "trading",
-        "signal",
-        "defi",
-        "ranking"
-      ],
-      "type": "official",
-      "components": {
-        "skill": {
-          "repo": "okx/plugin-store",
-          "dir": "skills/pmbasket"
-        }
-      },
-      "github_link": "https://github.com/okx/plugin-store/tree/main/skills/pmbasket",
-      "skill_md_link": "https://raw.githubusercontent.com/okx/plugin-store/main/skills/pmbasket/SKILL.md",
-      "summary_md_link": "https://raw.githubusercontent.com/okx/plugin-store/main/skills/pmbasket/SUMMARY.md",
-      "modify_date": "1777030999",
-      "extra": {
-        "chains": [
-          "base"
-        ],
-        "protocols": [],
-        "risk_level": "high"
-      }
-    },
-    {
       "name": "polymarket-plugin",
       "version": "0.4.10",
       "description": "Trade prediction markets on Polymarket — buy and sell YES/NO outcome tokens on Polygon",
@@ -1016,29 +675,6 @@
         "protocols": [],
         "risk_level": "high"
       }
-    },
-    {
-      "name": "polymarket-starter",
-      "version": "0.2.0",
-      "description": "Guided first-trade flow on Polymarket with budget protection and $1/$5/$10 presets for new prediction-market users. Routes orders through polymarket-plugin with strategy attribution.",
-      "author": {
-        "name": "Lucas"
-      },
-      "category": "utility",
-      "tags": [
-        "trading"
-      ],
-      "type": "community-developer",
-      "components": {
-        "skill": {
-          "repo": "okx/plugin-store",
-          "dir": "skills/polymarket-starter"
-        }
-      },
-      "github_link": "https://github.com/okx/plugin-store/tree/main/skills/polymarket-starter",
-      "skill_md_link": "https://raw.githubusercontent.com/okx/plugin-store/main/skills/polymarket-starter/SKILL.md",
-      "summary_md_link": "https://raw.githubusercontent.com/okx/plugin-store/main/skills/polymarket-starter/SUMMARY.md",
-      "modify_date": "1777030999"
     },
     {
       "name": "pump-fun-plugin",
@@ -1098,43 +734,6 @@
       "extra": {
         "chains": [
           "solana",
-          "base"
-        ],
-        "protocols": [],
-        "risk_level": "high"
-      }
-    },
-    {
-      "name": "rwa-alpha",
-      "version": "1.1.0",
-      "description": "RWA Alpha — Real World Asset intelligence trading. Macro event detection + Polymarket confirmation + on-chain price action → auto-trade tokenized treasury/gold/yield/governance tokens via OKX DEX.",
-      "author": {
-        "name": "VibeCodeDaddy"
-      },
-      "category": "trading-strategy",
-      "tags": [
-        "solana",
-        "ethereum",
-        "trading",
-        "signal",
-        "defi",
-        "ranking"
-      ],
-      "type": "community-developer",
-      "components": {
-        "skill": {
-          "repo": "okx/plugin-store",
-          "dir": "skills/rwa-alpha"
-        }
-      },
-      "github_link": "https://github.com/okx/plugin-store/tree/main/skills/rwa-alpha",
-      "skill_md_link": "https://raw.githubusercontent.com/okx/plugin-store/main/skills/rwa-alpha/SKILL.md",
-      "summary_md_link": "https://raw.githubusercontent.com/okx/plugin-store/main/skills/rwa-alpha/SUMMARY.md",
-      "modify_date": "1777030999",
-      "extra": {
-        "chains": [
-          "solana",
-          "ethereum",
           "base"
         ],
         "protocols": [],
@@ -1514,40 +1113,6 @@
         ],
         "protocols": [],
         "risk_level": "medium"
-      }
-    },
-    {
-      "name": "wallet-tracker-mcap",
-      "version": "1.0.0",
-      "description": "Wallet copy-trade bot -- monitors target Solana wallets and auto-mirrors meme token buys/sells with MC target gating, tiered TP, trailing stop, and 4-tier risk grading",
-      "author": {
-        "name": "victorlee"
-      },
-      "category": "trading-strategy",
-      "tags": [
-        "solana",
-        "trading",
-        "signal",
-        "sniper"
-      ],
-      "type": "community-developer",
-      "components": {
-        "skill": {
-          "repo": "okx/plugin-store",
-          "dir": "skills/wallet-tracker-mcap"
-        }
-      },
-      "github_link": "https://github.com/okx/plugin-store/tree/main/skills/wallet-tracker-mcap",
-      "skill_md_link": "https://raw.githubusercontent.com/okx/plugin-store/main/skills/wallet-tracker-mcap/SKILL.md",
-      "summary_md_link": "https://raw.githubusercontent.com/okx/plugin-store/main/skills/wallet-tracker-mcap/SUMMARY.md",
-      "modify_date": "1777030999",
-      "extra": {
-        "chains": [
-          "solana",
-          "base"
-        ],
-        "protocols": [],
-        "risk_level": "high"
       }
     }
   ]

@@ -1,2 +1,0 @@
-# Zero pip dependencies — stdlib only
-# onchainos CLI >= 2.0.0 required (installed separately)

@@ -16,15 +16,6 @@
       }
     },
     {
-      "name": "btc-adaptive-hyperliquid",
-      "description": "Adaptive BTC perpetual strategy planner for Hyperliquid Plugin with dry-run safety, dynamic risk controls, and explicit user confirmation.",
-      "source": "./skills/btc-adaptive-hyperliquid",
-      "category": "utility",
-      "author": {
-        "name": "cw"
-      }
-    },
-    {
       "name": "clanker-plugin",
       "description": "Deploy and manage Clanker ERC-20 tokens on Base and Arbitrum — launch tokens, search by creator, and claim LP fee rewards",
       "source": "./skills/clanker-plugin",
@@ -70,24 +61,6 @@
       }
     },
     {
-      "name": "hl-funding-flow-hunter",
-      "description": "Hyperliquid funding and flow strategy scanner with guarded execution",
-      "source": "./skills/hl-funding-flow-hunter",
-      "category": "utility",
-      "author": {
-        "name": "KB"
-      }
-    },
-    {
-      "name": "hl-pulse",
-      "description": "Hyperliquid intraday trading co-pilot with Pulse and Ladder modes for clean setups, staged execution, and explicit risk control.",
-      "source": "./skills/hl-pulse",
-      "category": "utility",
-      "author": {
-        "name": "doublekunkun"
-      }
-    },
-    {
       "name": "hyperliquid-plugin",
       "description": "Hyperliquid on-chain perpetuals DEX — check positions, get market prices, place and cancel perpetual orders on Hyperliquid L1 (chain_id 999).",
       "source": "./skills/hyperliquid-plugin",
@@ -124,42 +97,6 @@
       }
     },
     {
-      "name": "ligoudan-btc-hype",
-      "description": "BTC 囤币 + HYPE 理财：Hyperliquid 70k-90k 区间 8x 永续网格做多，已实现利润自动复投 2x HYPE 长单（带 SL/TP 保护）。",
-      "source": "./skills/ligoudan-btc-hype",
-      "category": "utility",
-      "author": {
-        "name": "OKX"
-      }
-    },
-    {
-      "name": "macro-intelligence",
-      "description": "Unified macro intelligence feed — reads 7 sources, classifies events, scores sentiment, generates AI insights, exposes signals via HTTP API",
-      "source": "./skills/macro-intelligence",
-      "category": "utility",
-      "author": {
-        "name": "VibeCodeDaddy"
-      }
-    },
-    {
-      "name": "mainstream-spot-order",
-      "description": "Multi-chain DEX spot trading system with 6-signal ensemble, auto-research strategy optimization, and per-pair backtesting across SOL, ETH, BTC, BNB, AVAX, DOGE",
-      "source": "./skills/mainstream-spot-order",
-      "category": "utility",
-      "author": {
-        "name": "victorlee"
-      }
-    },
-    {
-      "name": "market-structure-analyzer",
-      "description": "Crypto market-structure research agent — 24+ indicators across derivatives, options (gamma wall, skew), on-chain (MVRV, smart money, DEX hot tokens), and macro sentiment. Live dashboard with K-line charts, TA indicators, and 12-signal composite scoring. Powered by OKX CeFi CLI + OnchainOS.",
-      "source": "./skills/market-structure-analyzer",
-      "category": "utility",
-      "author": {
-        "name": "VibeCodeDaddy"
-      }
-    },
-    {
       "name": "meme-trench-scanner",
       "description": "Meme Trench Scanner v1.0 — Solana Meme automated trading bot with 11 Launchpad coverage, 7-layer exit system, TraderSoul AI observation",
       "source": "./skills/meme-trench-scanner",
@@ -193,15 +130,6 @@
       "category": "utility",
       "author": {
         "name": "OKX"
-      }
-    },
-    {
-      "name": "one-click-token-launch",
-      "description": "One-click multi-launchpad token creation with bundled buy, IPFS metadata, MEV protection across 6 launchpads on Solana and BSC",
-      "source": "./skills/one-click-token-launch",
-      "category": "utility",
-      "author": {
-        "name": "victorlee"
       }
     },
     {
@@ -259,48 +187,12 @@
       }
     },
     {
-      "name": "pm-5m-crypto-arena",
-      "description": "One-tap Polymarket 5-minute crypto Up/Down trading co-pilot",
-      "source": "./skills/pm-5m-crypto-arena",
-      "category": "utility",
-      "author": {
-        "name": "KB"
-      }
-    },
-    {
-      "name": "pm-catalyst",
-      "description": "Polymarket first-trade strategy skill for major catalysts and short-dated event setups, built for clear yes/no positioning, dry-run previews, and low-friction onboarding.",
-      "source": "./skills/pm-catalyst",
-      "category": "utility",
-      "author": {
-        "name": "doublekunkun"
-      }
-    },
-    {
-      "name": "pmbasket",
-      "description": "Natural-language event baskets on Polymarket: one sentence of intent becomes a liquidity-filtered, risk-capped basket placed through Polymarket CLOB via polymarket-plugin.",
-      "source": "./skills/pmbasket",
-      "category": "utility",
-      "author": {
-        "name": "dddd86971-cloud"
-      }
-    },
-    {
       "name": "polymarket-plugin",
       "description": "Trade prediction markets on Polymarket — buy and sell YES/NO outcome tokens on Polygon",
       "source": "./skills/polymarket-plugin",
       "category": "utility",
       "author": {
         "name": "skylavis-sky"
-      }
-    },
-    {
-      "name": "polymarket-starter",
-      "description": "Guided first-trade flow on Polymarket with budget protection and $1/$5/$10 presets for new prediction-market users. Routes orders through polymarket-plugin with strategy attribution.",
-      "source": "./skills/polymarket-starter",
-      "category": "utility",
-      "author": {
-        "name": "Lucas"
       }
     },
     {
@@ -319,15 +211,6 @@
       "category": "utility",
       "author": {
         "name": "OKX"
-      }
-    },
-    {
-      "name": "rwa-alpha",
-      "description": "RWA Alpha — Real World Asset intelligence trading. Macro event detection + Polymarket confirmation + on-chain price action → auto-trade tokenized treasury/gold/yield/governance tokens via OKX DEX.",
-      "source": "./skills/rwa-alpha",
-      "category": "utility",
-      "author": {
-        "name": "VibeCodeDaddy"
       }
     },
     {
@@ -436,15 +319,6 @@
       "category": "utility",
       "author": {
         "name": "GeoGu360"
-      }
-    },
-    {
-      "name": "wallet-tracker-mcap",
-      "description": "Wallet copy-trade bot -- monitors target Solana wallets and auto-mirrors meme token buys/sells with MC target gating, tiered TP, trailing stop, and 4-tier risk grading",
-      "source": "./skills/wallet-tracker-mcap",
-      "category": "utility",
-      "author": {
-        "name": "victorlee"
       }
     }
   ]
