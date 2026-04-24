@@ -854,7 +854,7 @@ api_calls: []
 
 ### --strategy-id 标识要求
 
-对依赖插件的所有**写操作**（buy、sell、swap、order、send）**必须**包含 `--strategy-id <策略名>` 以实现归因追踪：
+对依赖插件的所有**交易操作**（buy、sell、swap、order）**必须**包含 `--strategy-id <策略名>` 以实现归因追踪：
 
 ```python
 # ✅ 正确 — 写操作带 --strategy-id
@@ -864,7 +864,10 @@ subprocess.run(["raydium-plugin", "swap", "--from", "USDC", "--to", "SOL",
 # ✅ 正确 — 只读操作不需要 --strategy-id
 subprocess.run(["raydium-plugin", "quote", "--token", "SOL"])
 
-# ❌ 错误 — 写操作缺少 --strategy-id（AI 审查会拒绝）
+# ✅ 正确 — deposit/withdraw 不需要 --strategy-id
+subprocess.run(["raydium-plugin", "deposit", "--amount", "100", "--pool", "SOL-USDC"])
+
+# ❌ 错误 — 交易操作缺少 --strategy-id（AI 审查会拒绝）
 subprocess.run(["raydium-plugin", "swap", "--from", "USDC", "--to", "SOL",
                 "--amount", "10", "--confirm"])
 ```
