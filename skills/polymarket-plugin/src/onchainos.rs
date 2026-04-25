@@ -292,7 +292,7 @@ async fn verify_eip1167_proxy(addr: &str) -> bool {
         "id": 1
     });
     if let Ok(r) = reqwest::Client::new()
-        .post(Urls::POLYGON_RPC)
+        .post(Urls::polygon_rpc())
         .json(&body)
         .send()
         .await
@@ -345,7 +345,7 @@ pub async fn get_existing_proxy(eoa_addr: &str) -> Result<Option<String>> {
     });
 
     let resp = reqwest::Client::new()
-        .post(Urls::POLYGON_RPC)
+        .post(Urls::polygon_rpc())
         .json(&body)
         .send()
         .await
@@ -483,7 +483,7 @@ pub async fn get_usdc_allowance(owner: &str, spender: &str) -> Result<u128> {
         "id": 1
     });
     let v: serde_json::Value = reqwest::Client::new()
-        .post(Urls::POLYGON_RPC)
+        .post(Urls::polygon_rpc())
         .json(&body)
         .send()
         .await
@@ -687,7 +687,7 @@ pub async fn approve_ctf(neg_risk: bool) -> Result<String> {
 /// YES (bit 0) and NO (bit 1) outcomes — the CTF contract only pays out for winning tokens
 /// and silently no-ops for losing ones, so passing both is safe.
 /// For neg_risk (multi-outcome) markets use the NEG_RISK_ADAPTER path (not implemented here).
-pub(crate) fn build_redeem_positions_calldata(condition_id: &str) -> String {
+pub fn build_redeem_positions_calldata(condition_id: &str) -> String {
     use sha3::{Digest, Keccak256};
     use crate::config::Contracts;
 
@@ -847,7 +847,7 @@ pub async fn get_ctf_balance(owner: &str, token_id_decimal: &str) -> Result<u128
         "id": 1
     });
     let v: serde_json::Value = reqwest::Client::new()
-        .post(Urls::POLYGON_RPC)
+        .post(Urls::polygon_rpc())
         .json(&body)
         .send()
         .await
@@ -871,7 +871,7 @@ pub async fn get_ctf_balance(owner: &str, token_id_decimal: &str) -> Result<u128
 /// `amounts` is indexed by outcome slot: amounts[0] = YES token balance, amounts[1] = NO token balance.
 /// After market resolution, only the winning outcome's amount is non-zero; passing zero for the
 /// other slot is safe (the adapter no-ops on zero-balance outcomes).
-pub(crate) fn build_negrisk_redeem_calldata(condition_id: &str, amounts: &[u128]) -> String {
+pub fn build_negrisk_redeem_calldata(condition_id: &str, amounts: &[u128]) -> String {
     use sha3::{Digest, Keccak256};
 
     let selector = Keccak256::digest(b"redeemPositions(bytes32,uint256[])");
@@ -920,7 +920,7 @@ pub async fn get_pol_balance(addr: &str) -> Result<f64> {
         "id": 1
     });
     let v: serde_json::Value = reqwest::Client::new()
-        .post(Urls::POLYGON_RPC)
+        .post(Urls::polygon_rpc())
         .json(&body)
         .send()
         .await
@@ -948,7 +948,7 @@ pub async fn get_usdc_balance(addr: &str) -> Result<f64> {
         "id": 1
     });
     let v: serde_json::Value = reqwest::Client::new()
-        .post(Urls::POLYGON_RPC)
+        .post(Urls::polygon_rpc())
         .json(&body)
         .send()
         .await
@@ -982,7 +982,7 @@ pub async fn eth_call_simulate(from: &str, to: &str, input_data: &str) -> Result
         "id": 1
     });
     let v: serde_json::Value = reqwest::Client::new()
-        .post(Urls::POLYGON_RPC)
+        .post(Urls::polygon_rpc())
         .json(&body)
         .send()
         .await
@@ -1027,7 +1027,7 @@ pub async fn wait_for_tx_receipt_labeled(
             "id": 1
         });
         let resp = reqwest::Client::new()
-            .post(Urls::POLYGON_RPC)
+            .post(Urls::polygon_rpc())
             .json(&body)
             .send()
             .await;
@@ -1359,7 +1359,7 @@ pub async fn is_ctf_approved_for_all(owner: &str, operator: &str) -> Result<bool
     });
     let client = reqwest::Client::new();
     let resp = client
-        .post(Urls::POLYGON_RPC)
+        .post(Urls::polygon_rpc())
         .json(&body)
         .send()
         .await

@@ -137,4 +137,33 @@ impl Urls {
     pub const BASE_RPC:     &'static str = "https://base.drpc.org";
     pub const OPTIMISM_RPC: &'static str = "https://optimism.drpc.org";
     pub const BNB_RPC:      &'static str = "https://bsc.publicnode.com";
+
+    // ── Env-var-overridable accessors ────────────────────────────────────────
+    //
+    // These are used in place of the const fields throughout the codebase so
+    // that integration tests can redirect HTTP traffic to local mock servers
+    // by setting the corresponding POLYMARKET_TEST_* env vars.
+    //
+    // Production code never sets these vars, so the const defaults always apply
+    // in normal operation.
+
+    pub fn polygon_rpc() -> String {
+        std::env::var("POLYMARKET_TEST_POLYGON_RPC")
+            .unwrap_or_else(|_| Self::POLYGON_RPC.to_string())
+    }
+
+    pub fn clob() -> String {
+        std::env::var("POLYMARKET_TEST_CLOB_URL")
+            .unwrap_or_else(|_| Self::CLOB.to_string())
+    }
+
+    pub fn gamma() -> String {
+        std::env::var("POLYMARKET_TEST_GAMMA_URL")
+            .unwrap_or_else(|_| Self::GAMMA.to_string())
+    }
+
+    pub fn data() -> String {
+        std::env::var("POLYMARKET_TEST_DATA_URL")
+            .unwrap_or_else(|_| Self::DATA.to_string())
+    }
 }

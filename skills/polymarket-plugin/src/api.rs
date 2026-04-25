@@ -306,7 +306,7 @@ impl BalanceAllowance {
 /// false positives (some endpoints return 403 for auth reasons on unrestricted IPs).
 /// Fails open on network errors or unexpected responses.
 pub async fn check_clob_access(client: &Client) -> Option<String> {
-    let url = format!("{}/order", Urls::CLOB);
+    let url = format!("{}/order", Urls::clob());
     let resp = match client
         .post(&url)
         .header(reqwest::header::CONTENT_TYPE, "application/json")
@@ -346,7 +346,7 @@ pub async fn check_clob_access(client: &Client) -> Option<String> {
 }
 
 pub async fn get_clob_market(client: &Client, condition_id: &str) -> Result<ClobMarket> {
-    let url = format!("{}/markets/{}", Urls::CLOB, condition_id);
+    let url = format!("{}/markets/{}", Urls::clob(), condition_id);
     let resp = client.get(&url).send().await?;
     if resp.status() == reqwest::StatusCode::NOT_FOUND {
         anyhow::bail!("Market not found: {}", condition_id);
@@ -357,7 +357,7 @@ pub async fn get_clob_market(client: &Client, condition_id: &str) -> Result<Clob
 }
 
 pub async fn get_orderbook(client: &Client, token_id: &str) -> Result<OrderBook> {
-    let url = format!("{}/book?token_id={}", Urls::CLOB, token_id);
+    let url = format!("{}/book?token_id={}", Urls::clob(), token_id);
     client.get(&url)
         .send()
         .await?
@@ -369,7 +369,7 @@ pub async fn get_orderbook(client: &Client, token_id: &str) -> Result<OrderBook>
 /// Fetch the market's maker_base_fee (in basis points) from CLOB market data.
 /// Returns 0 if not found.
 pub async fn get_market_fee(client: &Client, condition_id: &str) -> Result<u64> {
-    let url = format!("{}/markets/{}", Urls::CLOB, condition_id);
+    let url = format!("{}/markets/{}", Urls::clob(), condition_id);
     let v: Value = client.get(&url).send().await?.json().await?;
     let fee = v["maker_base_fee"]
         .as_u64()
@@ -379,7 +379,7 @@ pub async fn get_market_fee(client: &Client, condition_id: &str) -> Result<u64> 
 }
 
 pub async fn get_tick_size(client: &Client, token_id: &str) -> Result<f64> {
-    let url = format!("{}/tick-size?token_id={}", Urls::CLOB, token_id);
+    let url = format!("{}/tick-size?token_id={}", Urls::clob(), token_id);
     let v: Value = client.get(&url).send().await?.json().await?;
     // minimum_tick_size may be a JSON number or a JSON string
     let tick = v["minimum_tick_size"]
@@ -390,13 +390,13 @@ pub async fn get_tick_size(client: &Client, token_id: &str) -> Result<f64> {
 }
 
 pub async fn get_price(client: &Client, token_id: &str, side: &str) -> Result<String> {
-    let url = format!("{}/price?token_id={}&side={}", Urls::CLOB, token_id, side);
+    let url = format!("{}/price?token_id={}&side={}", Urls::clob(), token_id, side);
     let v: Value = client.get(&url).send().await?.json().await?;
     Ok(v["price"].as_str().unwrap_or("0").to_string())
 }
 
 pub async fn get_server_time(client: &Client) -> Result<u64> {
-    let url = format!("{}/time", Urls::CLOB);
+    let url = format!("{}/time", Urls::clob());
     let v: Value = client.get(&url).send().await?.json().await?;
     Ok(v["time"].as_u64().unwrap_or(0))
 }
@@ -427,7 +427,7 @@ pub async fn get_balance_allowance(
         "",
     )?;
 
-    let url = format!("{}{}", Urls::CLOB, full_path);
+    let url = format!("{}{}", Urls::clob(), full_path);
     let mut req = client.get(&url);
     for (k, v) in &headers {
         req = req.header(k.as_str(), v.as_str());
@@ -458,7 +458,7 @@ pub async fn post_order(
         &body,
     )?;
 
-    let url = format!("{}{}", Urls::CLOB, path);
+    let url = format!("{}{}", Urls::clob(), path);
     let mut req = client
         .post(&url)
         .header("Content-Type", "application/json")
@@ -504,7 +504,7 @@ pub async fn cancel_order(
         &body,
     )?;
 
-    let url = format!("{}{}", Urls::CLOB, path);
+    let url = format!("{}{}", Urls::clob(), path);
     let mut req = client
         .delete(&url)
         .header("Content-Type", "application/json")
@@ -535,7 +535,7 @@ pub async fn cancel_all_orders(
         "",
     )?;
 
-    let url = format!("{}{}", Urls::CLOB, path);
+    let url = format!("{}{}", Urls::clob(), path);
     let mut req = client.delete(&url);
     for (k, v) in &headers {
         req = req.header(k.as_str(), v.as_str());
@@ -572,7 +572,7 @@ pub async fn cancel_market_orders(
         &body,
     )?;
 
-    let url = format!("{}{}", Urls::CLOB, path);
+    let url = format!("{}{}", Urls::clob(), path);
     let mut req = client
         .delete(&url)
         .header("Content-Type", "application/json")
@@ -601,7 +601,7 @@ pub async fn list_gamma_markets(
     let fetch_limit = if keyword.is_some() { (limit * 5).min(100) } else { limit };
     let url = format!(
         "{}/markets?active=true&closed=false&limit={}&offset={}&order=volume24hrClob&ascending=false",
-        Urls::GAMMA, fetch_limit, offset
+        Urls::gamma(), fetch_limit, offset
     );
 
     let all: Vec<GammaMarket> = client.get(&url)
@@ -639,7 +639,7 @@ async fn fetch_gamma_events(
 ) -> Result<Vec<serde_json::Value>> {
     let url = format!(
         "{}/events?active=true&closed=false&limit={}&order=volume24hr&ascending=false",
-        Urls::GAMMA, fetch_limit
+        Urls::gamma(), fetch_limit
     );
 
     let all: Vec<serde_json::Value> = client
@@ -706,7 +706,7 @@ pub async fn list_category_events(
 }
 
 pub async fn get_gamma_market_by_slug(client: &Client, slug: &str) -> Result<GammaMarket> {
-    let url = format!("{}/markets/slug/{}", Urls::GAMMA, slug);
+    let url = format!("{}/markets/slug/{}", Urls::gamma(), slug);
     let v: Value = client.get(&url).send().await?.json().await?;
 
     // Response can be an array or single object
@@ -740,7 +740,7 @@ pub async fn get_gamma_market_by_slug(client: &Client, slug: &str) -> Result<Gam
 /// Calls `GET /profile?user=<address>` on the CLOB API.
 /// Returns None if the user has not completed polymarket.com onboarding.
 pub async fn get_proxy_wallet(client: &Client, signer_addr: &str) -> Result<Option<String>> {
-    let url = format!("{}/profile?user={}", Urls::CLOB, signer_addr);
+    let url = format!("{}/profile?user={}", Urls::clob(), signer_addr);
     let v: Value = client.get(&url).send().await?.json().await
         .context("parsing profile response")?;
     let proxy = v["proxyWallet"]
@@ -755,7 +755,7 @@ pub async fn get_proxy_wallet(client: &Client, signer_addr: &str) -> Result<Opti
 pub async fn get_positions(client: &Client, user_address: &str) -> Result<Vec<Position>> {
     let url = format!(
         "{}/positions?user={}&sizeThreshold=0.01&limit=100&offset=0",
-        Urls::DATA, user_address
+        Urls::data(), user_address
     );
     client.get(&url)
         .send()
@@ -978,7 +978,7 @@ pub struct FiveMinMarket {
 /// Fetch a single 5-minute market by its slug from the Gamma API.
 /// Returns `None` if the market does not exist yet.
 pub async fn get_5m_market(client: &Client, slug: &str) -> Result<Option<FiveMinMarket>> {
-    let url = format!("{}/markets?slug={}", Urls::GAMMA, slug);
+    let url = format!("{}/markets?slug={}", Urls::gamma(), slug);
     let resp: serde_json::Value = client
         .get(&url)
         .header("User-Agent", "polymarket-cli/1.0")
