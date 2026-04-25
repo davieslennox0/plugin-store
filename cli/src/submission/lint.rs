@@ -258,6 +258,28 @@ fn check_version(version: &str, diags: &mut Vec<LintDiag>) {
     }
 }
 
+/// Reject characters that retain shell-meta meaning even *inside* a
+/// double-quoted "$VAR" string in bash. Inside `"..."` only these stay
+/// special: ` $ " \ — plus newline/carriage-return which break `printf`
+/// line structure. Everything else (including & | ; < > ( )) is literal
+/// inside the quote and harmless.
+///
+/// This is the second line of defence after the `env:` indirection in
+/// plugin-publish.yml. We reject at submission time so the dangerous
+/// value never makes it to a privileged runner.
+const SHELL_UNSAFE_CHARS: &[char] = &[
+    '`',  // command substitution
+    '$',  // variable expansion
+    '"',  // closes the surrounding quote
+    '\\', // escape — required to inject a quote
+    '\n', // breaks printf line structure
+    '\r', // CR — terminal-control injection
+];
+
+fn contains_shell_unsafe(s: &str) -> Option<char> {
+    s.chars().find(|c| SHELL_UNSAFE_CHARS.contains(c))
+}
+
 fn check_description(desc: &str, diags: &mut Vec<LintDiag>) {
     if desc.trim().is_empty() {
         diags.push(LintDiag {
@@ -265,13 +287,31 @@ fn check_description(desc: &str, diags: &mut Vec<LintDiag>) {
             code: "E010",
             message: "description is empty".to_string(),
         });
-    } else if desc.len() > 200 {
+        return;
+    }
+    if desc.len() > 200 {
         diags.push(LintDiag {
             level: DiagLevel::Warning,
             code: "W010",
             message: format!(
                 "description is {} chars (recommended < 200)",
                 desc.len()
+            ),
+        });
+    }
+    // E011: shell-unsafe characters — description flows into `printf` and
+    // release-notes shell pipelines in plugin-publish.yml.
+    if let Some(c) = contains_shell_unsafe(desc) {
+        diags.push(LintDiag {
+            level: DiagLevel::Error,
+            code: "E011",
+            message: format!(
+                "description contains shell-unsafe character {:?} (U+{:04X}). \
+                 Allowed: letters, digits, spaces, and basic punctuation \
+                 (.,:!?-—). Reject reason: this field is interpolated into \
+                 release-notes shell commands; an injection here would run \
+                 with publish-job privileges.",
+                c, c as u32
             ),
         });
     }
@@ -284,6 +324,18 @@ fn check_author(author: &super::plugin_yaml::AuthorInfo, diags: &mut Vec<LintDia
             code: "E020",
             message: "author.name is empty".to_string(),
         });
+    } else if let Some(c) = contains_shell_unsafe(&author.name) {
+        // E022: same shell-injection concern as description.
+        diags.push(LintDiag {
+            level: DiagLevel::Error,
+            code: "E022",
+            message: format!(
+                "author.name contains shell-unsafe character {:?} (U+{:04X}). \
+                 Author name is interpolated into release notes; reject any \
+                 character that could break shell quoting.",
+                c, c as u32
+            ),
+        });
     }
     if author.github.trim().is_empty() {
         diags.push(LintDiag {
@@ -291,6 +343,24 @@ fn check_author(author: &super::plugin_yaml::AuthorInfo, diags: &mut Vec<LintDia
             code: "E021",
             message: "author.github is required".to_string(),
         });
+    } else {
+        // E023: GitHub usernames are [a-zA-Z0-9-], 1..=39 chars, no leading/trailing -,
+        // no consecutive dashes. Rust regex has no lookaround, so check
+        // boundaries with a simple regex and consecutive dashes separately.
+        let gh_re = regex::Regex::new(r"^[a-zA-Z0-9]([a-zA-Z0-9-]{0,37}[a-zA-Z0-9])?$").unwrap();
+        let valid = gh_re.is_match(&author.github) && !author.github.contains("--");
+        if !valid {
+            diags.push(LintDiag {
+                level: DiagLevel::Error,
+                code: "E023",
+                message: format!(
+                    "author.github '{}' is not a valid GitHub username \
+                     (must match GitHub's [a-zA-Z0-9-] rule, 1..39 chars, \
+                     no leading/trailing dash, no consecutive dashes).",
+                    author.github
+                ),
+            });
+        }
     }
 }
 
@@ -1300,7 +1370,24 @@ fn check_build_config(plugin: &PluginYaml, _dir: &Path, diags: &mut Vec<LintDiag
     }
 
     // binary_name is required for all compiled languages
-    if build.binary_name.is_none() {
+    if let Some(bn) = &build.binary_name {
+        // E126: binary_name is interpolated into shell paths (cp, git clone,
+        // chmod, install paths). Strict whitelist matches plugin-name rule.
+        let bin_re = regex::Regex::new(r"^[a-zA-Z0-9][a-zA-Z0-9_-]{0,62}$").unwrap();
+        if !bin_re.is_match(bn) {
+            diags.push(LintDiag {
+                level: DiagLevel::Error,
+                code: "E126",
+                message: format!(
+                    "build.binary_name '{}' contains invalid characters. \
+                     Allowed: alphanumeric, underscore, hyphen; first char \
+                     alphanumeric; ≤63 chars. Rejecting because this value \
+                     is interpolated into shell paths inside the publish job.",
+                    bn
+                ),
+            });
+        }
+    } else {
         diags.push(LintDiag {
             level: DiagLevel::Error,
             code: "E124",

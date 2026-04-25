@@ -57,11 +57,15 @@ jobs:
 
         - name: Block .github modifications from forks
           id: check
+          env:
+            BASE_REPO: ${{ github.event.pull_request.base.repo.full_name }}
+            BASE_REF: ${{ github.event.pull_request.base.ref }}
+            HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           run: |
-            git remote add base https://github.com/${{ github.event.pull_request.base.repo.full_name }}.git 2>/dev/null || true
-            git fetch base ${{ github.event.pull_request.base.ref }} 2>/dev/null || true
+            git remote add base "https://github.com/${BASE_REPO}.git" 2>/dev/null || true
+            git fetch base "${BASE_REF}" 2>/dev/null || true
             echo "Checking PR for .github/ modifications..."
-            CHANGES=$(git diff --name-only base/${{ github.event.pull_request.base.ref }}...${{ github.event.pull_request.head.sha }} | grep "^\.github/" || true)
+            CHANGES=$(git diff --name-only "base/${BASE_REF}...${HEAD_SHA}" | grep "^\.github/" || true)
             if [ -n "$CHANGES" ]; then
               echo "::error::Fork PRs cannot modify .github/ files:"
               echo "$CHANGES"
@@ -100,14 +104,20 @@ jobs:
           fetch-depth: 0
 
       - name: Fetch base branch for diff
+        env:
+          BASE_REPO: ${{ github.event.pull_request.base.repo.full_name }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
-          git remote add base https://github.com/${{ github.event.pull_request.base.repo.full_name }}.git 2>/dev/null || true
-          git fetch base ${{ github.event.pull_request.base.ref }} 2>/dev/null || true
+          git remote add base "https://github.com/${BASE_REPO}.git" 2>/dev/null || true
+          git fetch base "${BASE_REF}" 2>/dev/null || true
 
       - name: Find plugin and parse build config
         id: find
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          CHANGED=$(git diff --name-only base/${{ github.event.pull_request.base.ref }}...${{ github.event.pull_request.head.sha }} -- 'skills/' | head -100)
+          CHANGED=$(git diff --name-only "base/${BASE_REF}...${HEAD_SHA}" -- 'skills/' | head -100)
           PLUGIN_NAME=$(echo "$CHANGED" | head -1 | cut -d'/' -f2)
 
           # Validate plugin name (prevent injection via malicious folder names)
@@ -580,6 +590,7 @@ jobs:
     name: Build report
     needs: [collect, build-rust, build-go, build-typescript, build-node, build-python]
     if: always() && needs.collect.outputs.has_build == 'true'
+    environment: plugin-review
     runs-on: ubuntu-latest
     permissions:
       contents: read

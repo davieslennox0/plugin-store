@@ -47,11 +47,15 @@ jobs:
 
         - name: Block .github modifications from forks
           id: check
+          env:
+            BASE_REPO: ${{ github.event.pull_request.base.repo.full_name }}
+            BASE_REF: ${{ github.event.pull_request.base.ref }}
+            HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           run: |
-            git remote add base https://github.com/${{ github.event.pull_request.base.repo.full_name }}.git 2>/dev/null || true
-            git fetch base ${{ github.event.pull_request.base.ref }} 2>/dev/null || true
+            git remote add base "https://github.com/${BASE_REPO}.git" 2>/dev/null || true
+            git fetch base "${BASE_REF}" 2>/dev/null || true
             echo "Checking PR for .github/ modifications..."
-            CHANGES=$(git diff --name-only base/${{ github.event.pull_request.base.ref }}...${{ github.event.pull_request.head.sha }} | grep "^\.github/" || true)
+            CHANGES=$(git diff --name-only "base/${BASE_REF}...${HEAD_SHA}" | grep "^\.github/" || true)
             if [ -n "$CHANGES" ]; then
               echo "::error::Fork PRs cannot modify .github/ files:"
               echo "$CHANGES"
@@ -83,14 +87,20 @@ jobs:
           fetch-depth: 0
 
       - name: Fetch base branch for diff
+        env:
+          BASE_REPO: ${{ github.event.pull_request.base.repo.full_name }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
-          git remote add base https://github.com/${{ github.event.pull_request.base.repo.full_name }}.git 2>/dev/null || true
-          git fetch base ${{ github.event.pull_request.base.ref }} 2>/dev/null || true
+          git remote add base "https://github.com/${BASE_REPO}.git" 2>/dev/null || true
+          git fetch base "${BASE_REF}" 2>/dev/null || true
 
       - name: Find changed plugin directory
         id: find
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          CHANGED=$(git diff --name-only base/${{ github.event.pull_request.base.ref }}...${{ github.event.pull_request.head.sha }} -- 'skills/' | head -100)
+          CHANGED=$(git diff --name-only "base/${BASE_REF}...${HEAD_SHA}" -- 'skills/' | head -100)
 
           if [ -z "$CHANGED" ]; then
             echo "No changes in skills/"
@@ -119,8 +129,11 @@ jobs:
           echo "Plugin: ${PLUGIN_NAME} (dir: ${PLUGIN_DIR})"
 
       - name: Verify PR only modifies one plugin
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          CHANGED=$(git diff --name-only base/${{ github.event.pull_request.base.ref }}...${{ github.event.pull_request.head.sha }} -- 'skills/')
+          CHANGED=$(git diff --name-only "base/${BASE_REF}...${HEAD_SHA}" -- 'skills/')
           DIRS=$(echo "$CHANGED" | cut -d'/' -f2 | sort -u)
           COUNT=$(echo "$DIRS" | wc -l | tr -d ' ')
 
@@ -130,8 +143,11 @@ jobs:
           fi
 
       - name: Verify PR does not modify files outside skills/
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          OUTSIDE=$(git diff --name-only base/${{ github.event.pull_request.base.ref }}...${{ github.event.pull_request.head.sha }} | grep -v '^skills/' || true)
+          OUTSIDE=$(git diff --name-only "base/${BASE_REF}...${HEAD_SHA}" | grep -v '^skills/' || true)
           if [ -n "$OUTSIDE" ]; then
             echo "::error::PR modifies files outside skills/: ${OUTSIDE}."
             exit 1
@@ -157,6 +173,7 @@ jobs:
   lint:
     name: Structure validation
     needs: collect
+    environment: plugin-review
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -304,11 +321,12 @@ jobs:
         env:
           IS_NEW: ${{ needs.collect.outputs.is_new }}
           LINT_EXIT_CODE: ${{ steps.lint.outputs.exit_code }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         with:
           script: |
             const isNew = process.env.IS_NEW === 'true';
             const passed = process.env.LINT_EXIT_CODE === '0';
-            const prNumber = ${{ github.event.pull_request.number }};
+            const prNumber = parseInt(process.env.PR_NUMBER, 10);
 
             const typeLabel = isNew ? 'new-plugin' : 'plugin-update';
             try {
@@ -350,13 +368,14 @@ jobs:
         env:
           LINT_OUTPUT: ${{ steps.lint.outputs.lint_output }}
           LINT_EXIT_CODE: ${{ steps.lint.outputs.exit_code }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         with:
           script: |
             const output = (process.env.LINT_OUTPUT || '').replace(/`/g, '\\`');
             const passed = process.env.LINT_EXIT_CODE === '0';
             const icon = passed ? '✅' : '❌';
             const status = passed ? 'PASSED' : 'FAILED';
-            const prNumber = ${{ github.event.pull_request.number }};
+            const prNumber = parseInt(process.env.PR_NUMBER, 10);
 
             const body = `## ${icon} Phase 1: Structure Validation — ${status}\n\n\`\`\`\n${output}\n\`\`\`\n\n${passed ? '→ Proceeding to Phase 2: Build Verification' : '→ Please fix the errors above and push again.'}`;
 

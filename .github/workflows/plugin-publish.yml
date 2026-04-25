@@ -468,6 +468,20 @@ jobs:
             # NOT from plugin.yaml on disk (which could be from a newer commit)
             VERSION=$(echo "$PLUGIN" | jq -r '.version')
 
+            # ── Runtime safety re-check (defence in depth) ──
+            # Phase 1 lint already enforces these formats (E030/E035/E126),
+            # but we re-check here so a direct push to main that skipped
+            # lint cannot inject shell metacharacters via these values.
+            if ! echo "$NAME" | grep -qE '^[a-z0-9][a-z0-9-]*[a-z0-9]$'; then
+              echo "::error::Refusing to publish: NAME='$NAME' has invalid format"; continue
+            fi
+            if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+              echo "::error::Refusing to publish: VERSION='$VERSION' is not semver"; continue
+            fi
+            if ! echo "$BIN" | grep -qE '^[a-zA-Z0-9][a-zA-Z0-9_-]{0,62}$'; then
+              echo "::error::Refusing to publish: BIN='$BIN' has invalid format"; continue
+            fi
+
             YAML_FILE="${REPO_ROOT}/skills/${NAME}/plugin.yaml"
             if [ ! -f "$YAML_FILE" ]; then
               echo "::warning::$YAML_FILE not found, skipping release for $NAME"
@@ -502,6 +516,13 @@ jobs:
               AUTHOR=$(yq '.author.name // "Community"' "$YAML_FILE" 2>/dev/null || echo "Community")
               AUTHOR_GH=$(yq '.author.github // ""' "$YAML_FILE" 2>/dev/null || echo "")
               DESC=$(yq '.description // ""' "$YAML_FILE" 2>/dev/null || echo "")
+              # Defence-in-depth: strip any character that could break shell
+              # interpretation inside double-quoted "..."  ($ ` " \ \n \r).
+              # Phase 1 lint (E011/E022) already rejects these, but a direct-
+              # push bypass would otherwise reach the printf below.
+              AUTHOR=$(printf '%s' "$AUTHOR" | tr -d '`$"\\\n\r')
+              AUTHOR_GH=$(printf '%s' "$AUTHOR_GH" | tr -d '`$"\\\n\r')
+              DESC=$(printf '%s' "$DESC" | tr -d '`$"\\\n\r')
               LANG=$(echo "$PLUGIN" | jq -r '.lang // "unknown"')
               PLATFORM_COUNT=$(ls ${BIN}-* 2>/dev/null | wc -l | tr -d ' ')
 
@@ -608,6 +629,7 @@ jobs:
     name: Publish
     needs: [detect, create-release]
     if: always() && needs.detect.outputs.has_changes == 'true'
+    environment: production
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
