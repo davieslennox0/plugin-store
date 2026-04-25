@@ -10,6 +10,8 @@ on:
   # schedule:
   #   - cron: '*/15 * * * *'  # Every 15 minutes
 
+permissions: read-all   # B2.1: top-level read-only; per-job overrides for write
+
 jobs:
   sync:
     runs-on: ubuntu-latest

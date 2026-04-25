@@ -13,6 +13,8 @@ on:
   # pull_request_target:
   #   types: [closed]
 
+permissions: read-all   # B2.1: top-level read-only; per-job overrides for write
+
 jobs:
   cancel:
     runs-on: ubuntu-latest
