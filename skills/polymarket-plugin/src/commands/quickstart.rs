@@ -3,7 +3,7 @@ use reqwest::Client;
 
 use crate::api::{check_clob_access, get_positions, Position};
 use crate::config::load_credentials;
-use crate::onchainos::{get_pol_balance, get_usdc_balance, get_wallet_address};
+use crate::onchainos::{get_existing_proxy, get_pol_balance, get_usdc_balance, get_wallet_address};
 
 const ABOUT: &str = "Polymarket is the largest prediction-market protocol on Polygon — trade YES/NO outcome tokens on real-world events with USDC.e. This skill supports both EOA and Polymarket proxy (gasless) trading modes.";
 
@@ -34,11 +34,18 @@ pub async fn run(args: QuickstartArgs) -> anyhow::Result<()> {
         &eoa[..std::cmp::min(10, eoa.len())]
     );
 
-    // 2. Read local creds — proxy_wallet is Some(addr) after `setup-proxy` has run
-    let proxy: Option<String> = load_credentials()
+    // 2. Read local creds — proxy_wallet is Some(addr) after `setup-proxy` has run.
+    //    If creds don't exist (fresh install or new machine), fall back to an on-chain
+    //    lookup so returning users aren't told "no funds" when their proxy is already
+    //    funded. The RPC call is best-effort; failure is silently ignored.
+    let proxy_from_creds: Option<String> = load_credentials()
         .ok()
         .flatten()
         .and_then(|c| c.proxy_wallet);
+    let proxy: Option<String> = match proxy_from_creds {
+        Some(p) => Some(p),
+        None => get_existing_proxy(&eoa).await.unwrap_or(None),
+    };
 
     // 3. Positions belong to the maker wallet — proxy if it exists, else EOA
     let primary_wallet = proxy.clone().unwrap_or_else(|| eoa.clone());

@@ -107,18 +107,54 @@ pub fn extract_tx_hash(result: &Value) -> anyhow::Result<String> {
 
 /// Get the wallet address from `onchainos wallet addresses --chain 137`.
 /// Parses: data.evm[0].address
+///
+/// Returns a specific, actionable error when the onchainos session has expired so
+/// the agent can surface recovery instructions rather than a raw parse error.
 pub async fn get_wallet_address() -> Result<String> {
     let output = tokio::process::Command::new(onchainos_bin())
         .args(["wallet", "addresses", "--chain", CHAIN])
         .output()
         .await?;
+
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let v: Value = serde_json::from_str(&stdout)
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    // Detect session-expiry / not-logged-in conditions from exit code or error text.
+    // onchainos emits these on stdout (as JSON) or stderr when the session lapses.
+    let combined = format!("{}{}", stdout, stderr).to_lowercase();
+    let session_expired = !output.status.success()
+        || combined.contains("session")
+        || combined.contains("not logged")
+        || combined.contains("login required")
+        || combined.contains("unauthenticated")
+        || combined.contains("unauthorized");
+
+    // Try to parse JSON in all cases — onchainos always emits JSON on stdout
+    let parse_result = serde_json::from_str::<Value>(&stdout);
+
+    // Check for explicit ok:false in the JSON response
+    let json_ok = parse_result.as_ref().ok().and_then(|v| v["ok"].as_bool());
+    if json_ok == Some(false) || (parse_result.is_err() && session_expired) {
+        // Surface a specific, actionable message so the agent knows exactly what to do
+        anyhow::bail!(
+            "onchainos session has expired or wallet is not connected. \
+             To recover: open a terminal (or use ! in this chat) and run \
+             `onchainos wallet login your@email.com`, complete the login, then retry. \
+             If you already re-logged in, also run \
+             `rm -f ~/.config/polymarket/creds.json` to clear stale Polymarket credentials."
+        );
+    }
+
+    let v = parse_result
         .map_err(|e| anyhow::anyhow!("wallet addresses parse error: {}\nraw: {}", e, stdout))?;
+
     v["data"]["evm"][0]["address"]
         .as_str()
         .map(|s| s.to_string())
-        .ok_or_else(|| anyhow::anyhow!("Could not determine wallet address from onchainos output"))
+        .ok_or_else(|| anyhow::anyhow!(
+            "onchainos returned no wallet address. \
+             Run `onchainos wallet login your@email.com` to connect a wallet, then retry."
+        ))
 }
 
 /// Pad a hex address to 32 bytes (64 hex chars), no 0x prefix.

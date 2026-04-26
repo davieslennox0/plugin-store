@@ -133,16 +133,42 @@ echo "0.4.6" > "$HOME/.plugin-store/managed/polymarket-plugin"
 
 When a user signals they are **new or just installed** this plugin — e.g. "I just installed polymarket", "how do I get started", "what can I do with this", "help me set up", "I'm new to polymarket" — **do not wait for them to ask specific questions.** Proactively walk them through the Quickstart in order, one step at a time, waiting for confirmation before proceeding to the next:
 
-1. **Check wallet** — run `onchainos wallet addresses --chain 137`. If no address, direct them to connect via `onchainos wallet login`. Also verify `onchainos wallet sign-message --help` works — if missing, run `onchainos upgrade` and re-verify. Do not proceed to trading or suggest workarounds (MetaMask, private key export, manual curl signing) until sign-message is confirmed working.
+1. **Check wallet** — run `onchainos wallet addresses --chain 137`. If no address or session error, direct them to connect via `onchainos wallet login` (see **Session Recovery** below). Also verify `onchainos wallet sign-message --help` works — if missing, run `onchainos upgrade` and re-verify. Do not proceed to trading or suggest workarounds (MetaMask, private key export, manual curl signing) until sign-message is confirmed working.
 2. **Check access** — run `polymarket-plugin check-access`. If `accessible: false`, stop and show the warning. Do not proceed to funding.
-3. **Choose trading mode** — explain the two modes and ask which they prefer:
+3. **Check for existing proxy** — run `polymarket-plugin quickstart`. If `wallet.proxy` is non-null in the output, the user already has a proxy wallet (possibly from a previous setup on another machine). Skip `setup-proxy` and go directly to step 5. Do NOT run `setup-proxy` if a proxy already exists — it is idempotent but wastes POL.
+4. **Choose trading mode** — explain the two modes and ask which they prefer:
    - **EOA mode** (default): trade directly from the onchainos wallet; each buy requires a USDC.e `approve` tx (POL gas, typically < $0.01)
    - **POLY_PROXY mode** (recommended): deploy a proxy wallet once via `polymarket setup-proxy` (one-time ~$0.01 POL), then trade without any gas. USDC.e must be deposited into the proxy via `polymarket-plugin deposit`.
-4. **Check balance** — run `polymarket-plugin balance`. Shows POL and USDC.e for both EOA and proxy wallet (if set up). If insufficient, explain bridging options (OKX Web3 bridge or CEX withdrawal to Polygon). Verify the `usdc_e_contract` field matches `0x2791...a84174` before bridging.
-5. **Find a market** — run `polymarket-plugin list-markets` and offer to help them find something interesting. Ask what topics they care about.
-6. **Place a trade** — once they pick a market, guide them through `buy` or `sell` with explicit confirmation of market, outcome, and amount before executing.
+5. **Check balance** — run `polymarket-plugin balance`. Shows POL and USDC.e for both EOA and proxy wallet (if set up). If insufficient, explain bridging options (OKX Web3 bridge or CEX withdrawal to Polygon). Verify the `usdc_e_contract` field matches `0x2791...a84174` before bridging.
+6. **Find a market** — run `polymarket-plugin list-markets` and offer to help them find something interesting. Ask what topics they care about.
+7. **Place a trade** — once they pick a market, guide them through `buy` or `sell` with explicit confirmation of market, outcome, and amount before executing.
 
 Do not dump all steps at once. Guide conversationally — confirm each step before moving on.
+
+---
+
+## Session Recovery (onchainos session expired)
+
+**Trigger**: any plugin command fails with "session has expired", "not logged in", "Could not determine wallet address", or similar onchainos auth error.
+
+**Root cause**: onchainos sessions expire after inactivity. Polymarket cached credentials (`~/.config/polymarket/creds.json`) become invalid once the underlying onchainos signing key can no longer be used.
+
+**Recovery steps — tell the user exactly this:**
+
+1. Re-authenticate onchainos. In Claude Code you can try running it directly in the chat:
+   ```
+   ! onchainos wallet login your@email.com
+   ```
+   If that command is interactive (requires OTP entry or browser), open a **separate terminal** window and run it there instead. Complete the login before continuing.
+
+2. Clear stale Polymarket credentials so they are re-derived fresh:
+   ```
+   ! rm -f ~/.config/polymarket/creds.json
+   ```
+
+3. Retry the original command. The plugin will automatically re-derive CLOB API credentials using the new onchainos session.
+
+**Do not** suggest retrying the original command before completing both steps — re-login without clearing `creds.json` will still fail with "NOT AUTHORIZED" from the CLOB API.
 
 ---
 
