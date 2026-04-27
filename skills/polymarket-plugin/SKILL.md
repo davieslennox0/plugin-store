@@ -488,6 +488,43 @@ polymarket-plugin list-5m --coin ETH --count 3  # next 3 ETH 5-minute markets
 
 ---
 
+### `get-series` — Resolve Current and Next Slot of a Recurring Series
+
+```
+polymarket-plugin get-series --series <id>
+polymarket-plugin get-series --list
+```
+
+Polymarket runs recurring "Up/Down" markets on a fixed cadence (5min / 15min / 4h) for BTC, ETH, SOL, XRP. Each cadence × asset is a *series*. This command resolves the current and next slot of a given series, so an Agent can quote prices and place a `buy` against either window without manually computing slugs from timestamps.
+
+**Flags:**
+| Flag | Description |
+|------|-------------|
+| `--series` | Series identifier: `btc-5m`, `eth-5m`, `sol-5m`, `xrp-5m`, `btc-15m`, `eth-15m`, `sol-15m`, `xrp-15m`, `btc-4h`, `eth-4h`, `sol-4h`, `xrp-4h`. Required unless `--list` is passed. |
+| `--list` | Print all 12 supported series and exit. |
+
+**Auth required:** No
+
+**Output (per slot):** `slot` (`current` / `next`), `slug`, `condition_id`, `question`, `start`, `end`, `seconds_remaining`, `up_price`, `down_price`, `up_token_id`, `down_token_id`, `liquidity`, `volume_24hr`, `accepting_orders`. Top level also has `session` (NYSE-hours status), `tip` (a ready-to-paste `buy` command), and `trading_hours`.
+
+**Trading hours:** 5min and 15min series trade only during NYSE hours (9:30 AM – 4:00 PM ET, Mon–Fri). 4h series are 24/7. Out-of-hours queries return `accepting_orders: false` and a `next_slot.start` pointing to the next session open.
+
+**Comparison with `list-5m`:**
+- `list-5m` covers 7 coins (BTC/ETH/SOL/XRP/BNB/DOGE/HYPE) for 5-minute markets only, returning the next N windows.
+- `get-series` covers 4 coins across 5min / 15min / 4h cadences, returning exactly current + next.
+
+**Example:**
+```bash
+polymarket-plugin get-series --list
+polymarket-plugin get-series --series btc-5m
+polymarket-plugin get-series --series eth-4h
+
+# Then trade the current slot:
+polymarket-plugin buy --market-id <slug-or-condition-id> --outcome up --amount 1 --order-type FOK
+```
+
+---
+
 ### `list-markets` — Browse Active Prediction Markets
 
 **Trigger phrases (general):** list markets, 列出市场, 有哪些市场, 看看市场, 有什么可以买, browse markets

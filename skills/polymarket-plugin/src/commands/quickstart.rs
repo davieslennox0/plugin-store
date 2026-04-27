@@ -21,6 +21,13 @@ pub struct QuickstartArgs {
 }
 
 pub async fn run(args: QuickstartArgs) -> anyhow::Result<()> {
+    match run_inner(args).await {
+        Ok(()) => Ok(()),
+        Err(e) => { println!("{}", super::error_response(&e, Some("quickstart"), None)); Ok(()) }
+    }
+}
+
+async fn run_inner(args: QuickstartArgs) -> anyhow::Result<()> {
     let client = Client::new();
 
     // 1. Resolve EOA wallet (fails fast if onchainos CLI is not logged in)
@@ -44,7 +51,12 @@ pub async fn run(args: QuickstartArgs) -> anyhow::Result<()> {
         .and_then(|c| c.proxy_wallet);
     let proxy: Option<String> = match proxy_from_creds {
         Some(p) => Some(p),
-        None => get_existing_proxy(&eoa).await.unwrap_or(None),
+        // Only treat the on-chain probe result as a proxy if it's actually deployed —
+        // the trace can produce the deterministic CREATE2 address for un-deployed
+        // proxies too, which would mislead the status message into showing a fake proxy.
+        None => get_existing_proxy(&eoa).await.ok().flatten()
+            .filter(|(_, exists)| *exists)
+            .map(|(addr, _)| addr),
     };
 
     // 3. Positions belong to the maker wallet — proxy if it exists, else EOA
