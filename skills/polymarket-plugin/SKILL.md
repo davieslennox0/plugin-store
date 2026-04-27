@@ -1,7 +1,7 @@
 ---
 name: polymarket-plugin
 description: "Trade prediction markets on Polymarket - buy outcome tokens (YES/NO and categorical markets), check positions, list markets, manage orders, redeem winning tokens, and deposit funds on Polygon. Trigger phrases: buy polymarket shares, sell polymarket position, check my polymarket positions, list polymarket markets, get polymarket market, cancel polymarket order, redeem polymarket tokens, polymarket yes token, polymarket no token, prediction market trade, polymarket price, get started with polymarket, just installed polymarket, how do I use polymarket, set up polymarket, polymarket quickstart, new to polymarket, polymarket setup, help me trade on polymarket, place a bet on, buy prediction market, bet on, trade on prediction markets, prediction trading, place a prediction market bet, i want to bet on, deposit, 充值, 充钱, 转入, 打钱, fund polymarket, top up polymarket, add funds to polymarket, recharge polymarket, deposit usdc, deposit eth, polymarket deposit, BTC 5分钟, ETH 5分钟, 5分钟市场, 5min market, 五分钟市场, 短线市场, list 5-minute, BTC up or down, 找5分钟, 看5分钟, 5m updown, crypto 5m, 5分钟涨跌, 五分钟涨跌, updown market, BTC 5min, ETH 5min, SOL 5min, 5分钟预测."
-version: "0.4.11"
+version: "0.5.1"
 author: "skylavis-sky"
 tags:
   - prediction-market
@@ -25,7 +25,7 @@ tags:
 # Check for skill updates (1-hour cache)
 UPDATE_CACHE="$HOME/.plugin-store/update-cache/polymarket-plugin"
 CACHE_MAX=3600
-LOCAL_VER="0.4.11"
+LOCAL_VER="0.5.1"
 DO_CHECK=true
 
 if [ -f "$UPDATE_CACHE" ]; then
@@ -98,7 +98,7 @@ case "${OS}_${ARCH}" in
   mingw*_aarch64|msys*_aarch64|cygwin*_aarch64)  TARGET="aarch64-pc-windows-msvc"; EXT=".exe" ;;
 esac
 mkdir -p ~/.local/bin
-curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/polymarket-plugin@0.4.11/polymarket-plugin-${TARGET}${EXT}" -o ~/.local/bin/.polymarket-plugin-core${EXT}
+curl -fsSL "https://github.com/okx/plugin-store/releases/download/plugins/polymarket-plugin@0.5.1/polymarket-plugin-${TARGET}${EXT}" -o ~/.local/bin/.polymarket-plugin-core${EXT}
 chmod +x ~/.local/bin/.polymarket-plugin-core${EXT}
 
 # Symlink CLI name to universal launcher
@@ -106,7 +106,7 @@ ln -sf "$LAUNCHER" ~/.local/bin/polymarket-plugin
 
 # Register version
 mkdir -p "$HOME/.plugin-store/managed"
-echo "0.4.11" > "$HOME/.plugin-store/managed/polymarket-plugin"
+echo "0.5.1" > "$HOME/.plugin-store/managed/polymarket-plugin"
 ```
 
 
@@ -206,6 +206,16 @@ Polymarket is a prediction market platform on Polygon where users trade outcome 
 2. Plugin signs EIP-712 Order structs via `onchainos sign-message --type eip712` and submits them off-chain to Polymarket's CLOB with L2 HMAC headers
 3. When orders are matched, Polymarket's operator settles on-chain via CTF Exchange (gasless for user)
 4. USDC.e flows from the onchainos wallet (buyer); conditional tokens flow from the onchainos wallet (seller)
+
+**CLOB v2 migration (2026-04-21):** The plugin auto-detects the active CLOB version via `GET /version`. All new orders use v2 EIP-712 signing (domain version `"2"`, new exchange contracts, no `taker`/`nonce`/`feeRateBps` fields). V1 orders placed before the upgrade are visible via `polymarket orders --v1` (separate pre-migration backing store). Cancellation remains API-level (HMAC only) for both V1 and V2 orders.
+
+**pUSD collateral cutover (~2026-04-28):** Polymarket is replacing USDC.e with pUSD (`0xC011...`) as the collateral token for V2 exchange contracts. The plugin handles this automatically: `buy` checks pUSD balance first and auto-wraps USDC.e → pUSD via the Collateral Onramp if needed. Approvals are routed to pUSD for V2 orders. `redeem` uses pUSD as the collateral token for V2 market redemptions. `balance` now displays both USDC.e and pUSD balances.
+
+**What users see at cutover (no action required):**
+- `balance` always reports a `clob_version` field (`V1` / `V2` / `unknown`). Run it any time to confirm which exchange the next trade will hit.
+- After ~2026-04-28 11:00 UTC, the next `buy` / `sell` automatically routes through V2: signs with the new EIP-712 domain, uses pUSD, hits V2 contracts. No URL change, no reinstall.
+- **Existing POLY_PROXY users**: the first V2 trade triggers up to two one-time on-chain transactions on the EOA wallet — USDC.e → pUSD wrap + V2 exchange approve — costing **~0.05 POL** total. Subsequent trades return to gasless. The plugin pre-flights this and bails with a clear message if EOA POL is below 0.05; top up POL on Polygon and retry. Running `polymarket setup-proxy` ahead of time pre-approves the V2 contracts so only the wrap remains lazy.
+- If the `GET /version` probe fails (rare; possible during the cutover hour), `buy` / `sell` / `redeem` bail with a retry hint instead of silently routing to V1. Wait a few seconds and retry — do not re-broadcast in a tight loop.
 
 ---
 
@@ -309,7 +319,7 @@ The first `buy` or `sell` automatically derives your Polymarket API credentials 
 polymarket-plugin --version
 ```
 
-Expected: `polymarket-plugin 0.4.10`. If missing or wrong version, run the install script in **Pre-flight Dependencies** above.
+Expected: `polymarket-plugin 0.5.1`. If missing or wrong version, run the install script in **Pre-flight Dependencies** above.
 
 ### Step 2 — Install `onchainos` CLI (required for buy/sell/cancel/redeem only)
 
@@ -363,13 +373,20 @@ Shows both EOA and proxy wallet balances. EOA mode → check `eoa_wallet.usdc_e`
 | `get-market` | No | Get market details and order book |
 | `get-positions` | No | View open positions |
 | `balance` | No | Show POL and USDC.e balances (EOA + proxy wallet) |
+| `get-series` | No | Get current/next slot for a recurring series market |
+| `list-5m` | No | List upcoming 5-minute crypto Up/Down markets |
 | `buy` | Yes | Buy YES/NO outcome shares |
 | `sell` | Yes | Sell outcome shares |
 | `cancel` | Yes | Cancel an open order |
+| `orders` | Yes | List open orders for the authenticated user |
+| `watch` | Yes | Watch live trade activity for a market (polls every N seconds) |
+| `rfq` | Yes | Request a block-trade quote from a market maker (RFQ) |
 | `redeem` | Yes | Redeem winning tokens after market resolves |
 | `setup-proxy` | Yes | Deploy proxy wallet for gasless trading (one-time) |
 | `deposit` | Yes | Transfer USDC.e from EOA to proxy wallet |
+| `withdraw` | Yes | Transfer USDC.e from proxy wallet back to EOA |
 | `switch-mode` | Yes | Switch default trading mode (eoa / proxy) |
+| `create-readonly-key` | Yes | Create a read-only Polymarket API key |
 
 ---
 
@@ -543,7 +560,9 @@ polymarket-plugin get-market --market-id 0xabc123...
 
 ### `balance` — View Wallet Balances
 
-Show POL and USDC.e balances for the EOA wallet and proxy wallet (if initialized).
+Show POL, USDC.e, and pUSD balances for the EOA wallet and proxy wallet (if initialized).
+
+> **pUSD note**: pUSD is the V2 collateral token replacing USDC.e (~2026-04-28). The `buy` command auto-wraps USDC.e → pUSD when needed.
 
 ```
 polymarket-plugin balance
@@ -552,10 +571,11 @@ polymarket-plugin balance
 **Auth required:** No (reads on-chain via Polygon RPC)
 
 **Output fields:**
-- `eoa_wallet`: `address`, `pol`, `usdc_e`, `usdc_e_contract`
-- `proxy_wallet` (only shown if proxy wallet is initialized): `address`, `pol`, `usdc_e`, `usdc_e_contract`
+- `clob_version`: `"V1"`, `"V2"`, or `"unknown"` — which exchange the next trade will hit. `unknown` means the `/version` probe failed (likely transient; retry).
+- `eoa_wallet`: `address`, `pol`, `usdc_e`, `usdc_e_contract`, `pusd`, `pusd_contract`, `pusd_note`
+- `proxy_wallet` (only shown if proxy wallet is initialized): `address`, `pol`, `usdc_e`, `usdc_e_contract`, `pusd`, `pusd_contract`
 
-`usdc_e_contract` is shown in truncated format (`0x2791...a84174`) — verify it matches before bridging funds.
+`usdc_e_contract` and `pusd_contract` are shown in truncated format (`0x2791...a84174`) — verify they match before bridging funds.
 
 **Example:**
 ```bash
@@ -606,23 +626,26 @@ polymarket-plugin buy --market-id <id> --outcome <outcome> --amount <usdc> [--pr
 | `--outcome` | outcome label, case-insensitive (e.g. `yes`, `no`, `trump`, `republican`) | required |
 | `--amount` | USDC.e to spend, e.g. `100` = $100.00 | required |
 | `--price` | Limit price in (0, 1), representing **probability** (e.g. `0.65` = "65% chance this outcome occurs = $0.65 per share"). Omit for market order (FOK). | — |
-| `--order-type` | `GTC` (resting limit) or `FOK` (fill-or-kill) | `GTC` |
+| `--order-type` | `GTC` (resting limit), `FOK` (fill-or-kill), `GTD` (good-till-date), or `FAK` (fill-and-kill: fills as much as possible, cancels remainder) | `GTC` |
 | `--approve` | Force USDC.e approval before placing | false |
 | `--dry-run` | Simulate without submitting the order or triggering any on-chain approval. Prints a confirmation JSON with resolved parameters and exits. | false |
 | `--round-up` | If amount is too small for divisibility constraints, snap up to the minimum valid amount rather than erroring. Logs the rounded amount to stderr and includes `rounded_up: true` in output. | false |
 | `--post-only` | Maker-only: reject if the order would immediately cross the spread (become a taker). Requires `--order-type GTC`. Qualifies for Polymarket maker rebates (up to 50% of fees returned daily). Incompatible with `--order-type FOK`. | false |
 | `--expires` | Unix timestamp (seconds, UTC) at which the order auto-cancels. Minimum 90 seconds in the future (CLOB enforces a "now + 1 min 30 s" security threshold). Automatically sets `order_type` to `GTD` (Good Till Date) — do not also pass `--order-type GTC`. Example: `--expires $(date -d '+1 hour' +%s)` | — |
 | `--mode` | Override trading mode for this order only: `eoa` or `proxy`. Does not change the stored default. | — |
+| `--token-id` | Skip market lookup — use a known token ID directly (from `get-series` or `get-market` output). `--market-id` is optional when this is provided. | — |
 | `--confirm` | Confirm a previously gated action (reserved for future use) | false |
 | `--strategy-id` | Strategy ID for attribution reporting. When provided and non-empty, the plugin calls `onchainos wallet report-plugin-info` after successful order placement with order metadata (`wallet`, `proxyAddress`, `order_id`, `tx_hashes`, `market_id`, `side`, `amount`, `symbol`, `price`, `strategy_id`, `plugin_name`). `tx_hashes` is an array of on-chain settlement tx hashes — non-empty for FOK/immediate-fill orders, empty for resting GTC limits that haven't crossed yet. Omit or pass `""` to skip reporting. Failures are logged to stderr and do not affect the order result. | — |
 
 **Auth required:** Yes — onchainos wallet; EIP-712 order signing via `onchainos sign-message --type eip712`
 
-**On-chain ops (EOA mode only):** If USDC.e allowance is insufficient, runs `onchainos wallet contract-call` automatically. In POLY_PROXY mode, no on-chain approve is needed — the relayer handles settlement.
+**On-chain ops (EOA mode only):** If collateral allowance is insufficient, runs `onchainos wallet contract-call` automatically. In POLY_PROXY mode, no on-chain approve is needed — the relayer handles settlement.
 
-> ⚠️ **Approval notice**: Before each buy, the plugin checks the current USDC.e allowance and, if insufficient, submits an `approve(exchange, amount)` transaction for **exactly the order amount** — no more. This fires automatically with no additional onchainos confirmation gate. **Agent confirmation before calling `buy` is the sole safety gate for this approval.**
+> ⚠️ **Approval notice**: Before each buy, the plugin checks the collateral allowance (pUSD for V2, USDC.e for V1) and, if insufficient, submits an `approve(exchange, amount)` transaction for **exactly the order amount** — no more. For V2 orders, if pUSD balance is insufficient but USDC.e is sufficient, the plugin first **auto-wraps** USDC.e → pUSD via the Collateral Onramp (approve + wrap, two txs). All of this fires automatically. **Agent confirmation before calling `buy` is the sole safety gate.**
+>
+> ⚠️ **V2 first-trade gas (EOA mode)**: The Polymarket V2 cutover (≈ 2026-04-28) requires new on-chain approvals to V2 exchange contracts. On the first V2 buy in **EOA mode**, the plugin will submit up to 3 approval txs (pUSD → CTF_EXCHANGE_V2, NEG_RISK_CTF_EXCHANGE_V2, NEG_RISK_ADAPTER) plus the wrap tx if USDC.e needs converting — each costs a small amount of POL gas. **Keep ~0.05 POL in your EOA wallet before the first V2 trade.** Subsequent trades are gas-free for approvals (idempotency check skips already-granted allowances). In POLY_PROXY mode, all V2 approvals are handled once during `setup-proxy`.
 
-**Amount encoding:** USDC.e amounts are 6-decimal. Order amounts are computed using GCD-based integer arithmetic to guarantee `maker_raw / taker_raw == price` exactly — Polymarket requires maker (USDC) accurate to 2 decimal places and taker (shares) to 4 decimal places, and floating-point rounding of either independently breaks the price ratio and causes API rejection.
+**Amount encoding:** Collateral amounts (USDC.e / pUSD) are 6-decimal. Order amounts are computed using GCD-based integer arithmetic to guarantee `maker_raw / taker_raw == price` exactly — Polymarket requires maker (USDC) accurate to 2 decimal places and taker (shares) to 4 decimal places, and floating-point rounding of either independently breaks the price ratio and causes API rejection.
 
 > ⚠️ **Minimum order size enforcement**: There are up to three independent minimums that can reject a small order. The plugin pre-validates the first two and surfaces clear errors with the required minimums — **never auto-escalate a user's order amount without explicit confirmation**.
 >
@@ -666,12 +689,13 @@ polymarket-plugin sell --market-id <id> --outcome <outcome> --shares <amount> [-
 | `--outcome` | outcome label, case-insensitive (e.g. `yes`, `no`, `trump`, `republican`) | required |
 | `--shares` | Number of shares to sell, e.g. `250.5` | required |
 | `--price` | Limit price in (0, 1). Omit for market order (FOK) | — |
-| `--order-type` | `GTC` (resting limit) or `FOK` (fill-or-kill) | `GTC` |
+| `--order-type` | `GTC` (resting limit), `FOK` (fill-or-kill), `GTD` (good-till-date), or `FAK` (fill-and-kill) | `GTC` |
 | `--approve` | Force CTF token approval before placing | false |
 | `--post-only` | Maker-only: reject if the order would immediately cross the spread. Requires `--order-type GTC`. Qualifies for maker rebates. Incompatible with `--order-type FOK`. | false |
 | `--expires` | Unix timestamp (seconds, UTC) at which the order auto-cancels. Minimum 90 seconds in the future. Auto-sets `order_type` to `GTD`. | — |
 | `--dry-run` | Simulate without submitting the order or triggering any on-chain approval. Prints a confirmation JSON and exits. Use to verify parameters before a real sell. | false |
 | `--mode` | Override trading mode for this order only: `eoa` or `proxy`. Does not change the stored default. | — |
+| `--token-id` | Skip market lookup — use a known token ID directly. `--market-id` is optional when this is provided. | — |
 | `--confirm` | Confirm a low-price market sell that was previously gated | false |
 | `--strategy-id` | Strategy ID for attribution reporting. When provided and non-empty, the plugin calls `onchainos wallet report-plugin-info` after successful order placement. Omit or pass `""` to skip reporting. Failures are logged to stderr and do not affect the order result. | — |
 
@@ -772,9 +796,135 @@ polymarket cancel --all
 
 ---
 
+### `orders` — List Open Orders
+
+```
+polymarket orders [--state <OPEN|MATCHED|DELAYED|UNMATCHED>] [--v1]
+```
+
+**Flags:**
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--state` | Filter by order state: `OPEN`, `MATCHED`, `DELAYED`, `UNMATCHED` | `OPEN` |
+| `--v1` | Also include V1-signed orders placed before the CLOB v2 upgrade (2026-04-21). Queries both the live order book and the pre-migration orders endpoint, deduplicates by order ID. | false |
+
+**Auth required:** Yes — onchainos wallet; HMAC L2 credentials
+
+**Output fields per order:** `order_id`, `version` (`V1` or `V2`), `status`, `outcome`, `side`, `price`, `original_size`, `size_matched`, `size_remaining`, `created_at`
+
+> **POLY_PROXY mode limitation**: `polymarket orders` queries the CLOB `/data/orders` endpoint which returns orders for the authenticated EOA address. In POLY_PROXY mode, orders are placed with the proxy wallet as maker — the proxy wallet does not have independent API credentials, so its orders are not returned. Verify proxy wallet orders at polymarket.com or via the public order book snapshot in `polymarket get-market`.
+
+**Migration note:** When the CLOB upgraded to v2, existing V1-signed orders were migrated to a separate backing store. Use `--v1` during the transition period (April–May 2026) to see orders placed before the upgrade. After the migration window closes, V1 orders will no longer be visible.
+
+**Heartbeat note:** GTC orders placed via REST are persistent — no heartbeat required. Heartbeats (`POST /v1/heartbeats`) only affect WebSocket-connected sessions. REST-placed orders remain in the book until filled, cancelled, or expired (GTD).
+
+**Example:**
+```bash
+polymarket orders                   # open V2 orders (current)
+polymarket orders --state MATCHED   # matched orders
+polymarket orders --v1              # include pre-migration V1 orders
+```
+
+---
+
+### `watch` — Watch Live Trade Activity
+
+Monitor a market's live trade feed, polling every `--interval` seconds. Prints new trades as JSON lines. Runs until Ctrl+C.
+
+```
+polymarket watch --market-id <id> [--interval <seconds>] [--limit <n>]
+```
+
+**Flags:**
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--market-id` | Market condition_id (0x-prefixed) or slug | required |
+| `--interval` | Poll interval in seconds (minimum 2) | `5` |
+| `--limit` | Max events to fetch per poll | `10` |
+
+**Auth required:** No (public live-activity endpoint)
+
+**Output:** JSON lines, one per trade event: `timestamp`, `side`, `outcome`, `price`, `size`, `tx_hash`
+
+**Behavior:** Tracks a high-water timestamp — events already seen are not reprinted. New events are printed in chronological order (oldest first within each poll).
+
+**Example:**
+```bash
+polymarket watch --market-id will-btc-hit-100k-by-2025
+polymarket watch --market-id 0xabc... --interval 10 --limit 20
+```
+
+---
+
+### `rfq` — Request-for-Quote (Block Trade)
+
+Request a firm price quote from a Polymarket market maker for a large block trade. Designed for orders where standard CLOB liquidity may be insufficient.
+
+```
+polymarket rfq --market-id <id> --outcome <outcome> --amount <usdc> [--confirm] [--dry-run]
+```
+
+**Flags:**
+| Flag | Description |
+|------|-------------|
+| `--market-id` | Market condition_id (0x-prefixed) or slug |
+| `--outcome` | Outcome to buy: `yes` or `no` |
+| `--amount` | USDC.e amount (e.g. `5000` = $5,000) |
+| `--confirm` | Accept the quoted price and execute the block trade |
+| `--dry-run` | Preview without requesting a quote |
+
+**Auth required:** Yes (for `--confirm` step; quote request itself is authenticated)
+
+**Flow (two-step):**
+1. Run **without** `--confirm` → sends `POST /rfq/request`, fetches the quote, displays `quote_id`, `price`, `amount_usdc`, `maker`, `expires_at`. No order is placed yet.
+2. Run **with** `--confirm` using the same parameters → re-fetches the quote, signs a V2 EIP-712 order at the quoted price, submits `POST /rfq/confirm` to execute the trade.
+
+**When to use:**
+- Order size > $5,000 where the CLOB book has thin depth
+- User explicitly asks for a block trade or RFQ
+
+**Output (without `--confirm`):** `quote_id`, `status`, `price`, `amount_usdc`, `maker`, `expires_at`
+**Output (with `--confirm`):** `quote_id`, `condition_id`, `outcome`, `price`, `usdc_amount`, `result`
+
+**Example:**
+```bash
+# Step 1: request a quote
+polymarket rfq --market-id will-btc-hit-100k-by-2025 --outcome yes --amount 10000
+
+# Step 2: accept the quote
+polymarket rfq --market-id will-btc-hit-100k-by-2025 --outcome yes --amount 10000 --confirm
+```
+
+---
+
+### `create-readonly-key` — Create a Read-Only API Key
+
+Create a read-only Polymarket CLOB API key for monitoring scripts and dashboards.
+
+```
+polymarket create-readonly-key
+```
+
+**Auth required:** Yes — onchainos wallet (L1 ClobAuth for key derivation)
+
+**Output fields:** `api_key`, `secret`, `passphrase`, `wallet`, `note`
+
+**Key properties:**
+- Accepts all `GET` operations (read order book, positions, orders)
+- CLOB server rejects any write operations (order placement, cancellation, etc.)
+- **Not saved to `~/.config/polymarket-plugin/creds.json`** — printed once to stdout; store it securely
+- Useful for monitoring pipelines, dashboards, or CI checks that need market data without trading access
+
+**Example:**
+```bash
+polymarket create-readonly-key
+```
+
+---
+
 ### `redeem` — Redeem Winning Outcome Tokens
 
-After a market resolves, the winning side's tokens can be redeemed for USDC.e at a 1:1 rate. The binary queries the Data API to find which wallet (EOA or proxy) holds the winning tokens, pre-flights each call via `eth_call` to catch reverts before broadcast, and waits for on-chain confirmation (up to 45s per tx). Batch mode also checks EOA POL balance up front so insufficient gas fails fast instead of timing out mid-batch.
+After a market resolves, the winning side's tokens can be redeemed for collateral (pUSD for V2 markets, USDC.e for V1) at a 1:1 rate. The binary automatically detects which wallet (EOA or proxy) holds the winning tokens by querying the Data API, detects the CLOB version to determine the correct collateral token, then calls the correct redemption path for each wallet. Each tx is confirmed on-chain before returning. No manual mode selection needed.
 
 ```
 polymarket redeem --market-id <condition_id_or_slug>
@@ -841,7 +991,7 @@ polymarket redeem --market-id will-trump-win-2024
 
 ### `setup-proxy` — Create a Proxy Wallet (Gasless Trading)
 
-Deploy a Polymarket proxy wallet and switch to POLY_PROXY mode. One-time POL gas cost; all subsequent trading is relayer-paid (no POL needed per order).
+Deploy a Polymarket proxy wallet and switch to POLY_PROXY mode. One-time POL gas cost; all subsequent trading is relayer-paid (no POL needed per order). Also sets up the V2 pUSD approvals required post-2026-04-28 cutover (idempotent — safe to re-run).
 
 ```
 polymarket setup-proxy [--dry-run]
@@ -925,7 +1075,7 @@ polymarket-plugin deposit --amount 100 --dry-run                   # preview wit
 
 ### `withdraw` — Withdraw from Proxy Wallet
 
-Transfer USDC.e from the proxy wallet back to the EOA wallet. Only applicable in POLY_PROXY mode.
+Transfer collateral from the proxy wallet back to the EOA wallet. Only applicable in POLY_PROXY mode. Auto-detects whether the proxy holds pUSD (V2) or USDC.e (V1) and withdraws whichever covers the requested amount — pUSD takes priority.
 
 ```
 polymarket withdraw --amount <usdc> [--dry-run]
@@ -934,7 +1084,7 @@ polymarket withdraw --amount <usdc> [--dry-run]
 **Flags:**
 | Flag | Description |
 |------|-------------|
-| `--amount` | USDC.e amount to withdraw, e.g. `50` = $50.00 | required |
+| `--amount` | Amount to withdraw (pUSD or USDC.e), e.g. `50` = $50.00 | required |
 | `--dry-run` | Preview the withdrawal without submitting |
 
 **Auth required:** Yes — onchainos wallet (signs via proxy factory)
@@ -1019,13 +1169,29 @@ export POLYMARKET_PASSPHRASE=<passphrase>
 
 ## Key Contracts (Polygon, chain 137)
 
+### CLOB v2 Exchange Contracts (active — used for new orders)
+
 | Contract | Address | Purpose |
 |----------|---------|---------|
-| CTF Exchange | `0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E` | Main order matching + settlement |
-| Neg Risk CTF Exchange | `0xC5d563A36AE78145C45a50134d48A1215220f80a` | Multi-outcome (neg_risk) markets |
+| CTF Exchange v2 | `0xE111180000d2663C0091e4f400237545B87B996B` | Main order matching + settlement (CLOB v2) |
+| Neg Risk CTF Exchange v2 | `0xe2222d279d744050d28e00520010520000310F59` | Multi-outcome (neg_risk) markets (CLOB v2) |
+
+### Legacy v1 Contracts (retained for existing approvals and pre-migration orders)
+
+| Contract | Address | Purpose |
+|----------|---------|---------|
+| CTF Exchange v1 | `0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E` | Main order matching + settlement (CLOB v1) |
+| Neg Risk CTF Exchange v1 | `0xC5d563A36AE78145C45a50134d48A1215220f80a` | Multi-outcome (neg_risk) markets (CLOB v1) |
 | Neg Risk Adapter | `0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296` | Adapter for negative risk markets |
+
+### Shared Contracts
+
+| Contract | Address | Purpose |
+|----------|---------|---------|
 | Conditional Tokens (CTF) | `0x4D97DCd97eC945f40cF65F87097ACe5EA0476045` | ERC-1155 YES/NO outcome tokens |
-| USDC.e (collateral) | `0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174` | Bridged USDC collateral token |
+| USDC.e (V1 collateral) | `0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174` | Bridged USDC — V1 collateral; V2 orders use pUSD |
+| pUSD (V2 collateral) | `0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB` | Polymarket USD — collateral for V2 exchange contracts (~2026-04-28) |
+| Collateral Onramp | `0x93070a847efEf7F70739046A929D47a521F5B8ee` | `wrap(USDC_E, to, amount)` wraps USDC.e → pUSD; auto-used by `buy` |
 | Polymarket Proxy Factory | `0xaB45c5A4B0c941a2F231C04C3f49182e1A254052` | Proxy wallet factory |
 | Gnosis Safe Factory | `0xaacfeea03eb1561c4e67d661e40682bd20e3541b` | Gnosis Safe factory |
 | UMA Adapter | `0x6A9D222616C90FcA5754cd1333cFD9b7fb6a4F74` | Oracle resolution adapter |
@@ -1039,6 +1205,7 @@ There are four effective order types. The agent should match user intent to the 
 | Order type | Flags | When to use |
 |------------|-------|-------------|
 | **FOK** (Fill-or-Kill) | *(omit `--price`)* | User wants to trade immediately at the best available price. Fills in full or not at all. |
+| **FAK** (Fill-and-Kill) | `--order-type FAK` + `--price <x>` | Like FOK but partial fills are accepted — fills as much as possible at or better than `--price`, cancels the remainder. Useful when the user wants immediate execution without demanding a complete fill. |
 | **GTC** (Good Till Cancelled) | `--price <x>` | User sets a limit price and is happy to wait indefinitely for a fill. Default for limit orders. |
 | **POST_ONLY** (Maker-only GTC) | `--price <x> --post-only` | User wants guaranteed maker status on a resting limit. Qualifies for Polymarket maker rebates (up to 50% of fees returned daily). |
 | **GTD** (Good Till Date) | `--price <x> --expires <unix_ts>` | User wants a resting limit that auto-cancels at a specific time. |
@@ -1113,8 +1280,14 @@ User wants to trade:
 | Cancel a specific order | `polymarket cancel --order-id <0x...>` |
 | Cancel all orders for market | `polymarket cancel --market <condition_id>` |
 | Cancel all open orders | `polymarket cancel --all` |
+| List open orders | `polymarket orders` |
+| List all orders including pre-migration V1 | `polymarket orders --v1` |
+| Watch live trade feed for a market | `polymarket watch --market-id <id>` |
+| Request a block-trade quote (RFQ) | `polymarket rfq --market-id <id> --outcome yes --amount 5000` |
+| Accept an RFQ quote and execute the trade | `polymarket rfq --market-id <id> --outcome yes --amount 5000 --confirm` |
 | Redeem all redeemable positions at once | `polymarket redeem --all` |
 | Redeem a specific market | `polymarket redeem --market-id <slug_or_condition_id>` |
+| Create a read-only monitoring API key | `polymarket create-readonly-key` |
 
 ---
 
@@ -1122,7 +1295,7 @@ User wants to trade:
 
 Some markets (multi-outcome events) use `neg_risk: true`. For these:
 - The **Neg Risk CTF Exchange** (`0xC5d563A36AE78145C45a50134d48A1215220f80a`) and **Neg Risk Adapter** (`0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296`) are both used
-- On `buy`: the CLOB checks USDC.e allowance on both contracts — the plugin approves both when allowance is insufficient
+- On `buy`: the CLOB checks collateral (pUSD for V2, USDC.e for V1) allowance on both contracts — the plugin approves both when allowance is insufficient
 - On `sell`: the CLOB checks `setApprovalForAll` on both contracts — the plugin approves both via `approve_ctf(neg_risk=true)` if either is missing
 - The plugin handles all of this automatically based on the `neg_risk` field returned by market lookup APIs
 - Token IDs and prices function identically from the user's perspective
@@ -1139,10 +1312,10 @@ Some markets (multi-outcome events) use `neg_risk: true`. For these:
 | Economics / Culture | ~5% |
 | Geopolitics | 0% |
 
-Fees are deducted by the exchange from the received amount. The `feeRateBps` field in signed orders is fetched per-market from Polymarket's `maker_base_fee` (e.g. 1000 bps = 10% for some sports markets). The plugin handles this automatically.
+Fees are deducted by the exchange from the received amount. In CLOB v2, `feeRateBps` is no longer embedded in the signed order struct — fees are applied server-side by the exchange. The plugin fetches `maker_base_fee` from the market API for display purposes only.
 
 ---
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for full version history. Current version: **0.4.11** (2026-04-22).
+See [CHANGELOG.md](CHANGELOG.md) for full version history. Current version: **0.5.1** (2026-04-20).

@@ -66,6 +66,7 @@ async fn report_redeem(
     }
 }
 
+
 /// Resolve (condition_id, neg_risk, question) from a market_id (condition_id or slug).
 async fn resolve_market(client: &Client, market_id: &str) -> Result<(String, bool, String)> {
     if market_id.starts_with("0x") {
@@ -127,9 +128,9 @@ async fn check_redeemability(
 /// Never falls back — if Data API shows no redeemable positions on either
 /// wallet, returns an error (caller should surface NO_REDEEMABLE_POSITIONS).
 ///
-/// For neg_risk markets, `token_ids` must be provided (YES token first, then NO).
-/// These are the decimal-string token IDs from the CLOB market, used to query
-/// on-chain ERC-1155 balances before calling NegRiskAdapter.redeemPositions.
+/// `collateral_addr`: USDC.e for V1 positions, pUSD for V2 positions.
+///
+/// Returns a JSON Value summarising the result (for use in both single and batch flows).
 async fn redeem_one(
     client: &Client,
     condition_id: &str,
@@ -138,6 +139,7 @@ async fn redeem_one(
     token_ids: &[String],
     eoa_addr: &str,
     proxy_addr: Option<&str>,
+    collateral_addr: &str,
 ) -> Result<serde_json::Value> {
     let cid_hex = condition_id.trim_start_matches("0x");
     let cid_display = format!("0x{}", cid_hex);
@@ -214,6 +216,7 @@ async fn redeem_one(
         out["amounts"] = serde_json::Value::Array(
             amounts.iter().map(|a| serde_json::Value::String(a.to_string())).collect()
         );
+
         out["note"] = serde_json::Value::String(
             "NegRiskAdapter.redeemPositions confirmed. USDC.e transferred to EOA.".into(),
         );
@@ -221,7 +224,7 @@ async fn redeem_one(
         // Standard binary market: call CTF.redeemPositions.
         if r.eoa {
             eprintln!("[polymarket] EOA holds winning tokens — submitting EOA redeemPositions...");
-            let tx = ctf_redeem_positions(condition_id, eoa_addr).await?;
+            let tx = ctf_redeem_positions(condition_id, collateral_addr).await?;
             eprintln!(
                 "[polymarket] EOA redeem tx {} — waiting up to {}s for on-chain confirmation...",
                 tx, REDEEM_WAIT_SECS
@@ -236,7 +239,7 @@ async fn redeem_one(
             eprintln!(
                 "[polymarket] Proxy holds winning tokens — submitting proxy redeemPositions via PROXY_FACTORY..."
             );
-            let tx = ctf_redeem_via_proxy(condition_id, eoa_addr).await?;
+            let tx = ctf_redeem_via_proxy(condition_id, collateral_addr).await?;
             eprintln!(
                 "[polymarket] Proxy redeem tx {} — waiting up to {}s for on-chain confirmation...",
                 tx, REDEEM_WAIT_SECS
@@ -300,6 +303,7 @@ async fn check_pol_budget(eoa_addr: &str, tx_count: usize) -> Result<f64> {
         ));
     }
     Ok(pol)
+
 }
 
 /// Redeem a single market by market_id (condition_id or slug).
@@ -329,6 +333,7 @@ pub async fn run(market_id: &str, dry_run: bool, strategy_id: Option<&str>) -> R
             return Ok(());
         }
     };
+
     let creds = load_credentials().unwrap_or_default();
     let proxy_addr = creds.and_then(|c| c.proxy_wallet);
 
@@ -344,6 +349,7 @@ pub async fn run(market_id: &str, dry_run: bool, strategy_id: Option<&str>) -> R
         } else {
             "CTF.redeemPositions"
         };
+
         println!(
             "{}",
             serde_json::to_string_pretty(&serde_json::json!({
@@ -363,6 +369,7 @@ pub async fn run(market_id: &str, dry_run: bool, strategy_id: Option<&str>) -> R
                     "token_ids": token_ids,
                     "note": "dry-run: will redeem from whichever wallet holds the winning tokens. \
                              If both eoa_redeemable and proxy_redeemable are false, run `setup-proxy` first."
+
                 }
             }))?
         );
@@ -374,7 +381,7 @@ pub async fn run(market_id: &str, dry_run: bool, strategy_id: Option<&str>) -> R
         return Ok(());
     }
 
-    match redeem_one(&client, &condition_id, &question, neg_risk, &token_ids, &eoa_addr, proxy_addr.as_deref()).await {
+    match redeem_one(&client, &condition_id, &question, neg_risk, &token_ids, &eoa_addr, proxy_addr.as_deref(), crate::config::Contracts::USDC_E).await {
         Ok(result) => {
             report_redeem(strategy_id, &eoa_addr, proxy_addr.as_deref(), &condition_id, &result).await;
             println!(
@@ -389,6 +396,7 @@ pub async fn run(market_id: &str, dry_run: bool, strategy_id: Option<&str>) -> R
             println!("{}", super::error_response(&e, Some("redeem"), hint_opt));
         }
     }
+
     Ok(())
 }
 
@@ -402,6 +410,7 @@ pub async fn run_all(dry_run: bool, strategy_id: Option<&str>) -> Result<()> {
             return Ok(());
         }
     };
+
     let creds = load_credentials().unwrap_or_default();
     let proxy_addr = creds.and_then(|c| c.proxy_wallet);
 
@@ -513,11 +522,12 @@ pub async fn run_all(dry_run: bool, strategy_id: Option<&str>) -> Result<()> {
             Ok(m) => (m.neg_risk, m.tokens.into_iter().map(|t| t.token_id).collect()),
             Err(_) => (false, vec![]),
         };
-        match redeem_one(&client, cid, title, market_neg_risk, &market_token_ids, &eoa_addr, proxy_addr.as_deref()).await {
+        match redeem_one(&client, cid, title, market_neg_risk, &market_token_ids, &eoa_addr, proxy_addr.as_deref(), crate::config::Contracts::USDC_E).await {
             Ok(r) => {
                 report_redeem(strategy_id, &eoa_addr, proxy_addr.as_deref(), cid, &r).await;
                 results.push(r);
             }
+
             Err(e) => {
                 eprintln!("[polymarket] Error redeeming {}: {:#}", cid, e);
                 let classified: serde_json::Value = serde_json::from_str(
@@ -544,7 +554,7 @@ pub async fn run_all(dry_run: bool, strategy_id: Option<&str>) -> Result<()> {
                 "error_count": errors.len(),
                 "results": results,
                 "errors": errors,
-                "note": "USDC.e transferred to respective wallet(s) for all confirmed redemptions."
+                "note": "Collateral (pUSD/USDC.e) transferred to respective wallet(s) for all confirmed redemptions."
             }
         }))?
     );

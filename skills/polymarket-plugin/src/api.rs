@@ -267,6 +267,88 @@ pub struct OrderResponse {
     pub tx_hashes: Vec<String>,
 }
 
+/// V2 order body — new field layout, no taker/nonce/feeRateBps; adds timestamp/metadata/builder.
+/// `expiration` is in the outer `OrderRequestV2` wrapper (not in the signed struct).
+#[derive(Debug, Serialize, Deserialize)]
+pub struct OrderBodyV2 {
+    pub salt: u64,
+    pub maker: String,
+    pub signer: String,
+    #[serde(rename = "tokenId")]
+    pub token_id: String,
+    #[serde(rename = "makerAmount")]
+    pub maker_amount: String,
+    #[serde(rename = "takerAmount")]
+    pub taker_amount: String,
+    pub side: String,
+    #[serde(rename = "signatureType")]
+    pub signature_type: u8,
+    /// Millisecond Unix timestamp — part of the EIP-712 signed struct.
+    pub timestamp: String,
+    /// bytes32 optional metadata ("0x000...000" for standard orders).
+    pub metadata: String,
+    /// bytes32 builder code ("0x000...000" for non-builders).
+    pub builder: String,
+    pub signature: String,
+}
+
+/// V2 outer order request — wraps `OrderBodyV2` and moves `expiration` out of the signed struct.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct OrderRequestV2 {
+    pub order: OrderBodyV2,
+    pub owner: String,
+    #[serde(rename = "orderType")]
+    pub order_type: String,
+    #[serde(rename = "postOnly", default)]
+    pub post_only: bool,
+    /// GTD expiration timestamp (seconds). Present only for GTD orders; empty string otherwise.
+    #[serde(rename = "expiration", skip_serializing_if = "String::is_empty")]
+    pub expiration: String,
+}
+
+/// Open order returned by GET /orders.
+#[derive(Debug, Clone, Deserialize)]
+pub struct OpenOrder {
+    #[serde(rename = "id")]
+    pub order_id: String,
+    pub status: Option<String>,
+    #[serde(rename = "market")]
+    pub condition_id: Option<String>,
+    #[serde(rename = "asset_id")]
+    pub token_id: Option<String>,
+    pub side: Option<String>,
+    #[serde(rename = "original_size")]
+    pub original_size: Option<String>,
+    #[serde(rename = "size_matched")]
+    pub size_matched: Option<String>,
+    pub price: Option<String>,
+    #[serde(rename = "created_at")]
+    pub created_at: Option<u64>,
+    // V1-only fields — presence signals V1 order
+    pub nonce: Option<serde_json::Value>,
+    #[serde(rename = "feeRateBps")]
+    pub fee_rate_bps: Option<serde_json::Value>,
+    // V2-only fields — presence signals V2 order
+    pub timestamp: Option<serde_json::Value>,
+    pub metadata: Option<serde_json::Value>,
+}
+
+impl OpenOrder {
+    /// Detect order version from field presence.
+    /// V1 orders have `nonce`/`feeRateBps`; V2 orders have `timestamp`/`metadata`.
+    pub fn version(&self) -> crate::config::OrderVersion {
+        if self.nonce.is_some() || self.fee_rate_bps.is_some() {
+            crate::config::OrderVersion::V1
+        } else {
+            crate::config::OrderVersion::V2
+        }
+    }
+
+    pub fn is_v1(&self) -> bool {
+        self.version() == crate::config::OrderVersion::V1
+    }
+}
+
 #[derive(Debug, Deserialize)]
 pub struct BalanceAllowance {
     pub asset_address: Option<String>,
@@ -356,6 +438,40 @@ pub async fn get_clob_market(client: &Client, condition_id: &str) -> Result<Clob
         .context("parsing CLOB market response")
 }
 
+/// Batch-fetch market resolution status for a list of condition IDs.
+///
+/// Returns a map of condition_id → winner outcome index (0-based), or `None` if the
+/// market is not yet resolved. Errors on individual markets are silently ignored so that
+/// a single bad condition_id doesn't break the whole history view.
+pub async fn get_market_resolutions(
+    client: &Client,
+    condition_ids: &[String],
+) -> std::collections::HashMap<String, Option<u32>> {
+    let futures: Vec<_> = condition_ids
+        .iter()
+        .map(|cid| {
+            let client = client.clone();
+            let cid = cid.clone();
+            async move {
+                let market = get_clob_market(&client, &cid).await.ok()?;
+                let winner_idx = market
+                    .tokens
+                    .iter()
+                    .enumerate()
+                    .find(|(_, t)| t.winner)
+                    .map(|(i, _)| i as u32);
+                Some((cid, winner_idx))
+            }
+        })
+        .collect();
+
+    futures::future::join_all(futures)
+        .await
+        .into_iter()
+        .flatten()
+        .collect()
+}
+
 pub async fn get_orderbook(client: &Client, token_id: &str) -> Result<OrderBook> {
     let url = format!("{}/book?token_id={}", Urls::clob(), token_id);
     client.get(&url)
@@ -439,11 +555,11 @@ pub async fn get_balance_allowance(
         .context("parsing balance-allowance response")
 }
 
-pub async fn post_order(
+pub async fn post_order<T: serde::Serialize>(
     client: &Client,
     address: &str,
     creds: &Credentials,
-    order_req: &OrderRequest,
+    order_req: &T,
 ) -> Result<OrderResponse> {
     let body = serde_json::to_string(order_req)?;
     let path = "/order";
@@ -482,6 +598,268 @@ pub async fn post_order(
         }
     }
     serde_json::from_str(&raw).with_context(|| format!("parsing post-order response: {}", raw))
+}
+
+/// Query the CLOB server for the active order version (1 or 2).
+///
+/// Detect the active CLOB version (V1 or V2) by querying GET /version.
+///
+/// Returns `Err` on network/parse failure rather than silently defaulting to V1.
+/// Reason: during the V1→V2 cutover (~2026-04-28 11:00 UTC) a transient probe
+/// failure could route a V2-era order through the V1 path, which the upgraded
+/// server will reject with a confusing 404/405. Bailing here gives the user a
+/// clear retry message instead.
+///
+/// Pre-v2 servers (before 2026-04-21) returned 404 on `/version`; that path is
+/// no longer reachable, so a missing endpoint now legitimately indicates a
+/// problem worth surfacing.
+pub async fn get_clob_version(client: &Client) -> Result<u8> {
+    let url = format!("{}/version", Urls::CLOB);
+    let resp = client
+        .get(&url)
+        .send()
+        .await
+        .with_context(|| "failed to detect CLOB version (network error). \
+            Retry; if persistent, the server may be mid-cutover.")?;
+    let v: serde_json::Value = resp
+        .json()
+        .await
+        .with_context(|| "failed to parse /version response from CLOB. \
+            Retry; if persistent, the server may be mid-cutover.")?;
+    Ok(v["version"].as_u64().unwrap_or(1) as u8)
+}
+
+/// Fetch open orders for the authenticated user.
+///
+/// `state` is one of "OPEN", "MATCHED", "DELAYED", "UNMATCHED" (default: "OPEN").
+/// Returns typed `OpenOrder` values with `version()` for V1/V2 detection.
+pub async fn get_open_orders(
+    client: &Client,
+    address: &str,
+    creds: &Credentials,
+    state: &str,
+) -> Result<Vec<OpenOrder>> {
+    // CLOB v2 moved the orders listing endpoint from GET /orders?state=X to GET /data/orders.
+    // The HMAC signature must be computed over the BASE PATH only (without query string).
+    // The endpoint uses cursor-based pagination with a "next_cursor" field.
+    let sign_path = "/data/orders";
+    let request_path = format!("/data/orders?status={}", state);
+
+    let headers = l2_headers(
+        address,
+        &creds.api_key,
+        &creds.secret,
+        &creds.passphrase,
+        "GET",
+        sign_path, // sign base path only
+        "",
+    )?;
+
+    let url = format!("{}{}", Urls::CLOB, request_path);
+    let mut req = client.get(&url);
+    for (k, v) in &headers {
+        req = req.header(k.as_str(), v.as_str());
+    }
+    let raw = req.send().await?.text().await?;
+    if raw.trim().is_empty() {
+        return Ok(vec![]);
+    }
+    let parsed: serde_json::Value = serde_json::from_str(&raw)
+        .with_context(|| format!("parsing open-orders response: {}", raw))?;
+    // v2 returns {"data": [...], "next_cursor": "...", "limit": 500, "count": N}
+    let arr = if let Some(a) = parsed.get("data").and_then(|d| d.as_array()) {
+        a.clone()
+    } else if let Some(a) = parsed.as_array() {
+        a.clone()
+    } else {
+        vec![]
+    };
+    let orders: Vec<OpenOrder> = arr
+        .into_iter()
+        .filter_map(|v| serde_json::from_value(v).ok())
+        .collect();
+    Ok(orders)
+}
+
+/// Fetch V1-era orders from the pre-migration endpoint introduced in CLOB v2.
+///
+/// During the migration window, orders placed on the V1 exchange may not appear in
+/// `GET /orders` — this endpoint is the authoritative source for those legacy records.
+/// Returns the raw JSON array; callers merge with live-orders results.
+pub async fn get_pre_migration_orders(
+    client: &Client,
+    address: &str,
+    creds: &Credentials,
+) -> Result<Vec<OpenOrder>> {
+    // Also uses base-path-only signing (same convention as /data/orders in v2).
+    let path = "/data/pre-migration-orders";
+    let headers = l2_headers(
+        address,
+        &creds.api_key,
+        &creds.secret,
+        &creds.passphrase,
+        "GET",
+        path,
+        "",
+    )?;
+
+    let url = format!("{}{}", Urls::CLOB, path);
+    let mut req = client.get(&url);
+    for (k, v) in &headers {
+        req = req.header(k.as_str(), v.as_str());
+    }
+    let raw = req.send().await?.text().await?;
+    if raw.trim().is_empty() {
+        return Ok(vec![]);
+    }
+    let parsed: serde_json::Value = serde_json::from_str(&raw)
+        .with_context(|| format!("parsing pre-migration-orders response: {}", raw))?;
+    let arr = if let Some(a) = parsed.as_array() {
+        a.clone()
+    } else if let Some(a) = parsed.get("data").and_then(|d| d.as_array()) {
+        a.clone()
+    } else {
+        vec![]
+    };
+    let orders: Vec<OpenOrder> = arr
+        .into_iter()
+        .filter_map(|v| serde_json::from_value(v).ok())
+        .collect();
+    Ok(orders)
+}
+
+/// A single trade event returned by `GET /markets/live-activity/{condition_id}`.
+#[derive(Debug, Clone, Deserialize)]
+pub struct LiveTradeEvent {
+    #[serde(rename = "tradeId", default)]
+    pub trade_id: Option<String>,
+    pub price: Option<String>,
+    pub size: Option<String>,
+    pub side: Option<String>,
+    pub outcome: Option<String>,
+    #[serde(rename = "timestamp")]
+    pub timestamp: Option<u64>,
+    #[serde(rename = "transactionHash", default)]
+    pub tx_hash: Option<String>,
+}
+
+/// Fetch recent trade events for a market (public, no auth required).
+/// Returns events sorted newest-first. Used by the `watch` command.
+pub async fn get_market_live_activity(
+    client: &Client,
+    condition_id: &str,
+    limit: u32,
+) -> Result<Vec<LiveTradeEvent>> {
+    let url = format!(
+        "{}/markets/live-activity/{}?limit={}",
+        Urls::CLOB, condition_id, limit
+    );
+    let raw = client.get(&url).send().await?.text().await?;
+    let parsed: serde_json::Value = serde_json::from_str(&raw)
+        .with_context(|| format!("parsing live-activity response: {}", raw))?;
+    let arr = if let Some(a) = parsed.as_array() {
+        a.clone()
+    } else if let Some(a) = parsed.get("data").and_then(|d| d.as_array()) {
+        a.clone()
+    } else {
+        vec![]
+    };
+    Ok(arr.into_iter().filter_map(|v| serde_json::from_value(v).ok()).collect())
+}
+
+/// RFQ quote returned by `GET /rfq/quote/{quote_id}`.
+#[derive(Debug, Clone, Deserialize)]
+pub struct RfqQuote {
+    #[serde(rename = "quoteId")]
+    pub quote_id: String,
+    pub price: Option<String>,
+    /// USDC amount the quote covers.
+    pub amount: Option<String>,
+    /// Unix timestamp (seconds) when this quote expires.
+    #[serde(rename = "expiresAt")]
+    pub expires_at: Option<u64>,
+    /// Market maker address.
+    pub maker: Option<String>,
+    pub status: Option<String>,
+}
+
+/// Request a RFQ quote for a block trade (no auth required for the request itself).
+/// Returns a quote_id to poll with `get_rfq_quote`.
+pub async fn post_rfq_request(
+    client: &Client,
+    condition_id: &str,
+    token_id: &str,
+    side: &str,
+    amount_usdc: f64,
+) -> Result<String> {
+    let body = serde_json::to_string(&serde_json::json!({
+        "market": condition_id,
+        "asset_id": token_id,
+        "side": side.to_uppercase(),
+        "amount": format!("{:.6}", amount_usdc),
+    }))?;
+    let url = format!("{}/rfq/request", Urls::CLOB);
+    let raw = client
+        .post(&url)
+        .header("Content-Type", "application/json")
+        .body(body)
+        .send()
+        .await?
+        .text()
+        .await?;
+    let v: serde_json::Value = serde_json::from_str(&raw)
+        .with_context(|| format!("parsing rfq-request response: {}", raw))?;
+    if let Some(err) = v.get("error").and_then(|e| e.as_str()) {
+        anyhow::bail!("RFQ request failed: {}", err);
+    }
+    v.get("quoteId")
+        .or_else(|| v.get("quote_id"))
+        .and_then(|id| id.as_str())
+        .map(|s| s.to_string())
+        .ok_or_else(|| anyhow::anyhow!("No quoteId in RFQ response: {}", raw))
+}
+
+/// Poll for an RFQ quote by quote_id (no auth required).
+pub async fn get_rfq_quote(client: &Client, quote_id: &str) -> Result<RfqQuote> {
+    let url = format!("{}/rfq/quote/{}", Urls::CLOB, quote_id);
+    let raw = client.get(&url).send().await?.text().await?;
+    serde_json::from_str(&raw)
+        .with_context(|| format!("parsing rfq-quote response: {}", raw))
+}
+
+/// Confirm an RFQ quote — executes the block trade.
+/// The signature is an EIP-712 signed order matching the quoted price/amount.
+pub async fn post_rfq_confirm(
+    client: &Client,
+    address: &str,
+    creds: &Credentials,
+    quote_id: &str,
+    order_body: &OrderBodyV2,
+) -> Result<serde_json::Value> {
+    let body = serde_json::to_string(&serde_json::json!({
+        "quoteId": quote_id,
+        "order": order_body,
+        "owner": address,
+    }))?;
+    let path = "/rfq/confirm";
+    let headers = l2_headers(
+        address,
+        &creds.api_key,
+        &creds.secret,
+        &creds.passphrase,
+        "POST",
+        path,
+        &body,
+    )?;
+    let url = format!("{}{}", Urls::CLOB, path);
+    let mut req = client
+        .post(&url)
+        .header("Content-Type", "application/json")
+        .body(body);
+    for (k, v) in &headers {
+        req = req.header(k.as_str(), v.as_str());
+    }
+    req.send().await?.json().await.context("parsing rfq-confirm response")
 }
 
 pub async fn cancel_order(

@@ -95,7 +95,8 @@ enum Commands {
         #[arg(long)]
         price: Option<f64>,
 
-        /// Order type: GTC (resting limit) or FOK (fill-or-kill market)
+        /// Order type: GTC (resting limit), FOK (fill-or-kill market), GTD (good-till-date),
+        /// or FAK (fill-and-kill: fills as much as possible, cancels remainder)
         #[arg(long, default_value = "GTC")]
         order_type: String,
 
@@ -160,7 +161,8 @@ enum Commands {
         #[arg(long)]
         price: Option<f64>,
 
-        /// Order type: GTC (resting limit) or FOK (fill-or-kill market)
+        /// Order type: GTC (resting limit), FOK (fill-or-kill market), GTD (good-till-date),
+        /// or FAK (fill-and-kill: fills as much as possible, cancels remainder)
         #[arg(long, default_value = "GTC")]
         order_type: String,
 
@@ -254,7 +256,7 @@ enum Commands {
     /// Redeem winning outcome tokens after a market resolves (signs via onchainos wallet)
     Redeem {
         /// Market identifier: condition_id (0x-prefixed hex) or slug. Omit when using --all.
-        #[arg(long)]
+        #[arg(long, alias = "condition-id")]
         market_id: Option<String>,
 
         /// Redeem all redeemable positions across EOA and proxy wallets in one pass
@@ -284,6 +286,66 @@ enum Commands {
         #[arg(long)]
         all: bool,
     },
+
+    /// List open orders for the authenticated user (requires auth).
+    /// Detects V1 vs V2 order signing automatically — useful during CLOB v2 migration.
+    Orders {
+        /// Filter by order state: OPEN, MATCHED, DELAYED, UNMATCHED (default: OPEN)
+        #[arg(long, default_value = "OPEN")]
+        state: String,
+
+        /// Show only V1-signed orders placed before the CLOB v2 upgrade (2026-04-21)
+        #[arg(long)]
+        v1: bool,
+
+        /// Maximum number of orders to return (default: all)
+        #[arg(long)]
+        limit: Option<usize>,
+    },
+
+    /// Watch live trade activity for a market, polling every few seconds (Ctrl+C to stop).
+    Watch {
+        /// Market identifier: condition_id (0x-prefixed hex) or slug
+        #[arg(long)]
+        market_id: String,
+
+        /// Poll interval in seconds (minimum 2, default 5)
+        #[arg(long, default_value = "5")]
+        interval: u64,
+
+        /// Maximum number of events to fetch per poll
+        #[arg(long, default_value = "10")]
+        limit: u32,
+    },
+
+    /// Request a block-trade quote from a Polymarket market maker (CLOB v2 RFQ).
+    /// Re-run with --confirm to accept the quote and execute the trade.
+    Rfq {
+        /// Market identifier: condition_id (0x-prefixed hex) or slug
+        #[arg(long)]
+        market_id: String,
+
+        /// Outcome to buy: "yes" or "no"
+        #[arg(long)]
+        outcome: String,
+
+        /// USDC.e amount to spend (e.g. "5000" = $5,000)
+        #[arg(long)]
+        amount: String,
+
+        /// Accept the quoted price and execute the block trade
+        #[arg(long)]
+        confirm: bool,
+
+        /// Preview without requesting a quote
+        #[arg(long)]
+        dry_run: bool,
+    },
+
+    /// Create a read-only Polymarket API key (CLOB v2). Useful for monitoring
+    /// scripts and dashboards that need read access without trading capability.
+    #[command(name = "create-readonly-key")]
+    CreateReadonlyKey,
 
     /// List upcoming 5-minute crypto Up/Down markets on Polymarket.
     /// Supported coins: BTC, ETH, SOL, XRP, BNB, DOGE, HYPE
@@ -394,6 +456,18 @@ async fn main() {
                     "Specify --order-id <id>, --market <condition_id>, or --all"
                 ))
             }
+        }
+        Commands::Orders { state, v1, limit } => {
+            commands::orders::run(&state, v1, limit).await
+        }
+        Commands::Watch { market_id, interval, limit } => {
+            commands::watch::run(&market_id, interval, limit).await
+        }
+        Commands::Rfq { market_id, outcome, amount, confirm, dry_run } => {
+            commands::rfq::run(&market_id, &outcome, &amount, confirm, dry_run).await
+        }
+        Commands::CreateReadonlyKey => {
+            commands::create_readonly_key::run().await
         }
         Commands::List5m { coin, count } => {
             commands::list_5m::run(coin.as_deref(), count).await

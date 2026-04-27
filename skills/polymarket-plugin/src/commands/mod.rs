@@ -1,19 +1,25 @@
 pub mod balance;
 pub mod buy;
-pub mod withdraw;
+pub mod quickstart;
 pub mod cancel;
 pub mod check_access;
+pub mod create_readonly_key;
+pub mod history;
 pub mod deposit;
 pub mod get_market;
 pub mod get_positions;
 pub mod get_series;
 pub mod list_5m;
 pub mod list_markets;
-pub mod quickstart;
+pub mod orders;
 pub mod redeem;
+pub mod rfq;
 pub mod sell;
 pub mod setup_proxy;
 pub mod switch_mode;
+pub mod watch;
+pub mod withdraw;
+
 
 /// Build a structured error JSON string for stdout output (per GEN-001).
 ///
