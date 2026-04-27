@@ -53,10 +53,10 @@ fi
 
 # Uniswap AI
 
-This skill is maintained by Uniswap Labs. Install the full version:
+This skill is maintained by Uniswap Labs. Install the full version (all 5 sub-plugins / 10 skills):
 
 ```
-npx skills add Uniswap/uniswap-ai
+npx skills add Uniswap/uniswap-ai -y -g
 ```
 
 Source: [Uniswap/uniswap-ai](https://github.com/Uniswap/uniswap-ai)
