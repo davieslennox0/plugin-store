@@ -2,7 +2,7 @@ use anyhow::{bail, Context, Result};
 use reqwest::Client;
 
 use crate::api::{
-    compute_buy_worst_price, get_balance_allowance, get_clob_market, get_clob_version,
+    compute_buy_worst_price, get_clob_market, get_clob_version,
     get_market_fee, get_orderbook, post_order, round_price, OrderBody, OrderBodyV2,
     OrderRequest, OrderRequestV2,
 };
@@ -343,19 +343,17 @@ pub async fn run(
         TradingMode::Eoa       => signer_addr.as_str(),
     };
 
-    // Fetch CLOB version, on-chain balances (USDC.e + pUSD), and CLOB allowance in parallel.
+    // Fetch CLOB version and on-chain balances (USDC.e + pUSD) in parallel.
     // Version determines which collateral token and exchange contract to use:
     //   V1 → USDC.e + old exchange contracts
     //   V2 → pUSD  + new exchange contracts (V2 cutover ~2026-04-28)
-    let (clob_version_raw, usdc_e_balance_result, pusd_balance_result, allowance_info) = tokio::join!(
+    let (clob_version_raw, usdc_e_balance_result, pusd_balance_result) = tokio::join!(
         get_clob_version(&client),
         get_usdc_balance(balance_addr),
         get_pusd_balance(balance_addr),
-        get_balance_allowance(&client, balance_addr, &creds, "COLLATERAL", None),
     );
     let clob_version_raw = clob_version_raw?;
     let clob_version = if clob_version_raw == 2 { OrderVersion::V2 } else { OrderVersion::V1 };
-    let allowance_info = allowance_info?;
 
     // Pre-flight balance check — collateral token depends on CLOB version.
     // V2 uses pUSD. If pUSD balance is insufficient but USDC.e balance is sufficient,
@@ -532,15 +530,26 @@ pub async fn run(
     // the V2 allowance will be 0 and a fresh approval to the V2 contract is triggered automatically.
     if effective_mode == TradingMode::Eoa {
         let exchange_addr = Contracts::exchange(clob_version, neg_risk);
-        let allowance_raw = if neg_risk {
-            let a_exchange = allowance_info.allowance_for(exchange_addr);
-            let a_adapter  = allowance_info.allowance_for(Contracts::NEG_RISK_ADAPTER);
-            a_exchange.min(a_adapter)
-        } else {
-            allowance_info.allowance_for(exchange_addr)
+        // Use on-chain eth_call to read the live allowance — the CLOB API value can be
+        // stale after an unlimited approval, causing a redundant approval on every order.
+        let allowance_raw: u128 = match clob_version {
+            OrderVersion::V2 => {
+                let a = crate::onchainos::get_pusd_allowance(balance_addr, exchange_addr).await.unwrap_or(0);
+                if neg_risk {
+                    let b = crate::onchainos::get_pusd_allowance(balance_addr, Contracts::NEG_RISK_ADAPTER).await.unwrap_or(0);
+                    a.min(b)
+                } else { a }
+            }
+            OrderVersion::V1 => {
+                let a = crate::onchainos::get_usdc_allowance(balance_addr, exchange_addr).await.unwrap_or(0);
+                if neg_risk {
+                    let b = crate::onchainos::get_usdc_allowance(balance_addr, Contracts::NEG_RISK_ADAPTER).await.unwrap_or(0);
+                    a.min(b)
+                } else { a }
+            }
         };
 
-        if allowance_raw < usdc_needed_raw || auto_approve {
+        if allowance_raw < usdc_needed_raw as u128 || auto_approve {
             let (version_label, collateral_label) = if clob_version == OrderVersion::V2 {
                 (" V2", "pUSD")
             } else {
@@ -551,7 +560,7 @@ pub async fn run(
             } else {
                 format!("CTF Exchange{}", version_label)
             };
-            eprintln!("[polymarket] Approving {:.6} {} for {}...", actual_usdc, collateral_label, exchange_label);
+            eprintln!("[polymarket] Approving unlimited {} for {} (one-time)...", collateral_label, exchange_label);
             let tx_hash = approve_usdc_versioned(neg_risk, clob_version, usdc_needed_raw).await?;
             eprintln!("[polymarket] Approval tx: {}", tx_hash);
             eprintln!("[polymarket] Waiting for approval to confirm on-chain...");

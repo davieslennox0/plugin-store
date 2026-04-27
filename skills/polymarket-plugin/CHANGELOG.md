@@ -1,12 +1,17 @@
 # Polymarket Plugin Changelog
 
-### v0.5.1 (2026-04-27) — V2 cutover resilience
+### v0.5.1 (2026-04-27) — V2 cutover resilience + QA fixes
 
 - **fix**: `buy.rs` POLY_PROXY V2 allowance check now reads on-chain pUSD allowance (`get_pusd_allowance`) instead of CLOB `/balance-allowance`, which hard-codes `signature_type=0` and scopes the lookup to the EOA address. The bug caused a redundant `proxy_pusd_approve` to fire on every V2 buy after setup-proxy, wasting ~0.01 POL per trade. Source of truth is now consistent with `setup-proxy`.
+- **fix (regression from v0.4.11 Bug #3)**: `buy.rs` EOA V1 allowance check restored to on-chain `get_usdc_allowance` (`eth_call`). The v0.5.0 merge regressed this to the CLOB API (`get_balance_allowance`), which returns stale values — causing a redundant unlimited approval on every V1 EOA buy. Both V1 (USDC.e) and V2 (pUSD) EOA paths now use on-chain eth_call for idempotent allowance checks. The CLOB API allowance fetch has been removed from the parallel pre-flight join.
 - **fix**: `get_clob_version` now returns `Result<u8>` and bails with a retry hint on network/parse failure, instead of silently defaulting to V1. Prevents `buy`/`sell`/`redeem`/`rfq` from routing V2-era orders through the V1 path during the cutover hour, which would produce confusing 404/405 responses from the upgraded server. `balance` softly degrades to `clob_version: "unknown"` and continues.
+- **fix**: `rfq` now resolves series IDs (e.g. `btc-5m`) before calling `resolve_market_token`. Previously, passing a series ID to `rfq --market-id` produced "market not found" because the series resolution step in `buy::run()` was bypassed.
+- **fix**: `create-readonly-key` pre-flights the CLOB version and exits with a clear JSON error when the server is still v1, instead of propagating an opaque "Unauthorized/Invalid api key" from the v2-only `/auth/readonly-api-key` endpoint.
+- **fix**: `sell` live output now includes `market_id` and `fee_rate_bps` fields, matching the dry-run output schema. These fields were present in `--dry-run` but missing from the real-order response.
 - **feat**: `buy.rs` pre-flight POL gas check for POLY_PROXY V2: when a wrap or first-time V2 approve is required, ensure EOA has ≥ 0.05 POL and bail with a clear error otherwise — so users aren't stuck mid-flow at first V2 trade.
 - **feat**: `balance` output now includes a top-level `clob_version` field (`V1` / `V2` / `unknown`). Lets users confirm at a glance which exchange path their next trade will hit.
-- **docs**: SKILL.md "Overview" section adds a "What users see at cutover" subsection covering: zero-action cutover, the 0.05 POL requirement for first V2 trade, version visibility via `balance`, and `/version`-failure retry semantics.
+- **chore**: Approval log message updated from "Approving {amount} USDC.e" to "Approving unlimited {token} for {exchange} (one-time)" — makes clear that the approval sets MAX_UINT and only fires once per exchange contract.
+- **docs**: SKILL.md — `orders --limit` flag documented; `get-market` output fields split by lookup path (condition_id vs slug); SKILL.md "Overview" section adds "What users see at cutover" subsection.
 
 ### v0.5.0 (2026-04-21) — pUSD collateral migration + CLOB v2 completion
 

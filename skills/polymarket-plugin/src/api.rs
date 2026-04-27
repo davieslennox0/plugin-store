@@ -438,40 +438,6 @@ pub async fn get_clob_market(client: &Client, condition_id: &str) -> Result<Clob
         .context("parsing CLOB market response")
 }
 
-/// Batch-fetch market resolution status for a list of condition IDs.
-///
-/// Returns a map of condition_id → winner outcome index (0-based), or `None` if the
-/// market is not yet resolved. Errors on individual markets are silently ignored so that
-/// a single bad condition_id doesn't break the whole history view.
-pub async fn get_market_resolutions(
-    client: &Client,
-    condition_ids: &[String],
-) -> std::collections::HashMap<String, Option<u32>> {
-    let futures: Vec<_> = condition_ids
-        .iter()
-        .map(|cid| {
-            let client = client.clone();
-            let cid = cid.clone();
-            async move {
-                let market = get_clob_market(&client, &cid).await.ok()?;
-                let winner_idx = market
-                    .tokens
-                    .iter()
-                    .enumerate()
-                    .find(|(_, t)| t.winner)
-                    .map(|(i, _)| i as u32);
-                Some((cid, winner_idx))
-            }
-        })
-        .collect();
-
-    futures::future::join_all(futures)
-        .await
-        .into_iter()
-        .flatten()
-        .collect()
-}
-
 pub async fn get_orderbook(client: &Client, token_id: &str) -> Result<OrderBook> {
     let url = format!("{}/book?token_id={}", Urls::clob(), token_id);
     client.get(&url)

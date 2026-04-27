@@ -556,6 +556,7 @@ pub async fn run(
     let result = serde_json::json!({
         "ok": true,
         "data": {
+            "market_id": market_id,
             "order_id": resp.order_id,
             "status": resp.status,
             "condition_id": condition_id,
@@ -566,6 +567,7 @@ pub async fn run(
             "limit_price": limit_price,
             "shares": shares_filled,
             "usdc_out": taker_amount_raw as f64 / 1_000_000.0,
+            "fee_rate_bps": fee_rate_bps,
             "post_only": post_only,
             "expires": if expiration > 0 { serde_json::Value::Number(expiration.into()) } else { serde_json::Value::Null },
             "tx_hashes": resp.tx_hashes,

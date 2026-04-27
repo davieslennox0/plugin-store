@@ -548,7 +548,9 @@ polymarket-plugin get-market --market-id <id>
 - If `--market-id` starts with `0x`: queries CLOB API directly by condition_id
 - Otherwise: queries Gamma API by slug, then enriches with live order book data
 
-**Output fields:** `question`, `condition_id`, `slug`, `end_date`, `fee_bps`, `tokens` (outcome, token_id, price, best_bid, best_ask), `volume_24hr`, `liquidity`, `last_trade_price` (market-level, slug path only)
+**Output fields (condition_id path):** `condition_id`, `question`, `active`, `closed`, `accepting_orders`, `neg_risk`, `end_date`, `fee_bps`, `tokens` (outcome, token_id, price, winner, best_bid, best_ask)
+
+**Output fields (slug path, additional):** `id`, `slug`, `description`, `volume_24hr`, `volume`, `liquidity`, `best_bid`, `best_ask`, `last_trade_price` (may be null if no recent trades)
 
 **Example:**
 ```
@@ -807,6 +809,7 @@ polymarket orders [--state <OPEN|MATCHED|DELAYED|UNMATCHED>] [--v1]
 |------|-------------|---------|
 | `--state` | Filter by order state: `OPEN`, `MATCHED`, `DELAYED`, `UNMATCHED` | `OPEN` |
 | `--v1` | Also include V1-signed orders placed before the CLOB v2 upgrade (2026-04-21). Queries both the live order book and the pre-migration orders endpoint, deduplicates by order ID. | false |
+| `--limit` | Maximum number of orders to return | all |
 
 **Auth required:** Yes — onchainos wallet; HMAC L2 credentials
 

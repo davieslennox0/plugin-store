@@ -4,7 +4,6 @@ pub mod quickstart;
 pub mod cancel;
 pub mod check_access;
 pub mod create_readonly_key;
-pub mod history;
 pub mod deposit;
 pub mod get_market;
 pub mod get_positions;

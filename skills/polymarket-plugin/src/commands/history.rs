@@ -72,14 +72,24 @@ pub async fn run(limit: u32, address: Option<&str>) -> Result<()> {
     // Enrich each activity item with a `result` field
     for item in items.iter_mut() {
         let cid = item["conditionId"].as_str().unwrap_or("");
+        let activity_type = item["type"].as_str().unwrap_or("");
         let outcome_idx = item["outcomeIndex"].as_u64().map(|i| i as u32);
 
         let result_str = match resolutions.get(cid) {
-            Some(Some(winner_idx)) => match outcome_idx {
-                Some(bet) if bet == *winner_idx => "WON",
-                Some(_) => "LOST",
-                None => "RESOLVED",
-            },
+            Some(Some(winner_idx)) => {
+                if activity_type == "REDEEM" {
+                    // REDEEM entries always represent successful winning redemptions.
+                    // The Data API returns outcomeIndex=999 for redeems — skip outcome
+                    // matching to avoid misclassifying as "LOST".
+                    "WON"
+                } else {
+                    match outcome_idx {
+                        Some(bet) if bet == *winner_idx => "WON",
+                        Some(_) => "LOST",
+                        None => "RESOLVED",
+                    }
+                }
+            }
             Some(None) => "ACTIVE",  // not yet resolved
             None       => "ACTIVE",  // not in resolutions map (lookup failed)
         };

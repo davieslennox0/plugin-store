@@ -9,7 +9,7 @@ use crate::config::OrderVersion;
 use crate::onchainos::get_wallet_address;
 use crate::signing::{sign_order_v2_via_onchainos, OrderParamsV2, BYTES32_ZERO};
 
-use super::buy::resolve_market_token;
+use super::buy::{resolve_from_gamma, resolve_market_token};
 
 /// Request-for-Quote (RFQ) for a block trade with a Polymarket market maker.
 ///
@@ -34,9 +34,14 @@ pub async fn run(
 
     let client = Client::new();
 
-    // Resolve market.
+    // Resolve market — supports condition_id, slug, or series ID (e.g. btc-5m).
     let (condition_id, token_id, neg_risk, _fee) =
-        resolve_market_token(&client, market_id, outcome).await?;
+        if crate::series::is_series_id(market_id) {
+            let gamma = crate::series::resolve_to_market(&client, market_id).await?;
+            resolve_from_gamma(&client, gamma, outcome).await?
+        } else {
+            resolve_market_token(&client, market_id, outcome).await?
+        };
 
     let side = "BUY"; // RFQ always requests the buy side; sell-side RFQ uses the counterparty flow
 

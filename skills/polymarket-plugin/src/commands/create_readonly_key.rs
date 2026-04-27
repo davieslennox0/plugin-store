@@ -1,6 +1,7 @@
 use anyhow::Result;
 use reqwest::Client;
 
+use crate::api::get_clob_version;
 use crate::auth::create_readonly_api_key;
 use crate::onchainos::get_wallet_address;
 
@@ -15,6 +16,23 @@ use crate::onchainos::get_wallet_address;
 /// once. Store it securely if you intend to reuse it.
 pub async fn run() -> Result<()> {
     let client = Client::new();
+
+    // create-readonly-key is a CLOB v2-only endpoint — fail early with a clear message
+    // rather than an opaque "Unauthorized" from the server.
+    let clob_version = get_clob_version(&client).await.unwrap_or(1);
+    if clob_version < 2 {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "ok": false,
+                "error": "create-readonly-key requires CLOB v2 (server is currently v1)",
+                "suggestion": "The /auth/readonly-api-key endpoint is only available after the \
+                               Polymarket CLOB v2 upgrade. Check again once the upgrade is live."
+            }))?
+        );
+        return Ok(());
+    }
+
     let wallet_addr = get_wallet_address().await?;
 
     eprintln!("[polymarket] Creating read-only API key for {}...", wallet_addr);
