@@ -501,7 +501,7 @@ etherfi unwrap --amount 0.5 --dry-run
 ## Skill Routing
 
 - For cross-chain bridging of weETH, use a bridge plugin
-- For swapping weETH on Ethereum DEXes, use `uniswap-swap-integration`
+- For swapping weETH on Ethereum DEXes, use `uniswap-ai`
 - For portfolio tracking across protocols, use `okx-defi-portfolio`
 - For other liquid staking: Lido (stETH), Renzo (ezETH), Kelp (rsETH)
 

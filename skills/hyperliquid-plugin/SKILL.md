@@ -1032,7 +1032,7 @@ Use `hyperliquid prices` to get a full list of available markets.
 
 ## Skill Routing
 
-- For EVM swaps, use `uniswap-swap-integration` or similar
+- For EVM swaps, use `uniswap-ai` or similar
 - For portfolio overview across chains, use `okx-defi-portfolio`
 - For SOL staking, use `jito` or `solayer`
 
