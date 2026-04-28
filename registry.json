@@ -772,6 +772,37 @@
       }
     },
     {
+      "name": "rust-sol-price",
+      "version": "13.0.0",
+      "description": "Query SOL price via OKX API (Rust)",
+      "author": {
+        "name": "yz06276"
+      },
+      "category": "utility",
+      "tags": [
+        "solana",
+        "rust"
+      ],
+      "type": "official",
+      "components": {
+        "skill": {
+          "repo": "okx/plugin-store",
+          "dir": "skills/rust-sol-price"
+        }
+      },
+      "github_link": "https://github.com/okx/plugin-store/tree/main/skills/rust-sol-price",
+      "skill_md_link": "https://raw.githubusercontent.com/okx/plugin-store/main/skills/rust-sol-price/SKILL.md",
+      "summary_md_link": "https://raw.githubusercontent.com/okx/plugin-store/main/skills/rust-sol-price/SUMMARY.md",
+      "modify_date": "1777375531",
+      "extra": {
+        "chains": [
+          "solana"
+        ],
+        "protocols": [],
+        "risk_level": "medium"
+      }
+    },
+    {
       "name": "smart-money-signal-copy-trade",
       "version": "1.0",
       "description": "Smart Money Signal Copy Trade v1.0 — Smart money signal tracker with cost-aware TP, 15-check safety, 7-layer exit system",
