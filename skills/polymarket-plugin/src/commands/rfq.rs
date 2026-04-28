@@ -27,6 +27,19 @@ pub async fn run(
     confirm: bool,
     dry_run: bool,
 ) -> Result<()> {
+    match run_inner(market_id, outcome, amount, confirm, dry_run).await {
+        Ok(()) => Ok(()),
+        Err(e) => { println!("{}", super::error_response(&e, Some("rfq"), None)); Ok(()) }
+    }
+}
+
+async fn run_inner(
+    market_id: &str,
+    outcome: &str,
+    amount: &str,
+    confirm: bool,
+    dry_run: bool,
+) -> Result<()> {
     let usdc_amount: f64 = amount.parse().map_err(|_| anyhow::anyhow!("invalid amount: {}", amount))?;
     if usdc_amount <= 0.0 {
         bail!("amount must be positive");

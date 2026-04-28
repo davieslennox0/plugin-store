@@ -175,66 +175,6 @@ fn pad_u256(val: u128) -> String {
 
 // ─── Proxy wallet ─────────────────────────────────────────────────────────────
 
-/// Resolve the proxy wallet address created in `tx_hash` by inspecting the call trace.
-///
-/// Uses `debug_traceTransaction` with the callTracer to find the CREATE/CREATE2 sub-call
-/// emitted by PROXY_FACTORY and extract the resulting contract address.
-///
-/// Resolve the proxy wallet address from `tx_hash` by inspecting the call trace.
-///
-/// Uses `debug_traceTransaction` with the callTracer on two RPCs (drpc + publicnode).
-/// If neither RPC returns a verifiable EIP-1167 proxy address, returns an error — the
-/// caller must NOT proceed with an unverified address, as depositing to a wrong EOA
-/// will permanently lose user funds.
-pub async fn get_proxy_address_from_tx(tx_hash: &str) -> Result<String> {
-    use crate::config::Urls;
-
-    let rpcs = [Urls::POLYGON_RPC, "https://polygon-bor-rpc.publicnode.com"];
-    for rpc_url in &rpcs {
-        let body = serde_json::json!({
-            "jsonrpc": "2.0",
-            "method": "debug_traceTransaction",
-            "params": [tx_hash, {"tracer": "callTracer"}],
-            "id": 1
-        });
-        let resp = reqwest::Client::new()
-            .post(*rpc_url)
-            .json(&body)
-            .send()
-            .await;
-        if let Ok(r) = resp {
-            if let Ok(v) = r.json::<Value>().await {
-                if v.get("error").is_none() {
-                    if let Some(addr) = find_create_in_trace(&v["result"]) {
-                        // Mandatory: verify the resolved address is an EIP-1167 proxy.
-                        // A wrong address (e.g. an EOA) would silently accept deposits and
-                        // permanently lock user funds.
-                        if verify_eip1167_proxy(&addr).await {
-                            return Ok(addr);
-                        }
-                        anyhow::bail!(
-                            "Resolved address {} from tx {} is not an EIP-1167 proxy contract. \
-                             Refusing to proceed to protect funds. \
-                             Check: https://polygonscan.com/tx/{}",
-                            addr, tx_hash, tx_hash
-                        );
-                    }
-                }
-            }
-        }
-    }
-
-    // No nonce-based fallback: guessing an address without on-chain verification risks
-    // sending funds to a random EOA. Fail loudly instead.
-    anyhow::bail!(
-        "Could not retrieve proxy address from tx {} via debug_traceTransaction on any RPC. \
-         This may be a temporary RPC outage — wait a few seconds and retry setup-proxy. \
-         Do NOT deposit until the proxy address is confirmed on-chain. \
-         Check: https://polygonscan.com/tx/{}",
-        tx_hash, tx_hash
-    )
-}
-
 /// Search a callTracer trace for any call (CREATE, CREATE2, or CALL) made BY PROXY_FACTORY.
 /// The factory always calls the proxy wallet as its first sub-call — whether creating a new one
 /// (CREATE/CREATE2) or forwarding calls to an existing one (CALL). The `to` field is the proxy.
@@ -242,21 +182,18 @@ fn find_create_in_trace(trace: &Value) -> Option<String> {
     use crate::config::Contracts;
     let factory = Contracts::PROXY_FACTORY.to_lowercase();
 
-    // Check direct sub-calls of the current frame
     if let Some(calls) = trace["calls"].as_array() {
         for sub in calls {
             let from = sub["from"].as_str().unwrap_or("").to_lowercase();
             let call_type = sub["type"].as_str().unwrap_or("");
             let to = sub["to"].as_str().unwrap_or("");
 
-            // Any call FROM the factory is to the proxy (new or existing)
             if from == factory && !to.is_empty()
                 && matches!(call_type, "CREATE" | "CREATE2" | "CALL")
             {
                 return Some(to.to_string());
             }
 
-            // Recurse deeper
             if let Some(addr) = find_create_in_trace(sub) {
                 return Some(addr);
             }
@@ -265,105 +202,19 @@ fn find_create_in_trace(trace: &Value) -> Option<String> {
     None
 }
 
-/// Compute the CREATE address for a deployment from `deployer` at `nonce`.
-/// Formula: keccak256(rlp([deployer, nonce]))[12:]
-fn compute_create_address(deployer: &str, nonce: u64) -> Result<String> {
-    use sha3::{Digest, Keccak256};
-
-    let addr_bytes = hex::decode(deployer.trim_start_matches("0x"))
-        .context("decoding deployer address")?;
-    anyhow::ensure!(addr_bytes.len() == 20, "deployer must be 20 bytes");
-
-    // RLP-encode address (20 bytes): 0x94 prefix (0x80 + 20)
-    let rlp_addr: Vec<u8> = [&[0x94u8][..], &addr_bytes].concat();
-
-    // RLP-encode nonce
-    let rlp_nonce: Vec<u8> = if nonce == 0 {
-        vec![0x80]
-    } else {
-        let b = {
-            let mut tmp = nonce;
-            let mut bytes = Vec::new();
-            while tmp > 0 {
-                bytes.push((tmp & 0xFF) as u8);
-                tmp >>= 8;
-            }
-            bytes.reverse();
-            bytes
-        };
-        if b.len() == 1 && b[0] < 0x80 {
-            b
-        } else {
-            [[0x80 + b.len() as u8].as_slice(), &b].concat()
-        }
-    };
-
-    // RLP-encode list: payload = rlp_addr + rlp_nonce
-    let payload: Vec<u8> = [rlp_addr, rlp_nonce].concat();
-    let list_prefix: Vec<u8> = if payload.len() < 56 {
-        vec![0xC0 + payload.len() as u8]
-    } else {
-        let len_bytes = {
-            let l = payload.len();
-            let mut tmp = l;
-            let mut bytes = Vec::new();
-            while tmp > 0 {
-                bytes.push((tmp & 0xFF) as u8);
-                tmp >>= 8;
-            }
-            bytes.reverse();
-            bytes
-        };
-        [[0xF7 + len_bytes.len() as u8].as_slice(), &len_bytes].concat()
-    };
-    let encoded: Vec<u8> = [list_prefix, payload].concat();
-
-    let hash = Keccak256::digest(&encoded);
-    Ok(format!("0x{}", hex::encode(&hash[12..])))
+/// Polygon RPC list used for proxy-state probes. Primary first, fallback second.
+/// `polygon_rpc()` reads `POLYMARKET_TEST_POLYGON_RPC` so integration tests can
+/// inject a mock; production always falls back to drpc.org.
+fn proxy_probe_rpcs() -> [String; 2] {
+    [
+        crate::config::Urls::polygon_rpc(),
+        "https://polygon-bor-rpc.publicnode.com".to_string(),
+    ]
 }
 
-/// Check whether an address has EIP-1167 minimal proxy bytecode deployed.
-async fn verify_eip1167_proxy(addr: &str) -> bool {
-    use crate::config::Urls;
-    const EIP1167_PREFIX: &str = "363d3d373d3d3d363d73";
-    let body = serde_json::json!({
-        "jsonrpc": "2.0",
-        "method": "eth_getCode",
-        "params": [addr, "latest"],
-        "id": 1
-    });
-    if let Ok(r) = reqwest::Client::new()
-        .post(Urls::polygon_rpc())
-        .json(&body)
-        .send()
-        .await
-    {
-        if let Ok(v) = r.json::<Value>().await {
-            if let Some(code) = v["result"].as_str() {
-                return code.trim_start_matches("0x").starts_with(EIP1167_PREFIX);
-            }
-        }
-    }
-    false
-}
-
-/// Create a Polymarket proxy wallet via PROXY_FACTORY.proxy([]).
-///
-/// Calls `proxy((uint8,address,uint256,bytes)[])` with an empty calls array.
-/// The factory deploys a minimal-proxy clone keyed to msg.sender (this wallet).
-/// Returns the tx hash; call `get_proxy_address_from_tx(tx_hash)` to resolve the address.
-///
-/// NOTE: One-time gas cost in POL. All subsequent trading via the proxy is relayer-paid.
-/// Query PROXY_FACTORY via debug_traceCall to check if a proxy already exists for `eoa_addr`.
-///
-/// Returns:
-/// - `Ok(Some(addr))` — proxy exists on-chain and is a valid EIP-1167 contract
-/// - `Ok(None)`       — no proxy exists yet (safe to deploy)
-/// - `Err(...)`       — RPC call failed; caller MUST NOT proceed with deployment,
-///                      as we cannot distinguish "no proxy" from "RPC error"
-pub async fn get_existing_proxy(eoa_addr: &str) -> Result<Option<String>> {
+async fn try_trace_proxy_call(eoa_addr: &str, rpc_url: &str) -> Result<Option<String>> {
     use sha3::{Digest, Keccak256};
-    use crate::config::{Contracts, Urls};
+    use crate::config::Contracts;
 
     let selector = Keccak256::digest(b"proxy((uint8,address,uint256,bytes)[])");
     let selector_hex = hex::encode(&selector[..4]);
@@ -386,44 +237,94 @@ pub async fn get_existing_proxy(eoa_addr: &str) -> Result<Option<String>> {
     });
 
     let resp = reqwest::Client::new()
-        .post(Urls::polygon_rpc())
+        .post(rpc_url)
         .json(&body)
         .send()
         .await
-        .context("debug_traceCall RPC request failed")?;
+        .with_context(|| format!("debug_traceCall request to {} failed", rpc_url))?;
 
     let v: serde_json::Value = resp.json().await
-        .context("debug_traceCall response parse failed")?;
+        .with_context(|| format!("debug_traceCall response from {} not valid JSON", rpc_url))?;
 
     if let Some(err) = v.get("error") {
-        anyhow::bail!(
-            "debug_traceCall returned an error while checking for existing proxy: {}. \
-             Cannot safely determine whether a proxy exists — aborting to prevent duplicate deployment.",
-            err
-        );
+        anyhow::bail!("debug_traceCall on {} returned error: {}", rpc_url, err);
     }
 
     Ok(find_create_in_trace(&v["result"]))
 }
 
-pub async fn create_proxy_wallet() -> Result<String> {
-    use sha3::{Digest, Keccak256};
-    use crate::config::Contracts;
+/// Returns true if `addr` has non-empty bytecode at HEAD. False = EOA or undeployed.
+async fn query_code_present(addr: &str, rpc_url: &str) -> Result<bool> {
+    let body = serde_json::json!({
+        "jsonrpc": "2.0",
+        "method": "eth_getCode",
+        "params": [addr, "latest"],
+        "id": 1
+    });
+    let resp = reqwest::Client::new()
+        .post(rpc_url)
+        .json(&body)
+        .send()
+        .await
+        .with_context(|| format!("eth_getCode request to {} failed", rpc_url))?;
+    let v: serde_json::Value = resp.json().await
+        .with_context(|| format!("eth_getCode response from {} not valid JSON", rpc_url))?;
+    if let Some(err) = v.get("error") {
+        anyhow::bail!("eth_getCode on {} returned error: {}", rpc_url, err);
+    }
+    let code = v["result"].as_str().unwrap_or("0x");
+    let stripped = code.trim_start_matches("0x");
+    Ok(!stripped.is_empty() && !stripped.chars().all(|c| c == '0'))
+}
 
-    // Function selector: keccak256("proxy((uint8,address,uint256,bytes)[])")
-    let selector = Keccak256::digest(b"proxy((uint8,address,uint256,bytes)[])");
-    let selector_hex = hex::encode(&selector[..4]);
+/// Probe PROXY_FACTORY for the proxy address keyed to `eoa_addr`, and report whether
+/// that address has been deployed yet.
+///
+/// Returns:
+/// - `Ok(Some((addr, true)))`  — proxy already deployed at `addr` (recover path)
+/// - `Ok(Some((addr, false)))` — `addr` is the deterministic CREATE2 destination but
+///                                no contract is deployed there yet. Safe to call
+///                                `PROXY_FACTORY.proxy([(...)])` — the first such call
+///                                deploys the proxy atomically with the forwarded op.
+/// - `Ok(None)`                — the trace contained no factory sub-call at all.
+///                                Should not happen with the current Polymarket factory;
+///                                callers should treat it as an indeterminate state.
+/// - `Err(...)`                — both RPCs failed. Caller MUST NOT deploy or save state,
+///                                as we cannot tell which case we're in.
+pub async fn get_existing_proxy(eoa_addr: &str) -> Result<Option<(String, bool)>> {
+    let rpcs = proxy_probe_rpcs();
+    let mut last_err: Option<anyhow::Error> = None;
 
-    // ABI-encode empty dynamic array: offset=0x20 (32), length=0
-    let calldata = format!(
-        "0x{}\
-         0000000000000000000000000000000000000000000000000000000000000020\
-         0000000000000000000000000000000000000000000000000000000000000000",
-        selector_hex
-    );
+    for rpc_url in &rpcs {
+        let trace_result = match try_trace_proxy_call(eoa_addr, rpc_url).await {
+            Ok(opt) => opt,
+            Err(e) => {
+                last_err = Some(e);
+                continue;
+            }
+        };
 
-    let result = wallet_contract_call(Contracts::PROXY_FACTORY, &calldata).await?;
-    extract_tx_hash(&result)
+        let addr = match trace_result {
+            Some(a) => a,
+            None => return Ok(None),
+        };
+
+        // Determine if the address has bytecode (proxy actually deployed).
+        // Use the same RPC for consistency — if drpc.org returned the trace, ask drpc.org for code.
+        match query_code_present(&addr, rpc_url).await {
+            Ok(present) => return Ok(Some((addr, present))),
+            Err(e) => {
+                last_err = Some(e.context(format!(
+                    "Trace returned {} but eth_getCode for it failed", addr
+                )));
+                continue;
+            }
+        }
+    }
+
+    Err(last_err.unwrap_or_else(|| {
+        anyhow::anyhow!("All Polygon RPCs failed for proxy state lookup")
+    }))
 }
 
 /// Transfer USDC.e directly to a proxy wallet address.
@@ -574,7 +475,7 @@ pub async fn get_pusd_allowance(owner: &str, spender: &str) -> Result<u128> {
         "id": 1
     });
     let v: serde_json::Value = reqwest::Client::new()
-        .post(Urls::POLYGON_RPC)
+        .post(Urls::polygon_rpc())
         .json(&body)
         .send()
         .await
@@ -853,24 +754,17 @@ pub async fn approve_ctf(neg_risk: bool) -> Result<String> {
     }
 }
 
-/// ABI-encode and submit CTF redeemPositions(collateralToken, parentCollectionId, conditionId, indexSets).
+/// Pure ABI encoder for CTF.redeemPositions(collateralToken, parentCollectionId, conditionId, indexSets).
 ///
-/// Redeems all outcome positions for the given conditionId. indexSets [1, 2] covers both
-/// YES (bit 0) and NO (bit 1) outcomes — the CTF contract only pays out for winning tokens
-/// and silently no-ops for losing ones, so passing both is safe.
-/// For neg_risk (multi-outcome) markets use the NEG_RISK_ADAPTER path (not implemented here).
-///
-/// `collateral_addr`: the collateral token used at trade time.
-///   - V1 markets: Contracts::USDC_E
-///   - V2 markets: Contracts::PUSD  (from ~2026-04-28)
-pub async fn ctf_redeem_positions(condition_id: &str, collateral_addr: &str) -> Result<String> {
+/// indexSets [1, 2] covers both YES (bit 0) and NO (bit 1) outcomes — the CTF contract only
+/// pays out for winning tokens and silently no-ops for losing ones, so passing both is safe.
+/// Extracted as a pure function so the encoding can be unit-tested independently from RPC I/O.
+pub fn build_ctf_redeem_positions_calldata(condition_id: &str, collateral_addr: &str) -> String {
     use sha3::{Digest, Keccak256};
-    use crate::config::Contracts;
 
     let selector = Keccak256::digest(b"redeemPositions(address,bytes32,bytes32,uint256[])");
     let selector_hex = hex::encode(&selector[..4]);
 
-    // ABI-encode the four parameters.
     // Slots 0-2 are static (address and bytes32); slot 3 is the offset to the dynamic uint256[] array.
     let collateral  = pad_address(collateral_addr);            // address padded to 32 bytes
     let parent_id   = format!("{:064x}", 0u128);               // bytes32(0) — null parent collection
@@ -881,11 +775,23 @@ pub async fn ctf_redeem_positions(condition_id: &str, collateral_addr: &str) -> 
     let index_yes  = pad_u256(1);
     let index_no   = pad_u256(2);
 
-    let calldata = format!(
+    format!(
         "0x{}{}{}{}{}{}{}{}",
         selector_hex, collateral, parent_id, cond_id_pad,
         array_offset, array_len, index_yes, index_no
-    );
+    )
+}
+
+/// ABI-encode and submit CTF redeemPositions(collateralToken, parentCollectionId, conditionId, indexSets).
+///
+/// For neg_risk (multi-outcome) markets use the NEG_RISK_ADAPTER path (not implemented here).
+///
+/// `collateral_addr`: the collateral token used at trade time.
+///   - V1 markets: Contracts::USDC_E
+///   - V2 markets: Contracts::PUSD  (from ~2026-04-28)
+pub async fn ctf_redeem_positions(condition_id: &str, collateral_addr: &str) -> Result<String> {
+    use crate::config::Contracts;
+    let calldata = build_ctf_redeem_positions_calldata(condition_id, collateral_addr);
     let result = wallet_contract_call(Contracts::CTF, &calldata).await?;
     extract_tx_hash(&result)
 }
@@ -1006,7 +912,7 @@ pub async fn get_ctf_balance(owner: &str, token_id_decimal: &str) -> Result<u128
         "id": 1
     });
     let v: serde_json::Value = reqwest::Client::new()
-        .post(Urls::POLYGON_RPC)
+        .post(Urls::polygon_rpc())
         .json(&body)
         .send()
         .await
@@ -1816,7 +1722,8 @@ mod tests {
         let selector = Keccak256::digest(b"redeemPositions(address,bytes32,bytes32,uint256[])");
         let expected = hex::encode(&selector[..4]);
         let cid = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
-        let calldata = build_redeem_positions_calldata(cid);
+        let collateral = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"; // USDC.e (V1)
+        let calldata = build_ctf_redeem_positions_calldata(cid, collateral);
         assert!(calldata.starts_with(&format!("0x{}", expected)),
             "CTF.redeemPositions selector should be 0x{}", expected);
     }

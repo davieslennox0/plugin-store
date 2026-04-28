@@ -10,6 +10,18 @@ pub async fn run(
     breaking: bool,
     category: Option<&str>,
 ) -> Result<()> {
+    match run_inner(limit, keyword, breaking, category).await {
+        Ok(()) => Ok(()),
+        Err(e) => { println!("{}", super::error_response(&e, Some("list-markets"), None)); Ok(()) }
+    }
+}
+
+async fn run_inner(
+    limit: u32,
+    keyword: Option<&str>,
+    breaking: bool,
+    category: Option<&str>,
+) -> Result<()> {
     let client = Client::new();
 
     // --breaking or --category both use the events API

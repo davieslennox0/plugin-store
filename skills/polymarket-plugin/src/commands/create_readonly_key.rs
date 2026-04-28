@@ -15,6 +15,13 @@ use crate::onchainos::get_wallet_address;
 /// The key is NOT saved to `~/.config/polymarket/creds.json` — it is printed to stdout
 /// once. Store it securely if you intend to reuse it.
 pub async fn run() -> Result<()> {
+    match run_inner().await {
+        Ok(()) => Ok(()),
+        Err(e) => { println!("{}", super::error_response(&e, Some("create-readonly-key"), None)); Ok(()) }
+    }
+}
+
+async fn run_inner() -> Result<()> {
     let client = Client::new();
 
     // create-readonly-key is a CLOB v2-only endpoint — fail early with a clear message

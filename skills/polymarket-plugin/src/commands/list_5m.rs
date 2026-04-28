@@ -71,6 +71,13 @@ fn format_et(iso: &str) -> String {
 }
 
 pub async fn run(coin: Option<&str>, count: u32) -> Result<()> {
+    match run_inner(coin, count).await {
+        Ok(()) => Ok(()),
+        Err(e) => { println!("{}", super::error_response(&e, Some("list-5m"), None)); Ok(()) }
+    }
+}
+
+async fn run_inner(coin: Option<&str>, count: u32) -> Result<()> {
     // ── Missing --coin: ask the Agent to get it from the user ────────────────
     let coin_str = match coin {
         Some(c) => c,

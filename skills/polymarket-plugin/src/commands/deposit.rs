@@ -72,6 +72,19 @@ pub async fn run(
     list: bool,
     dry_run: bool,
 ) -> Result<()> {
+    match run_inner(amount, chain, token, list, dry_run).await {
+        Ok(()) => Ok(()),
+        Err(e) => { println!("{}", super::error_response(&e, Some("deposit"), None)); Ok(()) }
+    }
+}
+
+async fn run_inner(
+    amount: Option<&str>,
+    chain: &str,
+    token: &str,
+    list: bool,
+    dry_run: bool,
+) -> Result<()> {
     let client = Client::new();
 
     // ── --list mode ─────────────────────────────────────────────────────────

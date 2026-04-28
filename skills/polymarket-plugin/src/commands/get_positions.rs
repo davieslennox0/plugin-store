@@ -5,6 +5,13 @@ use crate::api::get_positions;
 use crate::onchainos::{get_pol_balance, get_usdc_balance, get_wallet_address};
 
 pub async fn run(address: Option<&str>) -> Result<()> {
+    match run_inner(address).await {
+        Ok(()) => Ok(()),
+        Err(e) => { println!("{}", super::error_response(&e, Some("get-positions"), None)); Ok(()) }
+    }
+}
+
+async fn run_inner(address: Option<&str>) -> Result<()> {
     let client = Client::new();
 
     // Determine which wallet to query and whether to show EOA balances.

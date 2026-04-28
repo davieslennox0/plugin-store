@@ -13,6 +13,16 @@ fn short_addr(addr: &str) -> String {
 }
 
 pub async fn run() -> Result<()> {
+    match run_inner().await {
+        Ok(()) => Ok(()),
+        Err(e) => {
+            println!("{}", super::error_response(&e, Some("balance"), None));
+            Ok(())
+        }
+    }
+}
+
+async fn run_inner() -> Result<()> {
     let eoa = get_wallet_address().await?;
     let proxy = crate::config::load_credentials()
         .ok()

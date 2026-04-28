@@ -37,6 +37,30 @@ pub async fn run(
     token_id_fast: Option<&str>,
     strategy_id: Option<&str>,
 ) -> Result<()> {
+    match run_inner(
+        market_id, outcome, amount, price, order_type, auto_approve, dry_run,
+        round_up, post_only, expires, mode_override, token_id_fast, strategy_id,
+    ).await {
+        Ok(()) => Ok(()),
+        Err(e) => { println!("{}", super::error_response(&e, Some("buy"), None)); Ok(()) }
+    }
+}
+
+async fn run_inner(
+    market_id: Option<&str>,
+    outcome: &str,
+    amount: &str,
+    price: Option<f64>,
+    order_type: &str,
+    auto_approve: bool,
+    dry_run: bool,
+    round_up: bool,
+    post_only: bool,
+    expires: Option<u64>,
+    mode_override: Option<&str>,
+    token_id_fast: Option<&str>,
+    strategy_id: Option<&str>,
+) -> Result<()> {
     // Parse USDC amount early so we can enforce the minimum order size
     // check even on dry-run (the agent needs to know before placing).
     let usdc_amount: f64 = amount.parse().context("invalid amount")?;

@@ -5,6 +5,13 @@ use crate::api::{get_clob_market, get_gamma_market_by_slug, get_market_fee, get_
 use crate::sanitize::{sanitize_opt, sanitize_opt_owned, sanitize_str};
 
 pub async fn run(market_id: &str) -> Result<()> {
+    match run_inner(market_id).await {
+        Ok(()) => Ok(()),
+        Err(e) => { println!("{}", super::error_response(&e, Some("get-market"), None)); Ok(()) }
+    }
+}
+
+async fn run_inner(market_id: &str) -> Result<()> {
     let client = Client::new();
 
     // Determine if market_id is a condition_id (0x-prefixed hex) or a slug

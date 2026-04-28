@@ -7,6 +7,13 @@ use crate::onchainos::get_wallet_address;
 
 /// Cancel a single order by order ID.
 pub async fn run_cancel_order(order_id: &str) -> Result<()> {
+    match run_cancel_order_inner(order_id).await {
+        Ok(()) => Ok(()),
+        Err(e) => { println!("{}", super::error_response(&e, Some("cancel"), None)); Ok(()) }
+    }
+}
+
+async fn run_cancel_order_inner(order_id: &str) -> Result<()> {
     let client = Client::new();
     let signer_addr = get_wallet_address().await?;
     let creds = ensure_credentials(&client, &signer_addr).await?;
@@ -22,6 +29,13 @@ pub async fn run_cancel_order(order_id: &str) -> Result<()> {
 
 /// Cancel all open orders for the authenticated user.
 pub async fn run_cancel_all() -> Result<()> {
+    match run_cancel_all_inner().await {
+        Ok(()) => Ok(()),
+        Err(e) => { println!("{}", super::error_response(&e, Some("cancel"), None)); Ok(()) }
+    }
+}
+
+async fn run_cancel_all_inner() -> Result<()> {
     let client = Client::new();
     let signer_addr = get_wallet_address().await?;
     let creds = ensure_credentials(&client, &signer_addr).await?;
@@ -37,6 +51,13 @@ pub async fn run_cancel_all() -> Result<()> {
 
 /// Cancel all orders for a specific market (by condition_id).
 pub async fn run_cancel_market(condition_id: &str, token_id: Option<&str>) -> Result<()> {
+    match run_cancel_market_inner(condition_id, token_id).await {
+        Ok(()) => Ok(()),
+        Err(e) => { println!("{}", super::error_response(&e, Some("cancel"), None)); Ok(()) }
+    }
+}
+
+async fn run_cancel_market_inner(condition_id: &str, token_id: Option<&str>) -> Result<()> {
     let client = Client::new();
     let signer_addr = get_wallet_address().await?;
     let creds = ensure_credentials(&client, &signer_addr).await?;

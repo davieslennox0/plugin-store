@@ -13,6 +13,13 @@ use crate::onchainos::get_wallet_address;
 ///            Also queries `/data/pre-migration-orders` and merges results so no V1
 ///            order is missed during the migration window.
 pub async fn run(state: &str, only_v1: bool, limit: Option<usize>) -> Result<()> {
+    match run_inner(state, only_v1, limit).await {
+        Ok(()) => Ok(()),
+        Err(e) => { println!("{}", super::error_response(&e, Some("orders"), None)); Ok(()) }
+    }
+}
+
+async fn run_inner(state: &str, only_v1: bool, limit: Option<usize>) -> Result<()> {
     let client = Client::new();
     let signer_addr = get_wallet_address().await?;
     let creds = ensure_credentials(&client, &signer_addr).await?;

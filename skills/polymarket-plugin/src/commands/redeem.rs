@@ -178,10 +178,18 @@ async fn redeem_one(
         }
 
         // Query on-chain ERC-1155 balances for each outcome token.
+        // Propagate RPC errors (don't unwrap_or(0)) — silently treating an RPC failure as
+        // "no balance" would tell users their winning tokens don't exist when really the
+        // node is just unavailable.
         let wallet = if r.proxy && proxy_addr.is_some() { proxy_addr.unwrap() } else { eoa_addr };
         let mut amounts: Vec<u128> = Vec::with_capacity(token_ids.len());
         for tid in token_ids {
-            let bal = get_ctf_balance(wallet, tid).await.unwrap_or(0);
+            let bal = get_ctf_balance(wallet, tid).await
+                .with_context(|| format!(
+                    "Failed to query CTF balance for token_id {} in wallet {}. \
+                     Polygon RPC may be unavailable — retry in a few seconds.",
+                    tid, wallet
+                ))?;
             amounts.push(bal);
         }
 
@@ -264,11 +272,17 @@ async fn redeem_one(
 /// Safe to call freely: uses `debug_traceCall` (read-only, no gas, no tx). If the
 /// RPC doesn't support `debug_traceCall` or anything else fails, returns None and
 /// callers should fall through silently — this is purely a UX hint.
+///
+/// We only return a proxy if its bytecode is present on-chain. The trace can produce
+/// a deterministic CREATE2 address even for un-deployed proxies; surfacing that in a
+/// redeem hint would mislead the user into thinking they have a usable proxy.
 async fn discover_uncached_proxy(eoa: &str, creds_proxy: Option<&str>) -> Option<String> {
     if creds_proxy.is_some() {
         return None;
     }
     get_existing_proxy(eoa).await.ok().flatten()
+        .filter(|(_, exists)| *exists)
+        .map(|(addr, _)| addr)
 }
 
 /// Build a human-readable hint pointing at a proxy wallet discovered on-chain,

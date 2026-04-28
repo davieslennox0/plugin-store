@@ -10,6 +10,13 @@ use crate::api::{get_clob_market, get_gamma_market_by_slug, get_market_live_acti
 /// `interval`: seconds between polls (minimum 2, default 5).
 /// `limit`: max events to fetch per poll (default 10).
 pub async fn run(market_id: &str, interval: u64, limit: u32) -> Result<()> {
+    match run_inner(market_id, interval, limit).await {
+        Ok(()) => Ok(()),
+        Err(e) => { println!("{}", super::error_response(&e, Some("watch"), None)); Ok(()) }
+    }
+}
+
+async fn run_inner(market_id: &str, interval: u64, limit: u32) -> Result<()> {
     if interval < 2 {
         bail!("--interval must be at least 2 seconds");
     }

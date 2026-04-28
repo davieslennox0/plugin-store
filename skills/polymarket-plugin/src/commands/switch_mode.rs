@@ -9,6 +9,13 @@ use anyhow::{bail, Result};
 use reqwest::Client;
 
 pub async fn run(mode: &str) -> Result<()> {
+    match run_inner(mode).await {
+        Ok(()) => Ok(()),
+        Err(e) => { println!("{}", super::error_response(&e, Some("switch-mode"), None)); Ok(()) }
+    }
+}
+
+async fn run_inner(mode: &str) -> Result<()> {
     let client = Client::new();
 
     let signer_addr = crate::onchainos::get_wallet_address().await?;

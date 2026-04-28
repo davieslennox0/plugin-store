@@ -5,6 +5,13 @@ use crate::sanitize::sanitize_opt_owned;
 use crate::series::{self, seconds_remaining_in_session, seconds_until_trading_opens, SERIES};
 
 pub async fn run(series_id: Option<&str>, list: bool) -> Result<()> {
+    match run_inner(series_id, list).await {
+        Ok(()) => Ok(()),
+        Err(e) => { println!("{}", super::error_response(&e, Some("get-series"), None)); Ok(()) }
+    }
+}
+
+async fn run_inner(series_id: Option<&str>, list: bool) -> Result<()> {
     // --list: print all supported series and exit
     if list || series_id.is_none() {
         let supported: Vec<serde_json::Value> = SERIES.iter().map(|s| {

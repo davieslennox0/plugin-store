@@ -35,6 +35,29 @@ pub async fn run(
     token_id_fast: Option<&str>,
     strategy_id: Option<&str>,
 ) -> Result<()> {
+    match run_inner(
+        market_id, outcome, shares, price, order_type, auto_approve, dry_run,
+        post_only, expires, mode_override, token_id_fast, strategy_id,
+    ).await {
+        Ok(()) => Ok(()),
+        Err(e) => { println!("{}", super::error_response(&e, Some("sell"), None)); Ok(()) }
+    }
+}
+
+async fn run_inner(
+    market_id: Option<&str>,
+    outcome: &str,
+    shares: &str,
+    price: Option<f64>,
+    order_type: &str,
+    auto_approve: bool,
+    dry_run: bool,
+    post_only: bool,
+    expires: Option<u64>,
+    mode_override: Option<&str>,
+    token_id_fast: Option<&str>,
+    strategy_id: Option<&str>,
+) -> Result<()> {
     // Parse shares and validate order flags up front (before any network calls).
     let share_amount: f64 = shares.parse().context("invalid shares amount")?;
     if share_amount <= 0.0 {

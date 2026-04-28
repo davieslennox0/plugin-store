@@ -12,6 +12,13 @@ use anyhow::{bail, Result};
 use crate::onchainos::{get_pusd_balance, get_usdc_balance, get_wallet_address};
 
 pub async fn run(amount: &str, dry_run: bool) -> Result<()> {
+    match run_inner(amount, dry_run).await {
+        Ok(()) => Ok(()),
+        Err(e) => { println!("{}", super::error_response(&e, Some("withdraw"), None)); Ok(()) }
+    }
+}
+
+async fn run_inner(amount: &str, dry_run: bool) -> Result<()> {
     use crate::config::Contracts;
 
     let eoa = get_wallet_address().await?;
