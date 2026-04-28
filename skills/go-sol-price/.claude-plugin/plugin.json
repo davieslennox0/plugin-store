@@ -1,8 +1,0 @@
-{
-  "name": "go-sol-price",
-  "version": "1.0.0",
-  "description": "Query real-time SOL/USDT spot price via the OKX public ticker API (Go demo).",
-  "author": {
-    "name": "yz06276"
-  }
-}

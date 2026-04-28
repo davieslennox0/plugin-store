@@ -191,37 +191,6 @@
       }
     },
     {
-      "name": "go-sol-price",
-      "version": "1.0.0",
-      "description": "Query real-time SOL/USDT spot price via the OKX public ticker API (Go demo).",
-      "author": {
-        "name": "yz06276"
-      },
-      "category": "utility",
-      "tags": [
-        "solana",
-        "trading"
-      ],
-      "type": "official",
-      "components": {
-        "skill": {
-          "repo": "okx/plugin-store",
-          "dir": "skills/go-sol-price"
-        }
-      },
-      "github_link": "https://github.com/okx/plugin-store/tree/main/skills/go-sol-price",
-      "skill_md_link": "https://raw.githubusercontent.com/okx/plugin-store/main/skills/go-sol-price/SKILL.md",
-      "summary_md_link": "https://raw.githubusercontent.com/okx/plugin-store/main/skills/go-sol-price/SUMMARY.md",
-      "modify_date": "1777362886",
-      "extra": {
-        "chains": [
-          "solana"
-        ],
-        "protocols": [],
-        "risk_level": "high"
-      }
-    },
-    {
       "name": "hyperliquid-plugin",
       "version": "0.3.9",
       "description": "Hyperliquid on-chain perpetuals DEX — check positions, get market prices, place and cancel perpetual orders on Hyperliquid L1 (chain_id 999).",
