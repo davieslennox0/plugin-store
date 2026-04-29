@@ -1,0 +1,28 @@
+schema_version: 1
+name: alphaloop-scout
+version: "1.0.0"
+description: "News-matched Polymarket prediction market signals powered by AlphaLoop AI"
+author:
+  name: "Favour Ezeoke"
+  github: "davieslennox0"
+  email: "efavour06@gmail.com"
+license: MIT
+category: trading-strategy
+tags:
+  - polymarket
+  - prediction-market
+  - signals
+  - news
+  - ai
+  - crypto
+
+components:
+  skill:
+    dir: "."
+
+api_calls:
+  - "alphaloop.duckdns.org"
+  - "gamma-api.polymarket.com"
+  - "news.google.com"
+  - "feeds.finance.yahoo.com"
+  - "feeds.feedburner.com"
