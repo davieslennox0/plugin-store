@@ -1,0 +1,13 @@
+{
+  "name": "alphaloop-scout",
+  "description": "News-matched Polymarket prediction market signals powered by AlphaLoop AI",
+  "version": "1.0.0",
+  "author": {
+    "name": "Favour Ezeoke",
+    "email": "efavour06@gmail.com"
+  },
+  "homepage": "https://alphaloop.duckdns.org",
+  "repository": "https://github.com/davieslennox0/alphaloop-scout",
+  "license": "MIT",
+  "keywords": ["polymarket", "prediction-market", "signals", "news", "ai", "crypto"]
+}
